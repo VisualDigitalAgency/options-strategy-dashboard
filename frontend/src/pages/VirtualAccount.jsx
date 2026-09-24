@@ -1,0 +1,236 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, RotateCcw } from 'lucide-react'
+import { rpc } from '../rpc'
+import { useBudget } from '../settings'
+import { dateTime, int, num, pct, rupee, rupee2, shortDate, signedRupee } from '../format'
+import SLModeSwitch, { slHelp } from '../components/SLModeSwitch'
+import { ConfirmDialog } from '../components/Modal'
+import { pnlClass } from './Portfolio'
+
+const REASON = { manual: 'Manual', sl_auto: 'Auto SL', expiry: 'Expiry' }
+
+function Fund({ label, value, sub, tone }) {
+  return (
+    <div className="stat">
+      <span className="stat-label">{label}</span>
+      <span className={`stat-value mono ${tone ?? ''}`}>{value}</span>
+      {sub && <span className="stat-sub">{sub}</span>}
+    </div>
+  )
+}
+
+export default function VirtualAccount() {
+  const [acct, setAcct] = useState(null)
+  const [orders, setOrders] = useState(null)
+  const [closed, setClosed] = useState(null)
+  const [tab, setTab] = useState('orders')
+  const [error, setError] = useState(null)
+  const [capital, setCapital] = useState(1000000)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [resetError, setResetError] = useState(null)
+  const { refresh: refreshBudget } = useBudget()
+
+  const load = useCallback(async () => {
+    try {
+      const [a, o, c] = await Promise.all([rpc('va_get_account'), rpc('va_get_orders'), rpc('va_get_closed')])
+      setAcct(a)
+      setOrders(o)
+      setClosed(c)
+      setCapital(a.starting_capital)
+      setError(null)
+    } catch (e) {
+      setError(e.message)
+    }
+  }, [])
+
+  useEffect(() => {
+    document.title = 'Virtual account · Theta Desk'
+    load()
+  }, [load])
+
+  async function setDefault(mode) {
+    setAcct((a) => ({ ...a, sl_mode_default: mode }))
+    try {
+      await rpc('va_set_sl_mode', { mode })
+    } catch (e) {
+      setError(e.message)
+      load()
+    }
+  }
+
+  async function doReset() {
+    setBusy(true)
+    setResetError(null)
+    try {
+      await rpc('va_reset', { starting_capital: Number(capital) })
+      setConfirmReset(false)
+      await load()
+      refreshBudget()
+    } catch (e) {
+      setResetError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const winners = closed?.filter((c) => c.realized_pnl > 0).length ?? 0
+
+  return (
+    <div className="detail">
+      <section className="statement">
+        <div className="statement-main">
+          <h1 className="sr-only">Virtual account</h1>
+          <p className="statement-label">Virtual account value</p>
+          {acct ? (
+            <>
+              <p className="statement-value display-num">{rupee(acct.account_value)}</p>
+              <p className="lede">
+                <span className={pnlClass(acct.account_value - acct.starting_capital)}>
+                  {signedRupee(acct.account_value - acct.starting_capital)} ({pct(acct.return_pct, 2)})
+                </span>{' '}
+                since you started with {rupee(acct.starting_capital)} on {dateTime(acct.created_at)}.
+              </p>
+            </>
+          ) : (
+            <span className="skeleton" style={{ width: 260, height: 56 }} />
+          )}
+        </div>
+        {acct && (
+          <div className="equity" aria-label={`Margin in use ${rupee(acct.used_margin)}, free ${rupee(acct.available_margin)}`}>
+            <div className="equity-bar" aria-hidden>
+              <span className="eq-used" style={{ flexGrow: Math.max(acct.used_margin, 0) || 0.0001 }} />
+              <span className="eq-free" style={{ flexGrow: Math.max(acct.available_margin, 0) || 0.0001 }} />
+            </div>
+            <div className="equity-legend">
+              <span><i className="eq-used" aria-hidden /> Margin in use <b className="num">{rupee(acct.used_margin)}</b></span>
+              <span><i className="eq-free" aria-hidden /> Free for new trades <b className="num">{rupee(acct.available_margin)}</b></span>
+            </div>
+            <Link className="btn" to="/portfolio">View {acct.open_positions} open leg{acct.open_positions === 1 ? '' : 's'}</Link>
+          </div>
+        )}
+      </section>
+
+      {error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
+
+      <section className="ledger ledger-4" aria-label="Performance">
+        {acct ? (
+          <>
+            <Fund label="Realised P&L" value={signedRupee(acct.realized_pnl)} tone={pnlClass(acct.realized_pnl)} sub="from closed legs" />
+            <Fund label="Open P&L" value={signedRupee(acct.unrealized_pnl)} tone={pnlClass(acct.unrealized_pnl)} sub={`${acct.open_positions} open leg${acct.open_positions === 1 ? '' : 's'}, marked at last price`} />
+            <Fund label="Win rate" value={closed?.length ? pct((winners / closed.length) * 100, 0) : '—'} sub={closed ? `${winners} of ${closed.length} closed legs in profit` : ''} />
+            <Fund label="Orders placed" value={orders ? orders.length : '—'} sub={orders ? `${orders.filter((o) => o.reason === 'sl_auto').length} closed by auto stop loss` : ''} />
+          </>
+        ) : (
+          Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="stat">
+              <span className="skeleton" style={{ width: '50%', height: 12 }} />
+              <span className="skeleton" style={{ width: '70%', height: 26, margin: '6px 0' }} />
+            </div>
+          ))
+        )}
+      </section>
+
+      <div className="two-col">
+        <section className="card">
+          <header className="card-head"><h2>Default stop loss</h2><span className="muted small">Applies to new short legs</span></header>
+          {acct ? <SLModeSwitch value={acct.sl_mode_default} onChange={setDefault} /> : <span className="skeleton" style={{ height: 40 }} />}
+          <p className="helper">{acct && slHelp(acct.sl_mode_default)} Change it per leg anytime on the Portfolio page.</p>
+          <p className="muted small">Stop losses are checked every minute during market hours (9:15–15:30 IST), even with this page closed, as long as the server is running.</p>
+        </section>
+
+        <section className="card">
+          <header className="card-head"><h2>Reset account</h2><span className="muted small">Clears all positions and history</span></header>
+          <div className="reset-row">
+            <div className="field">
+              <label htmlFor="reset-cap">Starting capital (₹)</label>
+              <input id="reset-cap" type="number" inputMode="numeric" min="10000" step="100000" value={capital} onChange={(e) => setCapital(e.target.value)} />
+            </div>
+            <button className="btn danger-ghost" onClick={() => { setResetError(null); setConfirmReset(true) }}>
+              <RotateCcw size={16} aria-hidden /> Reset
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <section className="card">
+        <header className="card-head">
+          <div className="segmented small" role="tablist" aria-label="History">
+            <button role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')}>
+              Order history <span className="count mono">{orders?.length ?? ''}</span>
+            </button>
+            <button role="tab" aria-selected={tab === 'closed'} className={tab === 'closed' ? 'active' : ''} onClick={() => setTab('closed')}>
+              Closed positions <span className="count mono">{closed?.length ?? ''}</span>
+            </button>
+          </div>
+        </header>
+
+        <div className="table-scroll" role="tabpanel">
+          {tab === 'orders' && (
+            orders?.length ? (
+              <table className="legs history">
+                <thead>
+                  <tr><th>Time</th><th>Instrument</th><th>Side</th><th className="num">Qty</th><th className="num">Price</th><th className="num">Realised</th><th>Source</th></tr>
+                </thead>
+                <tbody>
+                  {orders.map((o) => (
+                    <tr key={o.id}>
+                      <td data-label="Time" className="mono small">{dateTime(o.ts)}</td>
+                      <td data-label="Instrument">{o.symbol} {shortDate(o.expiry)} <b className="mono">{o.strike}</b> {o.side}</td>
+                      <td data-label="Side"><span className={`side-tag ${o.action.toLowerCase()}`}>{o.action}</span></td>
+                      <td data-label="Qty" className="num mono">{int(o.qty)}</td>
+                      <td data-label="Price" className="num mono">{rupee2(o.price)}</td>
+                      <td data-label="Realised" className={`num mono ${pnlClass(o.realized_pnl)}`}>{o.realized_pnl ? signedRupee(o.realized_pnl) : '—'}</td>
+                      <td data-label="Source">
+                        <span className={`reason reason-${o.reason}`}>{REASON[o.reason] ?? o.reason}</span>
+                        {o.note && <span className="sub">{o.note}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="empty">{orders ? 'No orders yet. Place a virtual order from any setup in the screener.' : 'Loading…'}</p>
+            )
+          )}
+          {tab === 'closed' && (
+            closed?.length ? (
+              <table className="legs history">
+                <thead>
+                  <tr><th>Closed</th><th>Instrument</th><th className="num">Entry</th><th className="num">Exit</th><th className="num">Realised P&L</th></tr>
+                </thead>
+                <tbody>
+                  {closed.map((c) => (
+                    <tr key={c.id}>
+                      <td data-label="Closed" className="mono small">{dateTime(c.closed_at)}</td>
+                      <td data-label="Instrument">{c.symbol} {shortDate(c.expiry)} <b className="mono">{c.strike}</b> {c.side}</td>
+                      <td data-label="Entry" className="num mono">{num(c.avg_price)}</td>
+                      <td data-label="Exit" className="num mono">{num(c.exit_price)}</td>
+                      <td data-label="Realised P&L" className={`num mono ${pnlClass(c.realized_pnl)}`}>{signedRupee(c.realized_pnl)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="empty">{closed ? 'No closed positions yet.' : 'Loading…'}</p>
+            )
+          )}
+        </div>
+      </section>
+
+      {confirmReset && (
+        <ConfirmDialog
+          title="Reset virtual account?"
+          body={`All ${acct?.open_positions ?? 0} open positions, order history and P&L will be deleted. The account restarts with ${rupee(Number(capital))}. This can't be undone.`}
+          confirmLabel="Reset account"
+          danger
+          busy={busy}
+          error={resetError}
+          onConfirm={doReset}
+          onClose={() => setConfirmReset(false)}
+        />
+      )}
+    </div>
+  )
+}
