@@ -128,5 +128,10 @@ class ZerodhaAdapter(BrokerAdapter):
 
     def get_margins(self, session: BrokerSession) -> dict:
         margins = self._client(session).margins("equity")
-        available = margins.get("available", {}).get("live_balance")
-        return {"available_margin": float(available) if available is not None else 0.0, "raw": margins}
+        available = margins.get("available", {})
+        cash = float(available.get("live_balance") or 0.0)
+        collateral = float(available.get("collateral") or 0.0)
+        # live_balance is cash-only; pledged-stock collateral is a separate additive component
+        # Kite doesn't fold into it, but it still counts toward SPAN+exposure margin for F&O.
+        return {"available_margin": cash + collateral, "cash_margin": cash,
+                "collateral_margin": collateral, "raw": margins}
