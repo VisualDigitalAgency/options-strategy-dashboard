@@ -40,7 +40,11 @@ def _credentials() -> tuple[str, str]:
     api_key = settings.secret("KITE_API_KEY")
     api_secret = settings.secret("KITE_API_SECRET")
     if not api_key or not api_secret:
-        raise RuntimeError("KITE_API_KEY / KITE_API_SECRET_FILE are not set")
+        # Only admins can reach any code path that calls this (broker_connect_url/
+        # broker_exchange_token are ADMIN_METHODS), so a ValueError surfacing the exact missing
+        # var is safe and actionable — not an internal detail to hide behind a ref id.
+        raise ValueError("Zerodha isn't configured on this server yet (KITE_API_KEY / "
+                          "KITE_API_SECRET_FILE are not set) — set them and redeploy before connecting.")
     return api_key, api_secret
 
 
