@@ -41,7 +41,7 @@ services:
       DB_APP_PASSWORD: ${DB_APP_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./deploy/postgres-init.coolify.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+      - ./deploy/postgres-init.coolify.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
     security_opt: [no-new-privileges:true]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U theta_owner -d theta"]
