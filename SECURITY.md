@@ -19,7 +19,9 @@ Only `main`, which is what runs in production. There are no released versions.
 
 In scope: the API (`server.py`, `rpc_guard.py`, `engine/`), the frontend, the Caddy configs, the Docker and Coolify deployment files, and the CI/CD workflow.
 
-Out of scope: NSE, Yahoo Finance, Cloudflare and Coolify themselves; volumetric denial of service; and the fact that the app trades on a virtual account only (there is no broker connection and no real money).
+Out of scope: NSE, Yahoo Finance, Zerodha/Kite Connect, Cloudflare and Coolify themselves; volumetric denial of service.
+
+**Real broker connections (phase 1).** The app can now connect a user's own Zerodha account (`engine/broker.py`, `engine/brokers/`) and place real, real-money orders — soft-launched to admin accounts only, manual-confirm-only (no autonomous real-money auto-trade; `engine/autotrade.py` still only trades the virtual account). A Zerodha access token is encrypted at rest (`engine/broker_crypto.py`, Fernet, key from `BROKER_ENC_KEY`/`BROKER_ENC_KEY_FILE`) and only decrypted in-process to call Kite; it is never logged. Disconnecting a broker best-effort invalidates the token at Zerodha's end too, but the primary control is always the local `broker_connections` row — if invalidation at Zerodha fails, the app still refuses to use that connection. Known limitation: encryption key rotation has no tooling yet (see `doc/2026-09-26-broker-integration-phase1-zerodha.md`).
 
 ## What's already in place
 

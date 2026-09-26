@@ -6,6 +6,7 @@ import { useBudget } from '../settings'
 import { rupee, rupee2, int, shortDate, dateTime } from '../format'
 import Modal from './Modal'
 import SLModeSwitch, { slHelp } from './SLModeSwitch'
+import RealOrderConfirmDialog from './RealOrderConfirmDialog'
 
 const TICK = 0.05
 const toTick = (v) => Math.round(v / TICK) * TICK
@@ -27,6 +28,34 @@ export default function OrderModal({ d, lots, onClose }) {
   const [confirming, setConfirming] = useState(false)
   const [reload, setReload] = useState(0)
   const { refresh } = useBudget()
+
+  // Real broker (phase 1: Zerodha, admin-only). null until checked; a non-admin or anyone
+  // without a connection just never sees this become active — the button stays disabled.
+  const [brokerConnected, setBrokerConnected] = useState(false)
+  const [realPreview, setRealPreview] = useState(null)
+  const [realError, setRealError] = useState(null)
+  const [realBusy, setRealBusy] = useState(false)
+  useEffect(() => {
+    rpc('broker_status').then((s) => setBrokerConnected(s.status === 'active')).catch(() => {})
+  }, [])
+
+  async function previewReal() {
+    setRealError(null)
+    setRealBusy(true)
+    try {
+      setRealPreview(await rpc('broker_preview_order', { symbol: d.symbol, expiry: d.expiry, legs }))
+    } catch (e) {
+      setRealError(e.message)
+    } finally {
+      setRealBusy(false)
+    }
+  }
+
+  async function placeReal(confirmToken) {
+    await rpc('broker_place_order', { confirm_token: confirmToken })
+    setRealPreview(null)
+    refresh()
+  }
 
   useEffect(() => {
     clearTimeout(debounce.current)
@@ -145,6 +174,7 @@ export default function OrderModal({ d, lots, onClose }) {
         <p className="form-error" role="alert">Not enough virtual funds. Exit a position or reset the account with more capital.</p>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {realError && <p className="form-error" role="alert">{realError}</p>}
       {confirming && (
         <div className="alert warn-alert confirm-waiting" role="alert">
           <AlertTriangle size={18} aria-hidden />
@@ -177,11 +207,19 @@ export default function OrderModal({ d, lots, onClose }) {
       ) : (
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" disabled title="Enabled once a broker API is connected">Place live order</button>
+          <button className="btn" onClick={previewReal} disabled={!brokerConnected || realBusy}
+            title={brokerConnected ? 'Places a real order at your connected broker' : 'Connect a broker on the Broker page first'}>
+            {realBusy ? 'Checking…' : 'Place live order'}
+          </button>
           <button className="btn primary" onClick={() => place()} disabled={!preview || !preview.sufficient || busy}>
             {busy ? 'Placing…' : 'Place virtual limit order'}
           </button>
         </div>
+      )}
+
+      {realPreview && (
+        <RealOrderConfirmDialog symbol={d.symbol} expiry={shortDate(d.expiry)} preview={realPreview}
+          onConfirm={placeReal} onClose={() => setRealPreview(null)} />
       )}
     </Modal>
   )

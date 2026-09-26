@@ -20,6 +20,7 @@ import time
 
 from . import autotrade, cache, config, users, virtual
 from .batch import FORCE, ScreenJob
+from .brokers.poller import start_poller as start_broker_poller
 
 LOCK_TTL = 60
 RENEW_EVERY = 15
@@ -102,6 +103,7 @@ def main() -> None:
     start_screen_refresher(job)
     virtual.start_monitor()
     autotrade.start_scheduler(lambda: fresh_screen(job))
+    start_broker_poller()
     _hold(lock)
 
 

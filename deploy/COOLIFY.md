@@ -72,6 +72,16 @@ A failed deploy leaves the previous containers running only if the build failed;
 
 The Coolify UI can redeploy a previous commit. The database is only created by migrations, so rolling back past a migration needs `alembic downgrade` run in `migrate` first.
 
+## Real broker connection (phase 1: Zerodha)
+
+See `doc/2026-09-26-broker-integration-phase1-zerodha.md` for the full design. Coolify env vars to add (theta-desk → Environment Variables):
+
+- `BROKER_ENC_KEY` — a Fernet key (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`), used to encrypt every user's Zerodha access token at rest. Rotating it makes existing connections unreadable (users just reconnect).
+- `KITE_API_KEY` / `KITE_API_SECRET` — from the one Kite Connect app registered at developers.kite.trade for this deployment. Every user connects their own Zerodha account through it; these two are operator-level, not per-user.
+- `KITE_REDIRECT_URL` — must exactly match the redirect URL registered for the Kite Connect app, e.g. `https://theta.connectbiomedical.com/broker/zerodha/callback`.
+
+Phase 1 is soft-launched to admin accounts only (`ctx.user["role"] == "admin"` gates `broker_connect_url`/`broker_exchange_token`), so these vars can be set without exposing real-money trading to every user.
+
 ## Known residual risks
 
 - Coolify injects every UI variable into every service (`env_file: .env`), so `DB_OWNER_PASSWORD` is readable inside api, worker and web. The app only uses it in `migrate`. The code can't remove this; it goes away only if you keep the owner password out of Coolify and run migrations by hand.

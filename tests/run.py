@@ -48,7 +48,9 @@ def main() -> int:
         db = f"theta_test_{i}"
         env = {**os.environ, "DB_NAME": db, "DB_PASSWORD": os.environ["DB_APP_PASSWORD"],
                "PYTHONPATH": os.pathsep.join([str(ROOT), str(ROOT / "tests")]), "TZ": "Asia/Kolkata",
-               "COOKIE_SECURE": "0"}
+               "COOKIE_SECURE": "0",
+               # A fixed Fernet key so tests can encrypt/decrypt broker tokens; never used outside tests.
+               "BROKER_ENC_KEY": "f_vrd8U3ODxghM6msA_v21-X3vLvbrKMuQFAgqAOQgU="}
         os.environ["DB_NAME"] = db  # for fresh_database's owner URL
         fresh_database(db)
         redis.Redis.from_url(os.environ["REDIS_URL"]).flushdb()

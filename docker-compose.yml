@@ -82,6 +82,11 @@ services:
       TRUST_PROXY: "1"
       ALLOWED_ORIGINS: ${PUBLIC_URL:-https://${DOMAIN}}
       TZ: Asia/Kolkata
+      BROKER_ENC_KEY_FILE: /run/secrets/broker_enc_key
+      KITE_API_KEY: ${KITE_API_KEY:-}
+      KITE_API_SECRET_FILE: /run/secrets/kite_api_secret
+      KITE_REDIRECT_URL: ${KITE_REDIRECT_URL:-}
+    secrets: [db_app_password, redis_password, broker_enc_key, kite_api_secret]
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -95,6 +100,17 @@ services:
   worker:
     <<: *app
     command: ["python", "-m", "engine.worker"]
+    environment:
+      DB_HOST: postgres
+      DB_PASSWORD_FILE: /run/secrets/db_app_password
+      REDIS_HOST: redis
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+      TZ: Asia/Kolkata
+      BROKER_ENC_KEY_FILE: /run/secrets/broker_enc_key
+      KITE_API_KEY: ${KITE_API_KEY:-}
+      KITE_API_SECRET_FILE: /run/secrets/kite_api_secret
+    secrets: [db_app_password, redis_password, broker_enc_key, kite_api_secret]
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -134,6 +150,8 @@ secrets:
   db_owner_password: { file: ./secrets/db_owner_password }
   db_app_password: { file: ./secrets/db_app_password }
   redis_password: { file: ./secrets/redis_password }
+  broker_enc_key: { file: ./secrets/broker_enc_key }
+  kite_api_secret: { file: ./secrets/kite_api_secret }
 
 volumes:
   pg_data:
