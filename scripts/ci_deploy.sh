@@ -11,7 +11,19 @@ set -euo pipefail
 API="${COOLIFY_URL%/}/api/v1"
 auth=(-H "Authorization: Bearer ${COOLIFY_TOKEN}" -H "Accept: application/json")
 
-api() { curl -fsS --retry 3 --retry-all-errors --max-time 30 "${auth[@]}" "$@"; }
+# Prints the body; on HTTP >= 400 shows status, server and the start of the body, then fails.
+# (A 403 served by Cloudflare rather than Coolify means a WAF / bot rule blocked the runner.)
+api() {
+  local out code
+  out=$(curl -sS --retry 3 --max-time 30 -w '\n%{http_code} %header{server}' "${auth[@]}" "$@") || return 1
+  code=${out##*$'\n'}
+  out=${out%$'\n'*}
+  if (( ${code%% *} >= 400 )); then
+    echo "::error::Coolify API returned ${code%% *} (server: ${code#* }): $(head -c 300 <<<"$out" | tr '\n' ' ')" >&2
+    return 1
+  fi
+  printf '%s' "$out"
+}
 
 if [[ "${1:-}" == "--live-commit" ]]; then
   api "$API/deployments/applications/$COOLIFY_APP_UUID?skip=0&take=10" |
