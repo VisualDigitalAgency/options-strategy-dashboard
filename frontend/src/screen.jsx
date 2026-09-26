@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { rpc } from './rpc'
 
-const POLL_MS = 2000
+// The backend refreshes the screen on its own timer; this only reads the cache.
+const POLL_IDLE_MS = 60000 // nothing in flight: check once a minute for a newer screen
+const POLL_ACTIVE_MS = 10000 // backend is refreshing: pick up new rows as batches land
 const ScreenContext = createContext(null)
 
 export function ScreenProvider({ children }) {
@@ -11,13 +13,16 @@ export function ScreenProvider({ children }) {
 
   const load = useCallback(async (force = false) => {
     clearTimeout(timer.current)
-    setError(null)
+    let next = POLL_IDLE_MS
     try {
       const res = await rpc('get_screened_candidates', { force_refresh: force })
-      setData(res)
-      if (res.progress.running) timer.current = setTimeout(() => load(false), POLL_MS)
+      setData(res) // replaces rows in place; never clears what is on screen
+      setError(null)
+      if (res.refreshing) next = POLL_ACTIVE_MS
     } catch (e) {
-      setError(e.message)
+      setError(e.message) // keep showing the last data; the error shows as a banner
+    } finally {
+      timer.current = setTimeout(() => load(false), next)
     }
   }, [])
 
@@ -26,8 +31,10 @@ export function ScreenProvider({ children }) {
     return () => clearTimeout(timer.current)
   }, [load])
 
-  const loading = !data || data.progress.running
-  return <ScreenContext.Provider value={{ data, loading, error, load }}>{children}</ScreenContext.Provider>
+  const refreshing = !!data?.refreshing
+  // "loading" now means only the very first screen, before any cache exists.
+  const loading = !data || (!data.candidates.length && refreshing)
+  return <ScreenContext.Provider value={{ data, loading, refreshing, error, load }}>{children}</ScreenContext.Provider>
 }
 
 export const useScreen = () => useContext(ScreenContext)

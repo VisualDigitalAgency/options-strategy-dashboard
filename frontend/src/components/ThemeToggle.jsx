@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
+import { savePref } from '../auth'
 
 const KEY = 'options-screener-theme'
 const media = window.matchMedia('(prefers-color-scheme: light)')
@@ -31,6 +32,7 @@ export default function ThemeToggle() {
   const toggle = () => {
     const next = dark ? 'light' : 'dark'
     setTheme(next)
+    savePref({ theme: next })
     try {
       localStorage.setItem(KEY, next)
     } catch {

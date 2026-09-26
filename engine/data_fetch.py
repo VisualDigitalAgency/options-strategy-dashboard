@@ -64,12 +64,53 @@ def fetch_expiries(symbol: str) -> list[pd.Timestamp]:
     return [pd.to_datetime(e, format="%d-%b-%Y") for e in raw.get("expiryDates", [])]
 
 
+class NseSchemaError(RuntimeError):
+    """Raised when NSE's option-chain response no longer matches the expected shape.
+
+    NSE has silently swapped this endpoint before (option-chain-equities -> option-chain-v3),
+    so a shape drift should surface as a loud, specific error rather than a KeyError deep in
+    normalize_option_chain or silently-empty data.
+    """
+
+
+def _validate_option_chain_shape(raw: dict, symbol: str) -> None:
+    records = raw.get("records")
+    if not isinstance(records, dict):
+        raise NseSchemaError(
+            f"NSE option-chain response for {symbol} is missing 'records' — API shape may have changed"
+        )
+    data = records.get("data")
+    if not isinstance(data, list) or not data:
+        raise NseSchemaError(
+            f"NSE option-chain response for {symbol} has no 'records.data' rows — API shape may have changed"
+        )
+    if "underlyingValue" not in records:
+        raise NseSchemaError(
+            f"NSE option-chain response for {symbol} is missing 'records.underlyingValue' — API shape may have changed"
+        )
+    sample = next((row for row in data if row.get("CE") or row.get("PE")), None)
+    if sample is None:
+        raise NseSchemaError(
+            f"NSE option-chain response for {symbol} has no CE/PE rows — API shape may have changed"
+        )
+    leg = sample.get("CE") or sample.get("PE")
+    expected_fields = {"openInterest", "changeinOpenInterest", "lastPrice", "impliedVolatility"}
+    missing = expected_fields - leg.keys()
+    if missing:
+        raise NseSchemaError(
+            f"NSE option-chain response for {symbol} is missing fields {missing} on CE/PE rows — "
+            "API shape may have changed"
+        )
+
+
 def fetch_option_chain(symbol: str, expiry: pd.Timestamp) -> dict:
     """Raw NSE v3 option-chain JSON for one equity symbol and one expiry."""
-    return _nse_get(
+    raw = _nse_get(
         NSE_OPTION_CHAIN_URL,
         {"type": "Equity", "symbol": symbol, "expiry": expiry.strftime("%d-%b-%Y")},
     )
+    _validate_option_chain_shape(raw, symbol)
+    return raw
 
 
 def normalize_option_chain(raw: dict) -> pd.DataFrame:

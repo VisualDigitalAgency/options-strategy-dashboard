@@ -103,56 +103,76 @@ function sdLayers(sd) {
   ]
 }
 
+function PriceBadge({ viewBox, value }) {
+  if (!viewBox) return null
+  const w = 150, h = 22
+  const x = Math.max(4, viewBox.x - w / 2)
+  return (
+    <g>
+      <rect x={x} y={viewBox.y - h - 4} width={w} height={h} rx={5} fill="var(--tip-bg)" stroke="var(--border-strong)" />
+      <text x={x + w / 2} y={viewBox.y - 11} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--text)">{value}</text>
+    </g>
+  )
+}
+
 /**
- * Strategy lab payoff: expiry P&L (areas) plus the modelled P&L on the chosen day (brass line).
- * legs: [{side, strike, premium, iv}] short legs.
+ * Strategy lab payoff: expiry P&L (areas) plus the modelled P&L on the target date (brass line),
+ * with ±n standard-deviation lines and a boxed current-price marker.
  */
-export function LabPayoff({ legs, spot, target, dte, qty, daysLeft, day, breakevens, sd }) {
+export function LabPayoff({ legs, spot, target, dte, qty, daysLeft, day, breakevens, sd, sdCount = 2 }) {
+  const edge = sd[Math.min(sdCount + 0, 3)] ?? sd[2]
   const points = useMemo(() => {
-    const lo = Math.min(spot * 0.8, ...(sd ? [sd[2].low * 0.97] : []), ...breakevens.map((b) => b * 0.95))
-    const hi = Math.max(spot * 1.2, ...(sd ? [sd[2].high * 1.03] : []), ...breakevens.map((b) => b * 1.05))
-    const step = (hi - lo) / 160
-    return Array.from({ length: 161 }, (_, i) => {
+    const lo = Math.min(spot * 0.85, edge.low * 0.98, ...breakevens.map((b) => b * 0.96))
+    const hi = Math.max(spot * 1.15, edge.high * 1.02, ...breakevens.map((b) => b * 1.04))
+    const step = (hi - lo) / 180
+    return Array.from({ length: 181 }, (_, i) => {
       const px = lo + i * step
       const exp = legs.reduce((s, l) => s + l.premium - intrinsic(l.side, px, l.strike), 0) * qty
       const onDay = legs.reduce((s, l) => s + l.premium - calibratedValue(l, spot, dte, px, daysLeft), 0) * qty
       return { px: Math.round(px * 100) / 100, pnl: exp, profit: Math.max(exp, 0), loss: Math.min(exp, 0), onDay }
     })
-  }, [legs, spot, dte, qty, daysLeft, breakevens, sd])
+  }, [legs, spot, dte, qty, daysLeft, breakevens, edge])
+
+  const sdLines = []
+  for (let n = 1; n <= sdCount; n++) {
+    sdLines.push(
+      <ReferenceLine key={`l${n}`} x={sd[n].low} stroke={C.axis} strokeOpacity={0.55} strokeDasharray="3 4" ifOverflow="hidden"
+        label={{ value: `−${n}SD`, fill: C.axis, fontSize: 11, position: 'top' }} />,
+      <ReferenceLine key={`h${n}`} x={sd[n].high} stroke={C.axis} strokeOpacity={0.55} strokeDasharray="3 4" ifOverflow="hidden"
+        label={{ value: `${n}SD`, fill: C.axis, fontSize: 11, position: 'top' }} />,
+    )
+  }
 
   return (
-    <figure className="chart" aria-label={`Payoff at expiry and on day ${day}, breakevens ${breakevens.map((b) => Math.round(b)).join(' and ')}`}>
-      <ResponsiveContainer width="100%" height={320}>
-        <ComposedChart data={points} margin={{ top: 18, right: 16, bottom: 4, left: 8 }}>
+    <figure className="chart lab-payoff" aria-label={`Payoff at expiry and on day ${day}, breakevens ${breakevens.map((b) => Math.round(b)).join(' and ')}`}>
+      <ResponsiveContainer width="100%" height={360}>
+        <ComposedChart data={points} margin={{ top: 40, right: 16, bottom: 4, left: 8 }}>
           <CartesianGrid stroke={C.grid} vertical={false} />
+          {/* Alternating shaded bands between SD lines, like a probability map */}
+          {Array.from({ length: sdCount }, (_, i) => i + 1).map((n) => (
+            <ReferenceArea key={`b${n}`} x1={sd[n].low} x2={sd[n].high} fill="var(--text)" fillOpacity={0.035} ifOverflow="hidden" />
+          ))}
           <XAxis dataKey="px" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => Math.round(v)} {...axisProps} />
           <YAxis tickFormatter={(v) => `${v < 0 ? '-' : ''}₹${int(Math.abs(Math.round(v / 1000)))}k`} width={60} {...axisProps} />
           <Tooltip
             content={<Tip rows={(px, p) => [['Price', num(px)], ['P&L at expiry', rupee(p.pnl)], [day === 0 ? 'P&L today' : `P&L on day ${day}`, rupee(p.onDay)]]} />}
             cursor={{ stroke: C.axis, strokeDasharray: '3 3' }}
           />
-          {sdLayers(sd)}
+          {sdLines}
           <ReferenceLine y={0} stroke={C.axis} />
-          <Area dataKey="profit" type="linear" stroke={C.up} fill={C.up} fillOpacity={0.16} strokeWidth={2} isAnimationActive={false} />
-          <Area dataKey="loss" type="linear" stroke={C.down} fill={C.down} fillOpacity={0.16} strokeWidth={2} isAnimationActive={false} />
-          <Line dataKey="onDay" type="monotone" stroke={C.accent} strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
-          <ReferenceLine x={spot} stroke={C.primary} strokeWidth={1.5} label={{ value: `Spot ${num(spot, 0)}`, fill: C.primary, fontSize: 12, position: 'top' }} />
+          <Area dataKey="profit" type="linear" stroke={C.up} fill={C.up} fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />
+          <Area dataKey="loss" type="linear" stroke={C.down} fill={C.down} fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />
+          <Line dataKey="onDay" type="monotone" stroke={C.accent} strokeWidth={2.25} dot={false} isAnimationActive={false} />
+          <ReferenceLine x={spot} stroke={C.primary} strokeWidth={1.5} label={<PriceBadge value={`Current price: ${num(spot)}`} />} />
           {target != null && (
-            <ReferenceLine x={target} stroke={C.accent} strokeWidth={1.5} label={{ value: `Target ${num(target, 0)}`, fill: C.accent, fontSize: 12, position: 'insideTopRight' }} />
+            <ReferenceLine x={target} stroke={C.accent} strokeWidth={1.5} strokeDasharray="6 3"
+              label={{ value: `Target ${num(target, 0)}`, fill: C.accent, fontSize: 12, position: 'insideBottomRight' }} />
           )}
-          {legs.map((l) => (
-            <ReferenceLine key={l.side} x={l.strike} stroke={l.side === 'CE' ? C.ce : C.pe} strokeWidth={1} />
+          {breakevens.map((b) => (
+            <ReferenceLine key={b} x={b} stroke="transparent" label={{ value: `BE ${Math.round(b)}`, fill: C.axis, fontSize: 11, position: 'insideBottom' }} />
           ))}
         </ComposedChart>
       </ResponsiveContainer>
-      <figcaption className="legend-row">
-        <span><i className="sw sw-up" /> Profit at expiry</span>
-        <span><i className="sw sw-down" /> Loss at expiry</span>
-        <span><i className="sw sw-dash-accent" /> {day === 0 ? 'Today' : `Day ${day}`}</span>
-        <span><i className="sw sw-zone" /> 1σ range</span>
-        <span><i className="sw sw-ce" /> Call strike</span>
-        <span><i className="sw sw-pe" /> Put strike</span>
-      </figcaption>
     </figure>
   )
 }

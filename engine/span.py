@@ -23,6 +23,7 @@ from .data_fetch import _HEADERS
 SPAN_URL = "https://nsearchives.nseindia.com/archives/nsccl/span/nsccl.{d}.{suffix}.zip"
 _SUFFIXES = ["i6", "i5", "i4", "i3", "i2", "i1", "s"]  # newest intraday first; "s" = end of day
 CACHE_DIR = Path(__file__).parent / "cache"
+KEEP_FILES = 2  # newest SPAN zips kept on disk: the one in use plus the previous for comparison
 _REFRESH_SECONDS = 60 * 60
 
 _state = {"ts": 0.0, "source": None, "arrays": {}}
@@ -76,7 +77,22 @@ def load(symbols: list[str]) -> dict:
         CACHE_DIR.mkdir(exist_ok=True)
         (CACHE_DIR / f"{name}.zip").write_bytes(blob)
         _state.update(ts=time.time(), source=name, arrays=_parse(blob, set(symbols)))
+        _prune_cache()
     return _state
+
+
+def _prune_cache(keep: int = KEEP_FILES) -> list[str]:
+    """Deletes all but the newest `keep` SPAN zips. The app always parses the fresh download, so
+    older copies are only kept for reference; each is ~8 MB and NSE publishes several a day."""
+    files = sorted(CACHE_DIR.glob("nsccl.*.zip"), key=lambda f: f.stat().st_mtime, reverse=True)
+    removed = []
+    for f in files[keep:]:
+        try:
+            f.unlink()
+            removed.append(f.name)
+        except OSError:
+            pass  # file in use or already gone; the next download retries
+    return removed
 
 
 def scan_risk_positions(symbol: str, expiry_yyyymmdd: str, positions: list[dict]) -> float | None:

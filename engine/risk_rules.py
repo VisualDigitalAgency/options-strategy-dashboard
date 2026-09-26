@@ -201,6 +201,8 @@ def evaluate_symbol(symbol: str, yf_symbol: str, today: pd.Timestamp | None = No
         "activates_on": (today + timedelta(days=config.SL_GRACE_DAYS)).strftime("%Y-%m-%d"),
         "expiry": result["expiry"],
         "levels": {l["side"]: l["premium"] for l in legs},
+        # Stock options settle by physical delivery: every leg closes once fewer than TIME_EXIT_DTE days remain.
+        "time_exit_on": (expiry - timedelta(days=config.TIME_EXIT_DTE - 1)).strftime("%Y-%m-%d"),
     }
     return result
 

@@ -1,7 +1,13 @@
 const inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 })
 const inr2 = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-export const num = (v, d = 2) => (v == null || Number.isNaN(v) ? '—' : Number(v).toFixed(d))
+const fixed = {}
+const fmtFixed = (d) =>
+  (fixed[d] ??= new Intl.NumberFormat('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }))
+/** Indian digit grouping with fixed decimals: 11990 -> 11,990.00 */
+export const num = (v, d = 2) => (v == null || Number.isNaN(v) ? '—' : fmtFixed(d).format(v))
+export const signedPct = (v, d = 2) =>
+  v == null || Number.isNaN(v) ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}%`
 export const rupee = (v) => (v == null ? '—' : `₹${inr.format(Math.round(v))}`)
 export const rupee2 = (v) => (v == null ? '—' : `₹${inr2.format(v)}`)
 export const int = (v) => (v == null ? '—' : inr.format(v))

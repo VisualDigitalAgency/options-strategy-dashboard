@@ -4,10 +4,44 @@ Screens all Nifty 50 stocks for 30+ DTE option-selling setups and shows one-clic
 
 ## Run
 
+The virtual account lives in PostgreSQL. Start a local one once (Docker), create the app role, then migrate:
+
+```bash
+docker run -d --name theta-pg -e POSTGRES_USER=theta -e POSTGRES_PASSWORD=theta_dev -e POSTGRES_DB=theta -p 127.0.0.1:5433:5432 postgres:16-alpine
+docker exec -i theta-pg psql -q -U theta -d theta < scripts/dev_db_roles.sql
+python -m alembic upgrade head
+```
+
+Migrations run as the owner (`MIGRATE_DATABASE_URL`); the app connects as `theta_app` (`DATABASE_URL`), which has no DDL rights and sees only the acting user's rows (row-level security). Both default to the container above.
+
+Redis holds the shared caches (screen, quotes, position snapshots), throttles and locks:
+
+```bash
+docker run -d --name theta-redis -p 127.0.0.1:6380:6379 redis:7-alpine redis-server --requirepass theta_redis_dev --appendonly yes
+```
+
+Then run the API and the worker in two terminals. The API only answers requests; the worker runs the screen refresher, the stop-loss / time-exit / profit-target monitor and the auto-trade scheduler. A second worker waits on standby and takes over within a minute if the first dies.
+
 ```bash
 python -m pip install -r requirements.txt
 python server.py
 ```
+
+```bash
+python -m engine.worker
+```
+
+`GET /healthz` reports whether Postgres, Redis and a worker are up.
+
+### Accounts
+
+Every page needs a sign-in. Set the admin's email and password once (it asks for the password, hidden):
+
+```bash
+python scripts/set_admin.py you@example.com
+```
+
+New users request access on `/register` and start as pending with ₹10,00,000 of virtual capital. Approve, reject, disable or issue a temporary password on `/admin`, which also shows the sign-in activity log.
 
 In a second terminal:
 
@@ -16,7 +50,7 @@ npm --prefix frontend install
 npm --prefix frontend run dev
 ```
 
-Open http://localhost:5173. The first load takes about a minute because it fetches 50 option chains plus the NSE SPAN file. Results are cached for 10 minutes; **Refresh** forces a new fetch. Click any stock for its detail page (`/stock/SYMBOL`). The wallet in the top bar shows your virtual account's free funds; set the max margin % per trade there.
+Open http://localhost:5173. The first load takes about a minute because it fetches 50 option chains plus the NSE SPAN file. Results refresh in the background every 10 minutes in market hours. Click any stock for its detail page (`/stock/SYMBOL`). The wallet in the top bar shows your virtual account's free funds; set the max margin % per trade there.
 
 ## Rules (edit in `engine/config.py`)
 
@@ -87,3 +121,17 @@ Paper trading with live NSE prices, stored in `engine/data/virtual.db` (SQLite, 
 - The SL rule is display-only until position tracking and broker integration are added (Phase 2).
 - Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator before relying on it.
 - Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
+
+## Deploy with Docker Compose
+
+Six services, one `docker compose up`: `web` (Caddy: HTTPS, security headers, serves the React build, proxies `/rpc`), `api` (gunicorn, 3 processes), `worker`, `migrate` (runs once per start), `postgres`, `redis`. Only `web` publishes ports; Postgres and Redis sit on an internal network with no internet access.
+
+```bash
+python3 scripts/make_secrets.py      # random passwords into ./secrets (git-ignored)
+cp .env.example .env                 # set DOMAIN and ADMIN_EMAIL
+docker compose up -d --build
+docker compose exec api python scripts/set_admin.py you@example.com
+```
+
+Point the domain's DNS A record at the server first: Caddy fetches the certificate on start. `docker compose ps` shows every service's health. To try it on a laptop, use `DOMAIN=localhost`, `HTTPS_PORT=8443`, `PUBLIC_URL=https://localhost:8443` (the browser warns about Caddy's local certificate).
+

@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Minus, Plus, ShieldCheck } from 'lucide-react'
+import {
+  AlertCircle, ArrowLeft, Calculator, ChartCandlestick, ChartNoAxesColumn, ChartSpline, ClipboardCheck, Minus, Plus,
+  ShieldAlert, ShieldCheck, Sigma, SlidersHorizontal,
+} from 'lucide-react'
 import { rpc } from '../rpc'
 import { useScreen } from '../screen'
 import { useBudget } from '../settings'
-import { ActionBadge, SentimentBadge } from '../components/Badges'
+import { ActionBadge, LegTag, SentimentBadge } from '../components/Badges'
 import { OIChart, PayoffChart, PriceChart } from '../components/Charts'
 import Checklist from '../components/Checklist'
 import SLTimeline from '../components/SLTimeline'
 import OrderModal from '../components/OrderModal'
 import DetailSkeleton from '../components/DetailSkeleton'
 import StrategyLab from '../components/StrategyLab'
-import { int, num, pct, rupee, rupee2, shortDate, signed, suggestLots } from '../format'
+import UpdatedTag from '../components/UpdatedTag'
+import { int, num, pct, rupee, rupee2, shortDate, signed, signedPct, suggestLots, todayIso } from '../format'
 
 function Stat({ label, value, sub, tone }) {
   return (
@@ -23,11 +27,23 @@ function Stat({ label, value, sub, tone }) {
   )
 }
 
+const CARD_ICON = {
+  'Strategy builder': SlidersHorizontal,
+  'Payoff at expiry': ChartSpline,
+  'Position size': Calculator,
+  'Legs & Greeks': Sigma,
+  'Price & support/resistance': ChartCandlestick,
+  'Screening log': ClipboardCheck,
+  'Open interest by strike': ChartNoAxesColumn,
+  'Stop-loss plan': ShieldAlert,
+}
+
 function Card({ title, sub, children, className = '' }) {
+  const Icon = CARD_ICON[title]
   return (
     <section className={`card ${className}`}>
       <header className="card-head">
-        <h2>{title}</h2>
+        <h2>{Icon && <Icon size={16} aria-hidden />}{title}</h2>
         {sub && <span className="muted small">{sub}</span>}
       </header>
       {children}
@@ -35,17 +51,26 @@ function Card({ title, sub, children, className = '' }) {
   )
 }
 
-function tradeSentence(d, s) {
+/** Where the full credit is kept and where the trade turns, in one short line. */
+function keepLine(d, s) {
   const ce = d.legs.find((l) => l.side === 'CE')
   const pe = d.legs.find((l) => l.side === 'PE')
-  const sell = d.legs.map((l) => `${l.strike} ${l.side}`).join(' and ')
-  const credit = rupee2(s.credit_per_share)
-  const on = `on ${shortDate(d.expiry)}`
-  if (ce && pe)
-    return `Sell the ${sell} for ${credit} a share. You keep all of it if ${d.symbol} settles between ${pe.strike} and ${ce.strike} ${on}, and stay in profit anywhere from ${num(s.breakeven_lower, 0)} to ${num(s.breakeven_upper, 0)}.`
-  if (ce)
-    return `Sell the ${sell} for ${credit} a share. You keep all of it if ${d.symbol} settles below ${ce.strike} ${on}, and stay in profit below ${num(s.breakeven_upper, 0)}.`
-  return `Sell the ${sell} for ${credit} a share. You keep all of it if ${d.symbol} settles above ${pe.strike} ${on}, and stay in profit above ${num(s.breakeven_lower, 0)}.`
+  if (ce && pe) return `Full credit between ${pe.strike} and ${ce.strike} at expiry. Breakevens ${num(s.breakeven_lower, 0)} and ${num(s.breakeven_upper, 0)}.`
+  if (ce) return `Full credit below ${ce.strike} at expiry. Breakeven ${num(s.breakeven_upper, 0)}.`
+  return `Full credit above ${pe.strike} at expiry. Breakeven ${num(s.breakeven_lower, 0)}.`
+}
+
+function prevClose(d) {
+  const h = d.history ?? []
+  if (!h.length) return null
+  return h.length > 1 && h[h.length - 1].date === todayIso() ? h[h.length - 2].close : h[h.length - 1].close
+}
+
+function atmIv(d) {
+  if (!d.chain?.length) return null
+  const r = d.chain.reduce((a, b) => (Math.abs(b.strikePrice - d.spot) < Math.abs(a.strikePrice - d.spot) ? b : a))
+  const ivs = [r.CE_IV, r.PE_IV].filter(Boolean)
+  return ivs.length ? ivs.reduce((a, b) => a + b, 0) / ivs.length : null
 }
 
 export default function StockDetail() {
@@ -57,13 +82,16 @@ export default function StockDetail() {
   const [lots, setLots] = useState(null)
   const [ticket, setTicket] = useState(false)
 
+  // New symbol: clear and load. Newer screen for the same symbol: swap the data in silently.
   useEffect(() => {
-    let live = true
     setD(null)
     setError(null)
+  }, [symbol])
+  useEffect(() => {
+    let live = true
     rpc('get_trade_detail', { symbol })
-      .then((r) => live && setD(r))
-      .catch((e) => live && setError(e.message))
+      .then((r) => live && (setD(r), setError(null)))
+      .catch((e) => live && setError((prev) => prev ?? e.message))
     return () => { live = false }
   }, [symbol, screen?.generated_at])
 
@@ -90,30 +118,58 @@ export default function StockDetail() {
   const qty = (d.lot_size || 0) * chosen
   const used = s?.margin ? s.margin * chosen : 0
   const failed = d.checks.find((c) => c.status === 'fail')
+  const pc = prevClose(d)
+  const chg = pc ? ((d.spot - pc) / pc) * 100 : null
 
   return (
     <div className="detail">
-      <Link to="/" className="back">
-        <ArrowLeft size={16} aria-hidden /> All setups
-      </Link>
+      <div className="detail-top">
+        <Link to="/" className="back">
+          <ArrowLeft size={16} aria-hidden /> All setups
+        </Link>
+        <UpdatedTag ts={screen?.generated_at} refreshing={screen?.refreshing} />
+      </div>
 
       <section className="hero">
         <div className="hero-main">
           <div className="hero-title">
             <h1 className="display">{d.symbol}</h1>
+            <span className="quote-px num">{num(d.spot)}</span>
+            {chg != null && (
+              <span className={`quote-chg num ${chg > 0 ? 'pos' : chg < 0 ? 'neg' : 'muted'}`}>
+                {signed(d.spot - pc, 2)} ({signedPct(chg)})
+              </span>
+            )}
             <div className="hero-tags">
               <ActionBadge action={d.action} />
               <SentimentBadge sentiment={d.sentiment} />
             </div>
           </div>
-          {actionable && s && <p className="lede trade-sentence">{tradeSentence(d, s)}</p>}
           <dl className="facts-inline">
-            <div><dt>Spot</dt><dd className="num">{num(d.spot)}</dd></div>
-            <div><dt>Expiry</dt><dd>{shortDate(d.expiry)}, {d.dte} days</dd></div>
+            <div><dt>Expiry</dt><dd>{shortDate(d.expiry)} <span className="muted num">({d.dte}d)</span></dd></div>
             <div><dt>Lot</dt><dd className="num">{int(d.lot_size)}</dd></div>
-            <div><dt>PCR</dt><dd className="num">{num(d.pcr, 3)}</dd></div>
+            <div><dt>ATM IV</dt><dd className="num">{pct(atmIv(d))}</dd></div>
+            <div><dt>PCR</dt><dd className="num">{num(d.pcr, 2)}</dd></div>
             <div><dt>Max pain</dt><dd className="num">{num(d.max_pain, 0)}</dd></div>
+            <div><dt>Prev close</dt><dd className="num">{num(pc)}</dd></div>
           </dl>
+          {actionable && s && (
+            <>
+              <ul className="order-lines" aria-label="Suggested orders">
+                {d.legs.map((l) => (
+                  <li key={l.side}>
+                    <LegTag action="SELL" side={l.side} />
+                    <b className="num">{d.symbol} {shortDate(d.expiry).toUpperCase()} {l.strike} {l.side}</b>
+                    <span className="num">@ {rupee2(l.premium)}</span>
+                    <span className="muted num">bid {num(l.bid)} / ask {num(l.ask)}</span>
+                    <span className="muted num">Δ {num(Math.abs(l.delta), 3)}</span>
+                    <span className="muted num">OI {int(l.oi)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="keep-line">{keepLine(d, s)}</p>
+            </>
+          )}
         </div>
         {actionable && (
           <button className="btn primary lg" onClick={() => setTicket(true)} disabled={!s?.margin}>
@@ -144,12 +200,12 @@ export default function StockDetail() {
             />
           </section>
 
-          <Card title="Strategy lab" sub="Drag the strikes and the calendar. Spot is held at today's price.">
+          <Card title="Strategy builder" sub="Strikes, lots, target price and date recalculate live">
             <StrategyLab d={d} lots={chosen} />
           </Card>
 
           <div className="two-col wide-left">
-            <Card title="Payoff at expiry" sub="Hover or tap the chart to read P&L at any price">
+            <Card title="Payoff at expiry" sub="Per lot at expiry">
               <PayoffChart d={d} lots={chosen} />
             </Card>
 
@@ -198,7 +254,7 @@ export default function StockDetail() {
                 <tbody>
                   {d.legs.map((l) => (
                     <tr key={l.side}>
-                      <td data-label="Leg"><span className={`leg-tag ${l.side.toLowerCase()}`}>SELL {l.side}</span> <b className="mono">{l.strike}</b></td>
+                      <td data-label="Leg"><LegTag action="SELL" side={l.side} /> <b className="mono">{l.strike}</b></td>
                       <td data-label="Premium" className="num mono">{rupee2(l.premium)}</td>
                       <td data-label="Bid / Ask" className="num mono">{num(l.bid)} / {num(l.ask)}</td>
                       <td data-label="IV" className="num mono">{pct(l.iv)}</td>
@@ -235,12 +291,12 @@ export default function StockDetail() {
         <Card title="Price & support/resistance" sub="6 months daily · zones need 2+ swing touches">
           <PriceChart d={d} />
         </Card>
-        <Card title="Why this call" sub="Every rule the setup was checked against">
+        <Card title="Screening log" sub="Rule checks">
           <Checklist checks={d.checks} sentiment={d.sentiment} />
         </Card>
       </div>
 
-      <Card title="Open interest by strike" sub={`${shortDate(d.expiry)} expiry. Red is call OI, green is put OI; hover a strike for the full breakdown.`}>
+      <Card title="Open interest by strike" sub={`${shortDate(d.expiry)} expiry. Calls red, puts green`}>
         <OIChart d={d} />
       </Card>
 

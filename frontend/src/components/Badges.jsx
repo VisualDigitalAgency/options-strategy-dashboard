@@ -6,7 +6,7 @@ export function SentimentBadge({ sentiment }) {
   if (!sentiment) return <span className="muted">—</span>
   const Icon = MOOD_ICON[sentiment.label]
   return (
-    <span className={`chip mood-${sentiment.label.toLowerCase()}`} title={sentiment.signals.join('\n')}>
+    <span className={`mood mood-${sentiment.label.toLowerCase()}`} title={sentiment.signals.join('\n')}>
       <Icon size={14} aria-hidden />
       {sentiment.label}
     </span>
@@ -29,6 +29,17 @@ export function ProbMeter({ value, label }) {
         <span className="meter-fill" style={{ transform: `scaleX(${value / 100})` }} />
       </span>
       <span className="mono">{value.toFixed(1)}%</span>
+    </span>
+  )
+}
+
+/** Broker-style leg badge: solid B/S square plus an outlined CE/PE box. */
+export function LegTag({ action, side }) {
+  const buy = action === 'BUY'
+  return (
+    <span className="leg-badge" aria-label={`${buy ? 'Buy' : 'Sell'} ${side}`}>
+      <span className={`bs ${buy ? 'b' : 's'}`} aria-hidden>{buy ? 'B' : 'S'}</span>
+      <span className={`opt-type ${side.toLowerCase()}`} aria-hidden>{side}</span>
     </span>
   )
 }

@@ -1,3 +1,7 @@
 engine/cache/
 engine/data/
 __pycache__/
+secrets/
+.env
+frontend/dist/
+frontend/node_modules/

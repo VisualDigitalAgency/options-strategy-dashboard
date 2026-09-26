@@ -46,6 +46,26 @@ export function calibratedValue(leg, spot, dte, px, daysLeft) {
   return intr + (bsPrice(leg.side, px, leg.strike, daysLeft, leg.iv) - intr) * k
 }
 
+/** Per-share Greeks for a LONG option. Theta per calendar day, vega per 1 IV point. */
+export function bsGreeks(side, spot, strike, days, ivPct, r = RISK_FREE) {
+  if (days <= 0 || ivPct <= 0) return { delta: bsDelta(side, spot, strike, 0, ivPct), gamma: 0, theta: 0, vega: 0 }
+  const t = days / 365
+  const v = ivPct / 100
+  const sq = Math.sqrt(t)
+  const d1 = (Math.log(spot / strike) + (r + 0.5 * v * v) * t) / (v * sq)
+  const d2 = d1 - v * sq
+  const pdf = Math.exp(-0.5 * d1 * d1) / Math.sqrt(2 * Math.PI)
+  const df = Math.exp(-r * t)
+  const decay = (-spot * pdf * v) / (2 * sq)
+  const theta = side === 'CE' ? decay - r * strike * df * normCdf(d2) : decay + r * strike * df * normCdf(-d2)
+  return {
+    delta: side === 'CE' ? normCdf(d1) : normCdf(d1) - 1,
+    gamma: pdf / (spot * v * sq),
+    theta: theta / 365,
+    vega: (spot * pdf * sq) / 100,
+  }
+}
+
 /** Risk-neutral lognormal P(price at expiry < level). */
 export function probBelow(spot, level, days, ivPct, r = RISK_FREE) {
   if (level <= 0) return 0

@@ -1,9 +1,9 @@
 import { BellRing, ShieldOff, Zap } from 'lucide-react'
 
 export const SL_MODES = [
-  { value: 'auto', label: 'Auto exit', icon: Zap, help: 'From day 15, buys the leg back automatically once its price reaches the premium collected.' },
-  { value: 'alert', label: 'Alert only', icon: BellRing, help: 'Flags the leg when the stop is hit. You decide whether to exit.' },
-  { value: 'off', label: 'Off', icon: ShieldOff, help: 'No stop loss. The leg stays open until you exit or it expires.' },
+  { value: 'auto', label: 'Auto exit', icon: Zap, help: 'From day 15, when the price of any leg reaches the premium collected, every leg of that position is bought back.' },
+  { value: 'alert', label: 'Alert only', icon: BellRing, help: 'Flags the position when a leg hits its stop. You decide whether to exit it.' },
+  { value: 'off', label: 'Off', icon: ShieldOff, help: 'No stop loss on this leg. The 7-day time exit still closes the position before expiry.' },
 ]
 
 export default function SLModeSwitch({ value, onChange, compact = false, disabled = false, label = 'Stop-loss mode' }) {

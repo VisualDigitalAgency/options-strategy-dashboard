@@ -7,19 +7,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap"
       rel="stylesheet"
     />
     <title>Theta Desk</title>
-    <script>
-      // Apply the saved or system theme before first paint to avoid a flash of the wrong theme.
-      (function () {
-        var t
-        try { t = localStorage.getItem('options-screener-theme') } catch (e) {}
-        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-        document.documentElement.dataset.theme = t
-      })()
-    </script>
+    <!-- Sets the saved or system theme before first paint. A file, not inline, so the CSP can forbid inline scripts. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { Bot, X } from 'lucide-react'
 import { useBudget } from '../settings'
 import { rupee, signedRupee } from '../format'
+import { AutoTradeStatus, AutoTradeSwitch } from './AutoTrade'
 
 export default function SettingsPanel({ onClose }) {
-  const { account, error, maxPct, setMaxPct, perTrade, capital, free } = useBudget()
+  const { account, error, maxPct, setMaxPct, perTrade, capital, free, auto } = useBudget()
   const capped = capital && perTrade < (capital * maxPct) / 100
 
   return (
@@ -15,7 +16,8 @@ export default function SettingsPanel({ onClose }) {
           <div><dt>Account value</dt><dd className="display-num">{account ? rupee(account.account_value) : '—'}</dd></div>
           <div><dt>Funds free</dt><dd className="num-lg">{account ? rupee(free) : '—'}</dd></div>
           <div><dt>Margin in use</dt><dd className="num-lg">{account ? rupee(account.used_margin) : '—'}</dd></div>
-          <div><dt>Open P&L</dt><dd className={`num-lg ${account?.unrealized_pnl > 0 ? 'pos' : account?.unrealized_pnl < 0 ? 'neg' : ''}`}>{account ? signedRupee(account.unrealized_pnl) : '—'}</dd></div>
+          <div><dt>Booked P&L</dt><dd className={`num-lg ${account?.realized_pnl > 0 ? 'pos' : account?.realized_pnl < 0 ? 'neg' : ''}`}>{account ? signedRupee(account.realized_pnl) : '—'}</dd></div>
+          <div><dt>Unbooked P&L</dt><dd className={`num-lg ${account?.unrealized_pnl > 0 ? 'pos' : account?.unrealized_pnl < 0 ? 'neg' : ''}`}>{account ? signedRupee(account.unrealized_pnl) : '—'}</dd></div>
         </dl>
         <div className="wallet-controls">
           <div className="field">
@@ -36,6 +38,17 @@ export default function SettingsPanel({ onClose }) {
             {capped ? ', capped by your free funds.' : '.'} This is your virtual account balance; change the starting
             amount on the <Link to="/virtual" onClick={onClose}>Virtual account</Link> page.
           </p>
+        </div>
+        <div className="wallet-auto">
+          <AutoTradeSwitch />
+          <div>
+            <b><Bot size={15} aria-hidden /> Auto-trade</b>
+            <p className="muted small">
+              <AutoTradeStatus />{' '}
+              {auto && <>Keeps {auto.reserve_pct}% free, POP ≥ {auto.min_pop}%. </>}
+              <Link to="/virtual#auto" onClick={onClose}>Settings and run log</Link>
+            </p>
+          </div>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close wallet">
           <X size={18} />

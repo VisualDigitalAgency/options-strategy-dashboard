@@ -1,41 +1,129 @@
-import { Suspense, lazy, useState } from 'react'
-import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { Briefcase, LayoutGrid, PiggyBank, RefreshCw, Wallet } from 'lucide-react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, ShieldCheck, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
-import { rupeeShort } from './format'
+import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
+import { useMarketClock } from './market'
 import SettingsPanel from './components/SettingsPanel'
 import ThemeToggle from './components/ThemeToggle'
 import DetailSkeleton from './components/DetailSkeleton'
 import Overview from './pages/Overview'
+import DialMark from './components/DialMark'
+import { AuthProvider, useAuth } from './auth'
+import { ChangePassword, Login, Register } from './pages/AuthPages'
 
 const StockDetail = lazy(() => import('./pages/StockDetail'))
 const Portfolio = lazy(() => import('./pages/Portfolio'))
 const VirtualAccount = lazy(() => import('./pages/VirtualAccount'))
+const Admin = lazy(() => import('./pages/Admin'))
 
 const NAV = [
   { to: '/', label: 'Screener', icon: LayoutGrid, end: true },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
-  { to: '/virtual', label: 'Virtual account', icon: PiggyBank },
+  { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
 ]
 
-function DialMark() {
+
+
+function TickerItem({ c, hidden }) {
+  // Direction comes from the day's move, not sentiment; POP stays neutral so a high POP never reads red.
+  const chg = c.prev_close ? ((c.spot - c.prev_close) / c.prev_close) * 100 : null
+  const Icon = chg > 0 ? ArrowUpRight : chg < 0 ? ArrowDownRight : Minus
+  const tone = chg > 0 ? 'pos' : chg < 0 ? 'neg' : 'muted'
   return (
-    <svg className="dial-mark" viewBox="0 0 32 32" aria-hidden>
-      <circle cx="16" cy="16" r="14.5" className="dm-ring" />
-      <path d="M5 11 C 12 11.5, 20 14, 26.5 25" className="dm-curve" />
-      <line x1="16" y1="16" x2="16" y2="5.5" className="dm-hand" />
-      <circle cx="16" cy="16" r="2" className="dm-pin" />
-    </svg>
+    <li aria-hidden={hidden || undefined}>
+      <Link to={`/stock/${encodeURIComponent(c.symbol)}`} className="ticker-item" tabIndex={hidden ? -1 : undefined}>
+        <span className="ticker-sym">{c.symbol}</span>
+        <span className="num ticker-spot">{num(c.spot)}</span>
+        <span className={`ticker-chg num ${tone}`}>
+          <Icon size={12} aria-hidden /> {signedPct(chg)}
+        </span>
+        <span className="ticker-pop num">POP {pct(c.strategy.pop, 0)}</span>
+      </Link>
+    </li>
+  )
+}
+
+function TickerBar() {
+  const { data } = useScreen()
+  const { account } = useBudget()
+  const items = (data?.candidates ?? [])
+    .filter((c) => c.legs?.length && c.strategy)
+    .sort((a, b) => (b.strategy.pop ?? 0) - (a.strategy.pop ?? 0))
+  const pnl = account?.unrealized_pnl ?? 0
+  const booked = account?.realized_pnl ?? 0
+  // Roughly constant speed whatever the item count: ~3.5s per item.
+  const duration = `${Math.max(items.length, 4) * 3.5}s`
+  return (
+    <div className="ticker-bar">
+      <div className="ticker-inner">
+        <div className="ticker-viewport" aria-label="Setups by POP, scrolling">
+          {items.length === 0 ? (
+            <span className="ticker-empty muted">Scanning setups…</span>
+          ) : (
+            <ul className="ticker-track" style={{ '--ticker-duration': duration }}>
+              {items.map((c) => <TickerItem key={c.symbol} c={c} />)}
+              {/* Second copy makes the loop seamless; hidden from screen readers and tab order */}
+              {items.map((c) => <TickerItem key={`dup-${c.symbol}`} c={c} hidden />)}
+            </ul>
+          )}
+        </div>
+        <div className="ticker-right">
+          <span title="P&L locked in from closed trades">Booked <b className={`num ${booked > 0 ? 'pos' : booked < 0 ? 'neg' : ''}`}>{account ? signedRupee(booked) : '—'}</b></span>
+          <span className="ticker-sep" aria-hidden>|</span>
+          <span title="P&L on open positions at the last price; changes until you exit">Unbooked <b className={`num ${pnl > 0 ? 'pos' : pnl < 0 ? 'neg' : ''}`}>{account ? signedRupee(pnl) : '—'}</b></span>
+          <span className="ticker-sep" aria-hidden>|</span>
+          <span>Margin used: <b className="num">{account ? rupeeShort(account.used_margin) : '—'}</b></span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UserMenu() {
+  const { user, logout } = useAuth()
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => (e.key === 'Escape' || (e.type === 'mousedown' && !ref.current?.contains(e.target))) && setOpen(false)
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [open])
+  const initials = user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  return (
+    <div className="user-menu" ref={ref}>
+      <button className="user-btn" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu"
+        aria-label={`Account menu for ${user.name}`}>
+        {initials}
+      </button>
+      {open && (
+        <div className="user-pop" role="menu">
+          <div className="user-pop-head">
+            <b>{user.name}</b>
+            <span className="muted small">{user.email}</span>
+          </div>
+          {user.role === 'admin' && (
+            <Link role="menuitem" to="/admin" onClick={() => setOpen(false)}><ShieldCheck size={16} aria-hidden /> Admin</Link>
+          )}
+          <Link role="menuitem" to="/account/password" onClick={() => setOpen(false)}><KeyRound size={16} aria-hidden /> Change password</Link>
+          <button role="menuitem" onClick={logout}><LogOut size={16} aria-hidden /> Sign out</button>
+        </div>
+      )}
+    </div>
   )
 }
 
 function TopBar() {
-  const { data, loading, load } = useScreen()
-  const { account } = useBudget()
+  const { account, auto } = useBudget()
+  const clock = useMarketClock()
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
-  const onScreener = pathname === '/' || pathname.startsWith('/stock/')
 
   return (
     <header className="topbar">
@@ -45,23 +133,27 @@ function TopBar() {
           <span className="wordmark">Theta Desk</span>
         </Link>
         <nav className="main-nav" aria-label="Main">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
+          {NAV.map(({ to, label, short, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) => (isActive || (to === '/' && pathname.startsWith('/stock/')) ? 'active' : '')}
             >
-              <Icon size={16} aria-hidden /> {label}
+              <Icon size={16} aria-hidden />{' '}
+              {short ? <><span className="nav-full">{label}</span><span className="nav-short" aria-hidden>{short}</span></> : label}
             </NavLink>
           ))}
         </nav>
         <div className="topbar-actions">
-          {onScreener && data?.generated_at && (
-            <span className="status" title={`SPAN file: ${data.span_source}`}>
-              <span className="dot" aria-hidden /> Updated{' '}
-              {new Date(data.generated_at * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </span>
+          <span className={`status mkt-${clock.key}`} title={clock.note}>
+            <span className={`mkt-dot ${clock.key}`} aria-hidden />
+            NSE {clock.label.toLowerCase()} <span className="num">{clock.time}</span> IST
+          </span>
+          {auto?.enabled && (
+            <Link to="/virtual#auto" className="auto-chip" title={`Auto-trade on, runs daily at ${auto.run_at} IST`}>
+              <Bot size={15} aria-hidden /> <span className="auto-chip-label">Auto</span> <span className="num">{auto.run_at}</span>
+            </Link>
           )}
           <ThemeToggle />
           <button className="wallet-btn" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Wallet: virtual account funds">
@@ -69,14 +161,10 @@ function TopBar() {
             <span className="wallet-amt num">{account ? rupeeShort(account.available_margin) : '—'}</span>
             <span className="wallet-sub">free</span>
           </button>
-          {onScreener && (
-            <button className="btn" onClick={() => load(true)} disabled={loading}>
-              <RefreshCw size={16} className={loading ? 'spin' : ''} aria-hidden />
-              <span className="btn-label">{loading ? 'Screening…' : 'Refresh'}</span>
-            </button>
-          )}
+          <UserMenu />
         </div>
       </div>
+      <TickerBar />
       {open && <SettingsPanel onClose={() => setOpen(false)} />}
     </header>
   )
@@ -88,7 +176,23 @@ const lazyPage = (Page) => (
   </Suspense>
 )
 
-export default function App() {
+function Splash() {
+  return (
+    <div className="auth-page" aria-busy="true">
+      <DialMark />
+    </div>
+  )
+}
+
+function SignedIn() {
+  const { user } = useAuth()
+  if (user.must_change_password) {
+    return (
+      <Routes>
+        <Route path="*" element={<ChangePassword />} />
+      </Routes>
+    )
+  }
   return (
     <SettingsProvider>
       <ScreenProvider>
@@ -99,9 +203,40 @@ export default function App() {
             <Route path="/stock/:symbol" element={lazyPage(StockDetail)} />
             <Route path="/portfolio" element={lazyPage(Portfolio)} />
             <Route path="/virtual" element={lazyPage(VirtualAccount)} />
+            <Route path="/account/password" element={<ChangePassword />} />
+            {user.role === 'admin' && <Route path="/admin" element={lazyPage(Admin)} />}
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/register" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </ScreenProvider>
     </SettingsProvider>
+  )
+}
+
+function SignedOut() {
+  const { pathname, search } = useLocation()
+  const here = pathname + search
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="*" element={<Navigate to={here === '/' ? '/login' : `/login?next=${encodeURIComponent(here)}`} replace />} />
+    </Routes>
+  )
+}
+
+function Gate() {
+  const { user } = useAuth()
+  if (user === undefined) return <Splash />
+  return user ? <SignedIn /> : <SignedOut />
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   )
 }
