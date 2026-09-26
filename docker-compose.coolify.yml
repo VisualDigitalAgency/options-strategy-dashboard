@@ -1,4 +1,4 @@
-# Coolify deployment variant of docker-compose.yml. Differs from it in two ways:
+# Coolify deployment variant of docker-compose.yml. Differs from it in three ways:
 #  - `web` doesn't publish host ports or manage its own TLS certificate, because Coolify's
 #    Traefik proxy already owns 80/443 on the host and terminates TLS for the domain assigned
 #    to this service (Settings > this app > Domains).
@@ -7,6 +7,12 @@
 #    those files would need to exist in the git checkout *before* `docker compose up` runs on
 #    every fresh clone Coolify makes, which nothing populates on a first deploy. engine/settings.py
 #    already supports a plain env var as a fallback when the matching *_FILE var isn't set.
+#  - No bind mounts of repo files. Coolify keeps only this compose file on the host
+#    (/data/coolify/applications/<uuid>/), so `./deploy/...` mounts become empty directories.
+#    The Caddyfile is baked into the `web-coolify` image, and the theta_app role is created by
+#    scripts/ensure_app_role.py in the migrate service instead of a Postgres init script.
+# Coolify also injects every variable from its UI into every service (env_file: .env), so the
+# owner password is visible inside api/worker/web too. The app never reads it outside migrate.
 # Postgres/Redis volumes are unchanged, so existing data is untouched if you ever move a
 # deployment between the two compose files. See docker-compose.yml for the plain self-hosted
 # (own Caddy + own TLS + Docker secrets files) version.
@@ -38,10 +44,8 @@ services:
       POSTGRES_USER: theta_owner
       POSTGRES_DB: theta
       POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD}
-      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./deploy/postgres-init.coolify.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
     security_opt: [no-new-privileges:true]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U theta_owner -d theta"]
@@ -71,10 +75,12 @@ services:
   migrate:
     <<: *app
     restart: "no"
-    command: ["alembic", "upgrade", "head"]
+    # Role first (create, or reset its password to DB_APP_PASSWORD), then the schema and grants.
+    command: ["sh", "-c", "python scripts/ensure_app_role.py && alembic upgrade head"]
     environment:
       DB_HOST: postgres
       OWNER_DB_PASSWORD: ${DB_OWNER_PASSWORD}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -113,14 +119,15 @@ services:
       start_period: 90s
 
   web:
-    build: { context: ., target: web }
-    image: theta-desk-web:latest
+    build: { context: ., target: web-coolify }
+    image: theta-desk-web-coolify:latest
     restart: unless-stopped
     expose: ["80"]
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-      - ./deploy/Caddyfile.coolify:/etc/caddy/Caddyfile:ro
+    read_only: true
+    tmpfs: [/tmp]
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
     security_opt: [no-new-privileges:true]

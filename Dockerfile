@@ -34,3 +34,9 @@ CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--threads", "4", "
 FROM caddy:2-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b AS web
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=frontend /src/dist /srv
+
+# ---------- web behind Coolify's Traefik ----------
+# The config is baked in, not bind-mounted: Coolify keeps only the compose file on the host, so a
+# relative mount of a repo file turns into an empty directory.
+FROM web AS web-coolify
+COPY deploy/Caddyfile.coolify /etc/caddy/Caddyfile

@@ -1,0 +1,56 @@
+# Deploying on Coolify
+
+Server: `ubuntu@129.154.45.57` (OCI, aarch64), Coolify 4.3.23, Traefik v3.6, Let's Encrypt HTTP-01.
+Every `*.connectbiomedical.com` app sits behind Cloudflare (orange cloud) → Traefik → the app.
+Theta Desk is Coolify application `uygwpa9ukr3zdoufohiyvnfc` ("theta-desk"), Docker Compose build
+pack, compose file `/docker-compose.coolify.yml`, branch `main`.
+
+## What went wrong on the first deploy (2026-09-26)
+
+| # | Symptom | Cause | Fix |
+|---|---|---|---|
+| 1 | `api` unhealthy, `/healthz` 503; api and worker log `password authentication failed for user "theta_app"` | Postgres logged `psql: error: /docker-entrypoint-initdb.d/10-roles.sql: Permission denied`, so the `theta_app` role was never created | Role is now created and its password synced by `scripts/ensure_app_role.py` in `migrate` |
+| 2 | That "Permission denied" | Coolify copies only the compose file to `/data/coolify/applications/<uuid>/`. The relative bind mount `./deploy/postgres-init.coolify.sql` pointed at a missing path, and Docker created an empty **directory** there. The same happened to `./deploy/Caddyfile.coolify` | No bind mounts of repo files. The Caddyfile is baked into `Dockerfile --target web-coolify` |
+| 3 | `migrate` exited 0, but the app would still have had no rights | Migrations `GRANT` to `theta_app` only if the role exists. It didn't exist when they ran, and alembic is already at `0003`, so they won't run again | Recreate the (empty) database volume so the migrations run after the role exists |
+| 4 | `web` stuck in `Created`; the domain returns 503 | It waits for `api` to be healthy (#1). Also, no domain is assigned to `web` (`docker_compose_domains` is empty, no Traefik labels), so Traefik has no route | Assign the domain to the `web` service in the Coolify UI |
+| 5 | All five deployments marked `failed` | Follows from #1–#4 | — |
+| 6 | Latent: every visitor would share one IP | Cloudflare → Traefik → Caddy → api. Caddy forwarded Traefik's container IP, so the per-IP limits (30 failed sign-ins / 15 min, 5 sign-ups / hour) would have locked everyone out together, and the audit log would show one IP | `Caddyfile.coolify` trusts `CF-Connecting-IP` only when Traefik's peer is a Cloudflare range, and sends the visitor IP to the API |
+
+## Deploy steps
+
+1. **Push** the fixes to `main` (Coolify builds from `git@github.com:VisualDigitalAgency/options-strategy-dashboard.git`).
+2. **Rotate the database passwords** in Coolify → theta-desk → Environment Variables, because the owner password was exposed during debugging. Set `DB_OWNER_PASSWORD` and `DB_APP_PASSWORD` to new values (`python -c "import secrets; print(secrets.token_hex(24))"`). Keep `REDIS_PASSWORD`, `DOMAIN=theta.connectbiomedical.com`, `PUBLIC_URL=https://theta.connectbiomedical.com` and `ADMIN_EMAIL`. Each variable appears twice (preview and production); set the production one.
+3. **Assign the domain**: Coolify → theta-desk → Configuration → the `web` service → Domains: `https://theta.connectbiomedical.com`. Leave the others (api, worker, migrate, postgres, redis) blank.
+4. **Reset the database volume.** It holds no users (checked: `users` = 0), so nothing is lost:
+   ```bash
+   ssh -i ~/.ssh/oci_instance_key_rsa ubuntu@129.154.45.57
+   sudo docker ps -aq --filter name=uygwpa9ukr3zdoufohiyvnfc | xargs -r sudo docker rm -f
+   sudo docker volume rm uygwpa9ukr3zdoufohiyvnfc_pg-data
+   sudo rm -rf /data/coolify/applications/uygwpa9ukr3zdoufohiyvnfc/deploy   # the stray empty dirs
+   ```
+   Postgres must start on a fresh volume anyway, because the new `DB_OWNER_PASSWORD` only applies at `initdb`.
+5. **Deploy** from Coolify. Expected order: postgres, redis healthy → migrate prints `theta_app role created` and exits 0 → api healthy → worker healthy → web healthy.
+6. **Create the admin**, then **verify** (next section):
+   ```bash
+   sudo docker exec -it $(sudo docker ps -qf name=api-uygwpa9ukr3zdoufohiyvnfc) python scripts/set_admin.py muralikrishna.r.s.94@gmail.com
+   ```
+7. **Cloudflare**: SSL/TLS mode **Full (strict)**. With Traefik's Let's Encrypt certificate at the origin, that works and stops Cloudflare accepting a downgraded origin.
+
+## Verify
+
+- `sudo docker ps --filter name=uygwpa9ukr3zdoufohiyvnfc`: six containers, `migrate` is `Exited (0)`, the rest `healthy`.
+- `curl -s https://theta.connectbiomedical.com/healthz` → `{"postgres":true,"redis":true,"worker":true}`.
+- Sign in, then open `/admin` → activity log: the `login` row must show **your** public IP, not a `10.x`/`172.x` or Cloudflare address.
+- `curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Origin: https://evil.example' -H 'Content-Type: application/json' -d '{}' https://theta.connectbiomedical.com/rpc` → `403`.
+- Response headers on `/` include `Strict-Transport-Security`, `Content-Security-Policy` and `X-Frame-Options: DENY`.
+- The worker log shows `worker lock acquired` and, in market hours, screen refreshes. The first screen takes about a minute.
+
+## Rollback
+
+The Coolify UI can redeploy a previous commit. The database is only created by migrations, so rolling back past a migration needs `alembic downgrade` run in `migrate` first.
+
+## Known residual risks
+
+- Coolify injects every UI variable into every service (`env_file: .env`), so `DB_OWNER_PASSWORD` is readable inside api, worker and web. The app only uses it in `migrate`. The code can't remove this; it goes away only if you keep the owner password out of Coolify and run migrations by hand.
+- The origin (129.154.45.57:443) is reachable without Cloudflare. The IP handling is spoof-proof either way, but restricting 80/443 to Cloudflare ranges in the OCI security list would also hide the origin from scans. Let's Encrypt HTTP-01 still works through Cloudflare. Doing this affects every app on the host.
+- `GET /healthz` is public and says whether Postgres, Redis and the worker are up. It exposes no data.
