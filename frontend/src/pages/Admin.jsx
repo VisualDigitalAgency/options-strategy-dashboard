@@ -43,28 +43,30 @@ function UserRow({ u, me, onAct }) {
         ))}</td>
       <td className="mono small">{dateTime(u.created_at)}</td>
       <td className="mono small">{u.last_login_at ? dateTime(u.last_login_at) : '—'}</td>
-      <td className="admin-actions">
-        {self ? <span className="muted small">You</span> : (
-          <>
-            {u.status === 'pending' && (
-              <>
-                <button className="btn small primary" onClick={() => onAct(u, 'active')}><UserCheck size={15} aria-hidden /> Approve</button>
-                <button className="btn small ghost" onClick={() => onAct(u, 'rejected')}><UserX size={15} aria-hidden /> Reject</button>
-              </>
-            )}
-            {u.status === 'active' && (
-              <>
-                <button className="btn small ghost" onClick={() => onAct(u, 'reset')}><KeyRound size={15} aria-hidden /> Reset password</button>
-                <button className="btn small ghost danger-text" onClick={() => onAct(u, 'disabled')}>Disable</button>
-              </>
-            )}
-            {(u.status === 'disabled' || u.status === 'rejected') && (
-              <button className="btn small ghost" onClick={() => onAct(u, 'active')}>
-                <UserCheck size={15} aria-hidden /> {u.status === 'rejected' ? 'Approve' : 'Re-enable'}
-              </button>
-            )}
-          </>
-        )}
+      <td>
+        <div className="admin-actions">
+          {self ? <span className="muted small">You</span> : (
+            <>
+              {u.status === 'pending' && (
+                <>
+                  <button className="btn small primary" onClick={() => onAct(u, 'active')}><UserCheck size={15} aria-hidden /> Approve</button>
+                  <button className="btn small ghost" onClick={() => onAct(u, 'rejected')}><UserX size={15} aria-hidden /> Reject</button>
+                </>
+              )}
+              {u.status === 'active' && (
+                <>
+                  <button className="btn small ghost" onClick={() => onAct(u, 'reset')}><KeyRound size={15} aria-hidden /> Reset password</button>
+                  <button className="btn small ghost danger-text" onClick={() => onAct(u, 'disabled')}>Disable</button>
+                </>
+              )}
+              {(u.status === 'disabled' || u.status === 'rejected') && (
+                <button className="btn small ghost" onClick={() => onAct(u, 'active')}>
+                  <UserCheck size={15} aria-hidden /> {u.status === 'rejected' ? 'Approve' : 'Re-enable'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </td>
     </tr>
   )
