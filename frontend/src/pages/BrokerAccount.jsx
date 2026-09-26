@@ -72,13 +72,13 @@ export default function BrokerAccount() {
       <section className="ledger" aria-label="Real broker funds">
         {margins ? (
           <>
-            <Fund label="Available margin" value={rupee(margins.available_margin)} sub="free to place new real orders" />
-            <Fund label="Cash margin" value={rupee(margins.cash_margin)} sub="your own funds" />
-            <Fund label="Collateral margin" value={rupee(margins.collateral_margin)} sub="from pledged stock/MF, can't be withdrawn" />
+            <Fund label="Available margin" value={rupee(margins.available_margin)} sub="cash only — what new real orders are checked against" />
+            <Fund label="Used margin" value={rupee(margins.used_margin)} sub="blocked by your open positions/orders" />
+            <Fund label="Collateral" value={rupee(margins.collateral_margin)} sub="pledged stock/MF; not counted above (exchange caps how much of a trade it can fund)" />
             <Fund label="Open positions" value={netPositions.length} sub="at your broker, right now" />
           </>
         ) : (
-          Array.from({ length: 4 }, (_, i) => (
+          Array.from({ length: 5 }, (_, i) => (
             <div key={i} className="stat">
               <span className="skeleton" style={{ width: '50%', height: 12 }} />
               <span className="skeleton" style={{ width: '70%', height: 26, margin: '6px 0' }} />

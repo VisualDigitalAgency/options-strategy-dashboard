@@ -129,9 +129,15 @@ class ZerodhaAdapter(BrokerAdapter):
     def get_margins(self, session: BrokerSession) -> dict:
         margins = self._client(session).margins("equity")
         available = margins.get("available", {})
+        utilised = margins.get("utilised", {})
         cash = float(available.get("live_balance") or 0.0)
         collateral = float(available.get("collateral") or 0.0)
-        # live_balance is cash-only; pledged-stock collateral is a separate additive component
-        # Kite doesn't fold into it, but it still counts toward SPAN+exposure margin for F&O.
-        return {"available_margin": cash + collateral, "cash_margin": cash,
-                "collateral_margin": collateral, "raw": margins}
+        used = float(utilised.get("debits") or 0.0)
+        # cash + collateral is NOT real usable margin: SEBI caps how much of a margin
+        # requirement can be met from non-cash collateral (currently 50%), so collateral isn't
+        # simply additive to cash the way an earlier version of this function assumed — that
+        # overstated available margin and would have let a real order through that the account
+        # couldn't actually fund. available_margin (used to gate real orders) stays cash-only,
+        # the conservative, always-safe number; collateral_margin is informational only.
+        return {"available_margin": cash, "cash_margin": cash,
+                "collateral_margin": collateral, "used_margin": used, "raw": margins}
