@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node tests/run.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.48.0",
@@ -17,10 +18,14 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.14.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "happy-dom": "^20.14.5",
     "oxlint": "^1.81.0",
+    "rolldown": "^1.2.10",
     "vite": "^8.3.0"
-  }
+  },
+  "license": "UNLICENSED"
 }

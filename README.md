@@ -1,56 +1,81 @@
 # Theta Desk: options selling screener
 
-Screens all Nifty 50 stocks for 30+ DTE option-selling setups and shows one-click order tickets. Broker execution is not wired yet, so the Confirm button stays disabled.
+Screens every Nifty 50 stock for 30+ DTE option-selling setups and trades them on a virtual (paper) account with live NSE prices. Broker execution is not wired, so the "Place live order" button stays disabled. Nothing here touches real money.
 
-## Run
+Live: https://theta.connectbiomedical.com (sign-in required; new users are approved by the admin).
 
-The virtual account lives in PostgreSQL. Start a local one once (Docker), create the app role, then migrate:
+**Stack:** Python 3.12 / Flask JSON-RPC API, a background worker, PostgreSQL 16, Redis 7, React 19 (Vite) frontend, Caddy in front.
+
+## Contents
+
+- [Run locally](#run-locally)
+- [Tests](#tests)
+- [Features](#features)
+- [Rules](#rules-edit-in-engineconfigpy) · [Trade metrics](#trade-metrics) · [Strategy lab](#strategy-lab-stock-detail-page) · [Portfolio & virtual account](#portfolio--virtual-account) · [Price & pivot levels](#price--pivot-levels)
+- [Layout](#layout)
+- [Deploy](#deploy)
+- [Known limits](#known-limits)
+- [Contributing, security, licence](#contributing-security-licence)
+
+## Run locally
+
+Postgres holds accounts and trades; Redis holds shared caches, throttles and locks. Start both once with Docker:
 
 ```bash
 docker run -d --name theta-pg -e POSTGRES_USER=theta -e POSTGRES_PASSWORD=theta_dev -e POSTGRES_DB=theta -p 127.0.0.1:5433:5432 postgres:16-alpine
-docker exec -i theta-pg psql -q -U theta -d theta < scripts/dev_db_roles.sql
-python -m alembic upgrade head
-```
-
-Migrations run as the owner (`MIGRATE_DATABASE_URL`); the app connects as `theta_app` (`DATABASE_URL`), which has no DDL rights and sees only the acting user's rows (row-level security). Both default to the container above.
-
-Redis holds the shared caches (screen, quotes, position snapshots), throttles and locks:
-
-```bash
 docker run -d --name theta-redis -p 127.0.0.1:6380:6379 redis:7-alpine redis-server --requirepass theta_redis_dev --appendonly yes
+docker exec -i theta-pg psql -q -U theta -d theta < scripts/dev_db_roles.sql   # creates the theta_app role
 ```
 
-Then run the API and the worker in two terminals. The API only answers requests; the worker runs the screen refresher, the stop-loss / time-exit / profit-target monitor and the auto-trade scheduler. A second worker waits on standby and takes over within a minute if the first dies.
+Then install and migrate:
 
 ```bash
 python -m pip install -r requirements.txt
-python server.py
+python -m alembic upgrade head
+python scripts/set_admin.py you@example.com    # asks for the admin password (hidden)
 ```
+
+Migrations run as the owner role; the app connects as `theta_app`, which has no DDL rights and, through row-level security, sees only the signed-in user's rows. `engine/settings.py` defaults to the containers above when no `DB_HOST`/`REDIS_HOST` is set.
+
+Run three processes, each in its own terminal:
 
 ```bash
-python -m engine.worker
+python server.py            # API on 127.0.0.1:8000: POST /rpc, GET /healthz
+python -m engine.worker     # screen refresher, stop-loss / exit monitor, auto-trade scheduler
+npm --prefix frontend install && npm --prefix frontend run dev    # http://localhost:5173
 ```
 
-`GET /healthz` reports whether Postgres, Redis and a worker are up.
+The API only answers requests. The worker is the only process that runs scheduled work; a second worker waits on standby and takes over within a minute if the first dies. `GET /healthz` reports whether Postgres, Redis and a worker are up.
 
-### Accounts
+The first screen takes about a minute (50 option chains plus the NSE SPAN file). After that it refreshes in the background every 10 minutes in market hours and hourly outside them.
 
-Every page needs a sign-in. Set the admin's email and password once (it asks for the password, hidden):
+## Tests
 
 ```bash
-python scripts/set_admin.py you@example.com
+npm --prefix frontend run lint
+npm --prefix frontend test     # UI tests in happy-dom: frontend/tests/*.test.jsx
+make test                      # backend integration tests in throwaway Postgres + Redis containers
 ```
 
-New users request access on `/register` and start as pending with ₹10,00,000 of virtual capital. Approve, reject, disable or issue a temporary password on `/admin`, which also shows the sign-in activity log.
-
-In a second terminal:
+Backend tests (`tests/test_*.py`) run against a real database and Redis with NSE market data stubbed (`tests/support.py`). `tests/run.py` gives each file a fresh, migrated database. Without Docker, point it at any Postgres + Redis:
 
 ```bash
-npm --prefix frontend install
-npm --prefix frontend run dev
+DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://localhost:6379/0 python tests/run.py [test_pivots.py]
 ```
 
-Open http://localhost:5173. The first load takes about a minute because it fetches 50 option chains plus the NSE SPAN file. Results refresh in the background every 10 minutes in market hours. Click any stock for its detail page (`/stock/SYMBOL`). The wallet in the top bar shows your virtual account's free funds; set the max margin % per trade there.
+`LIVE_DATA=1` adds a check against real yfinance data. Every push and pull request runs all of this in GitHub Actions (see [Deploy](#deploy)).
+
+## Features
+
+| Page | What it does |
+|---|---|
+| **Screener** (`/`) | Every Nifty 50 stock scored against the rules below. Actionable setups first, with POP, ROI, margin and suggested lots |
+| **Stock detail** (`/stock/SYMBOL`) | Payoff chart, S/R zones, open interest by strike, strategy lab, order ticket |
+| **Portfolio** (`/portfolio`) | Open positions by stock and expiry: live P&L, margin, Greeks, stop-loss mode per leg, payoff, price & pivot chart, exit leg / exit all, open limit orders |
+| **Virtual account** (`/virtual`) | Order history, closed trades, auto-trade settings and runs, account reset |
+| **Admin** (`/admin`, admin only) | Approve, reject or disable users, issue temporary passwords, sign-in activity log with client IPs |
+
+Accounts: every page needs a sign-in. New users request access on `/register` and start as pending with ₹10,00,000 of virtual capital.
 
 ## Rules (edit in `engine/config.py`)
 
@@ -63,6 +88,8 @@ Open http://localhost:5173. The first load takes about a minute because it fetch
 | Max Pain | Shown as distance from the strike, used for confirmation only |
 | S/R | 6-month daily swings (5-candle fractal), zones ±1.5%, 2+ touches. A strike inside a zone drops that leg |
 | Stop loss | None for the first 15 days, then buy back at the original premium collected |
+| Time exit | Every leg closes once fewer than 7 days remain (stock options settle by physical delivery) |
+| Profit exit | The whole group closes once 90% of the premium collected has decayed |
 | Sentiment | +1/-1 for price vs 20 & 50 DMA trend, +1/-1 for today's PE vs CE OI change. Score ≥1 Bullish, ≤-1 Bearish, else Neutral. Display only; it doesn't filter trades, but flags single-leg sells that go against it |
 
 ## Trade metrics
@@ -89,42 +116,49 @@ Open http://localhost:5173. The first load takes about a minute because it fetch
 | 1σ / 2σ | Expected move by expiry, spot × e^(±nσ√t) from the legs' IV; shaded on both payoff charts. Each strike shows how many σ it sits from spot |
 | Margin | Real SPAN + exposure for the chosen strikes (`calc_margin` RPC) |
 
-## Wallet
-
-The top-bar wallet shows the virtual account's free funds, refreshed every 30s and after every order, exit or reset. Lot suggestions use `min(account value × max % per trade, free funds)`; set the % in the wallet panel.
-
 ## Portfolio & virtual account
 
-Paper trading with live NSE prices, stored in `engine/data/virtual.db` (SQLite, git-ignored). Starts at ₹10 lakh; reset any time from **Virtual account** with a custom amount.
+Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹10 lakh; reset any time from **Virtual account** with a custom amount (₹10,000 to ₹1,000 crore).
 
 | Feature | Behaviour |
 |---|---|
-| Order fills | Sells fill at the live bid, buys at the ask. If there's no bid/ask (market closed), the last traded price is used and the order is tagged with a note |
-| Margin | SPAN (from the NSE risk file, long and short legs netted) + exposure on short legs, per stock/expiry. Orders are rejected if free funds can't cover the extra margin |
+| Orders | Limit orders only, as on a live account. A limit the market already meets fills at once at the bid (sells) or ask (buys). Any other limit waits as an open order and expires at the session close. Orders placed outside market hours wait for the next session |
+| Repeat orders | If an earlier order on the same stock and expiry hasn't filled yet, the ticket warns and asks before placing another. The server enforces this too, so a double click or a second tab can't double a trade |
+| Margin | SPAN (long and short legs netted) + exposure on short legs, per stock/expiry. Checked again under a lock at booking, so two orders can't both spend the same free funds. Open orders hold their margin until they fill or end |
 | Positions | Netted per contract; opposite trades reduce or close the position and book realised P&L |
-| Stop loss | Per short leg, three modes: **Auto exit** (buys back at the ask once it reaches the premium collected, from day 15), **Alert only** (flags the leg for you to act), **Off**. The account default applies to new legs; change any leg on the Portfolio page |
-| Monitor | Background thread checks stop losses every minute during market hours (9:15–15:30 IST) and settles expired contracts at intrinsic value, as long as `server.py` is running |
-| Portfolio | Positions grouped by stock and expiry: live P&L, margin, Greeks, payoff at expiry, exit leg or exit all |
+| Stop loss | Per short leg, three modes: **Auto exit** (the whole group closes once a leg's ask reaches the premium collected, from day 15), **Alert only** (flags the leg for you to act), **Off**. The account default applies to new legs; change any leg on the Portfolio page |
+| Exits | Exit a leg or the whole group. With the market closed, the exit waits as an open order; pressing Exit again doesn't queue a second one |
+| Monitor | The worker checks stop losses, time exits and profit targets every minute in market hours (09:15–15:30 IST), fills open orders once the market reaches them, and settles expired contracts at intrinsic value |
+| Auto-trade | Optional, per user: once a day at a set time it sells the top-ranked actionable setups within a per-trade cap and a free-funds reserve. It skips any stock and expiry that already has an order waiting |
+| Wallet | The top bar shows free funds, refreshed every 30 s and after every order; set the max margin % per trade there |
+
+## Price & pivot levels
+
+On the Portfolio page, **Price & pivot levels** on a position opens a 6-month daily price chart with classic floor pivots and the position's short strikes. Daily, weekly or monthly pivots come from the last *completed* session, week or month (monthly by default, to match 30+ day trades). Below the chart: all nine levels, their distance from spot, and where spot and each short strike sit among them.
+
+| Level | Formula (H, L, C of the period) |
+|---|---|
+| P | (H + L + C) / 3 |
+| R1 / S1 | 2P − L / 2P − H |
+| R2 / S2 | P + (H − L) / P − (H − L) |
+| R3 / S3 | H + 2(P − L) / L − 2(H − P) |
+| R4 / S4 | 3P + H − 3L / 3P − 3H + L |
 
 ## Layout
 
-- `engine/` — data fetch (NSE v3 option chain, lot sizes, yfinance), SPAN parser (`span.py`), filters, Greeks/probabilities/Max Pain/S-R, rule engine
-- `engine/batch.py` — background batch screener (10 stocks per batch, 3 NSE workers, one yfinance call per batch)
-- `engine/virtual.py` — virtual trading account, order fills, SL monitor
-- `server.py` — JSON-RPC 2.0 endpoint at `POST /rpc`: screener (`get_screened_candidates`, `get_trade_detail`, `get_config`, `calc_margin`) and virtual trading (`va_get_account`, `va_get_positions`, `va_get_orders`, `va_get_closed`, `va_preview_order`, `va_place_order`, `va_exit_position`, `va_exit_group`, `va_set_sl_mode`, `va_dismiss_alert`, `va_reset`)
-- `frontend/` — React (Vite) dashboard: `pages/Overview.jsx`, `pages/StockDetail.jsx`, `pages/Portfolio.jsx`, `pages/VirtualAccount.jsx`, charts in `components/Charts.jsx` (Recharts). Responsive from 320px: wide tables turn into stacked cards below 1024px
+- `server.py` — JSON-RPC 2.0 endpoint `POST /rpc`, auth, CSRF (Origin) check, error handling; `rpc_guard.py` validates every call's params against the handler's signature
+- `engine/` — `data_fetch.py` (NSE option chain v3, lot sizes, yfinance), `span.py` (SPAN risk files), `filters.py` / `risk_rules.py` / `greeks_sr.py` (rules, Black-Scholes, S/R), `batch.py` (batched screening), `virtual.py` (orders, fills, margin, monitor), `pivots.py`, `autotrade.py`, `auth.py`, `users.py`, `worker.py`, `db.py`, `cache.py`, `settings.py`
+- `migrations/` — Alembic; every user-owned table has row-level security
+- `frontend/` — React (Vite): pages in `src/pages/`, charts in `src/components/` (Recharts). Responsive from 320 px: wide tables become stacked cards below 1024 px
+- `tests/`, `frontend/tests/` — backend integration and UI tests
+- `deploy/` — Caddy configs, Postgres init, Coolify runbook; `docker-compose.yml` (self-hosted), `docker-compose.coolify.yml`
+- `.github/workflows/ci.yml` — CI/CD
 
-## Known limits
+## Deploy
 
-- NSE's option-chain API is unofficial. It can change or block requests without notice (it already moved from `option-chain-equities` to `option-chain-v3`).
-- Delta is computed locally with a fixed 6.5% risk-free rate and no dividend adjustment.
-- The SL rule is display-only until position tracking and broker integration are added (Phase 2).
-- Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator before relying on it.
-- Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
+**Production (Coolify).** `main` deploys automatically: GitHub Actions runs lint, tests and image builds, then asks Coolify to deploy and smoke-tests the live site. Deploys are held during market hours (weekdays 09:00–15:35 IST) and go out at 15:45 IST. Setup, the one-time API token, verification and rollback are in [deploy/COOLIFY.md](deploy/COOLIFY.md).
 
-## Deploy with Docker Compose
-
-Six services, one `docker compose up`: `web` (Caddy: HTTPS, security headers, serves the React build, proxies `/rpc`), `api` (gunicorn, 3 processes), `worker`, `migrate` (runs once per start), `postgres`, `redis`. Only `web` publishes ports; Postgres and Redis sit on an internal network with no internet access.
+**Self-hosted (Docker Compose).** Six services: `web` (Caddy: HTTPS, security headers, the React build, proxies `/rpc`), `api` (gunicorn), `worker`, `migrate` (runs once per start), `postgres`, `redis`. Only `web` publishes ports; Postgres and Redis sit on an internal network with no internet access.
 
 ```bash
 python3 scripts/make_secrets.py      # random passwords into ./secrets (git-ignored)
@@ -133,5 +167,19 @@ docker compose up -d --build
 docker compose exec api python scripts/set_admin.py you@example.com
 ```
 
-Point the domain's DNS A record at the server first: Caddy fetches the certificate on start. `docker compose ps` shows every service's health. To try it on a laptop, use `DOMAIN=localhost`, `HTTPS_PORT=8443`, `PUBLIC_URL=https://localhost:8443` (the browser warns about Caddy's local certificate).
+Point the domain's DNS A record at the server first: Caddy fetches the certificate on start. To try it on a laptop, use `DOMAIN=localhost`, `HTTPS_PORT=8443`, `PUBLIC_URL=https://localhost:8443` (the browser warns about Caddy's local certificate).
 
+## Known limits
+
+- NSE's option-chain API is unofficial. It can change or block requests without notice (it already moved from `option-chain-equities` to `option-chain-v3`). The server throttles its own NSE calls to avoid being blocked.
+- Delta is computed locally with a fixed 6.5% risk-free rate and no dividend adjustment.
+- Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator.
+- Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
+- Market hours are fixed at 09:15–15:30 IST on weekdays; NSE holidays are not in the calendar.
+- This is a paper-trading and research tool, not investment advice.
+
+## Contributing, security, licence
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): setup, conventions, tests and the pull request / deploy flow.
+- [SECURITY.md](SECURITY.md): how to report a vulnerability privately.
+- [LICENSE](LICENSE): proprietary, all rights reserved. Access to this repository does not grant a licence to use, copy or deploy the code.

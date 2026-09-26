@@ -45,6 +45,28 @@ pack, compose file `/docker-compose.coolify.yml`, branch `main`.
 - Response headers on `/` include `Strict-Transport-Security`, `Content-Security-Policy` and `X-Frame-Options: DENY`.
 - The worker log shows `worker lock acquired` and, in market hours, screen refreshes. The first screen takes about a minute.
 
+## CI/CD (GitHub Actions)
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+| Job | What it checks |
+|---|---|
+| Frontend | `npm run lint`, `npm test` (happy-dom UI tests), `npm run build` |
+| Backend | `python tests/run.py`: integration tests against real Postgres 16 + Redis 7, fresh database per file |
+| Docker images | builds the `app` and `web-coolify` targets (not pushed; Coolify builds its own) |
+| Deploy | `main` only, after all three pass: `scripts/ci_deploy.sh` asks Coolify's API to deploy, waits for `finished`, then smoke-tests `/healthz`, `/`, the Origin check, `GET /rpc` and the CSP header |
+
+**Market hours.** Weekdays 09:00–15:35 IST the deploy job holds (tested, not shipped), because a restart pauses the SL monitor for up to a minute. A scheduled run at 15:45 IST deploys `main` if Coolify isn't already running it. *Actions → CI/CD → Run workflow* with "Deploy even if the market is open" overrides the hold.
+
+**One-time setup:**
+1. Coolify → *Keys & Tokens* → *API tokens* → create a token with the **deploy** and **read** abilities.
+2. Save it as a repository secret named `COOLIFY_TOKEN`: `gh secret set COOLIFY_TOKEN` (paste it when asked), or GitHub → Settings → Secrets and variables → Actions.
+3. Optional: GitHub → Settings → Environments → `production` → add yourself as a required reviewer if you want to approve each deploy.
+
+Don't also turn on Coolify's own auto-deploy webhook, or every push deploys twice, and without the tests or the market-hours hold.
+
+A failed deploy leaves the previous containers running only if the build failed; if new containers start but the smoke test fails, roll back as below.
+
 ## Rollback
 
 The Coolify UI can redeploy a previous commit. The database is only created by migrations, so rolling back past a migration needs `alembic downgrade` run in `migrate` first.

@@ -1,0 +1,184 @@
+# CI on every push and pull request; deploy to Coolify when main is green.
+#
+# Deploys never start during NSE market hours (Mon-Fri 09:15-15:30 IST): a restart pauses the
+# worker's SL monitor for up to a minute. A push to main during the session is tested but held;
+# the 15:45 IST scheduled run deploys it. "Run workflow" by hand can override the hold.
+#
+# Needs one repository secret, COOLIFY_TOKEN: a Coolify API token with the "deploy" and "read"
+# abilities (Coolify → Keys & Tokens → API tokens). See deploy/COOLIFY.md.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "15 10 * * 1-5"  # 15:45 IST, after the close
+  workflow_dispatch:
+    inputs:
+      during_market:
+        description: Deploy even if the market is open
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  COOLIFY_URL: https://coolify.connectbiomedical.com
+  COOLIFY_APP_UUID: uygwpa9ukr3zdoufohiyvnfc
+  PUBLIC_URL: https://theta.connectbiomedical.com
+
+jobs:
+  # Pushes and PRs always run. The daily after-market run only goes ahead when main has a commit
+  # Coolify isn't running yet (one held back during market hours).
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.p.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          live=$(bash scripts/ci_deploy.sh --live-commit)
+          if [[ "$live" == "$GITHUB_SHA" ]]; then
+            echo "::notice::Coolify already runs $GITHUB_SHA. Nothing to ship."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Coolify runs ${live:-unknown}; main is $GITHUB_SHA."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  frontend:
+    name: Frontend (lint, tests, build)
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  backend:
+    name: Backend (integration tests)
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: theta_owner
+          POSTGRES_PASSWORD: test-owner
+          POSTGRES_DB: theta
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U theta_owner" --health-interval 5s --health-timeout 5s --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DB_HOST: localhost
+      OWNER_DB_PASSWORD: test-owner
+      DB_APP_PASSWORD: test-app
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"  # same as the Dockerfile
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Byte-compile
+        run: python -m compileall -q server.py rpc_guard.py engine scripts migrations tests
+      - name: Integration tests (fresh database per file)
+        run: python tests/run.py
+
+  images:
+    name: Docker images build
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: app (api, worker, migrate)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: app
+          push: false
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+      - name: web-coolify (Caddy + built frontend)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web-coolify
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  deploy:
+    name: Deploy to Coolify
+    needs: [frontend, backend, images]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://theta.connectbiomedical.com
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hold during market hours
+        id: gate
+        run: |
+          now=$(TZ=Asia/Kolkata date +%u%H%M)   # e.g. 11030 = Monday 10:30
+          day=${now:0:1}; hm=$((10#${now:1}))
+          if [[ "${{ inputs.during_market }}" == "true" ]]; then
+            echo "Manual override: deploying regardless of market hours."
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          elif (( day <= 5 && hm >= 900 && hm < 1535 )); then
+            echo "::notice::Market is open (IST $(TZ=Asia/Kolkata date +%H:%M)). Tested, not deployed; the 15:45 IST run will ship it."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy and smoke-test
+        if: steps.gate.outputs.go == 'true'
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          EXPECT_SHA: ${{ github.sha }}
+        run: |
+          if [[ -z "$COOLIFY_TOKEN" ]]; then
+            echo "::error::Repository secret COOLIFY_TOKEN is not set (see deploy/COOLIFY.md)."
+            exit 1
+          fi
+          bash scripts/ci_deploy.sh

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Theta Desk: a Nifty 50 options-selling screener (30+ DTE setups) with paper trading on a virtual account. Python/Flask JSON-RPC backend, React (Vite) frontend, PostgreSQL + Redis. Broker execution is not wired; all trading is virtual.
+Theta Desk: a Nifty 50 options-selling screener (30+ DTE setups) with paper trading on a virtual account. Python 3.12 / Flask JSON-RPC backend, React 19 (Vite) frontend, PostgreSQL 16 + Redis 7. Broker execution is not wired; all trading is virtual. Proprietary (LICENSE); contributor rules are in CONTRIBUTING.md and SECURITY.md, and README.md documents features and trading rules.
 
 ## Commands
 
@@ -17,9 +17,13 @@ python scripts/set_admin.py you@example.com
 npm --prefix frontend run dev           # http://localhost:5173, proxies /rpc and /healthz to :8000
 npm --prefix frontend run lint          # oxlint
 npm --prefix frontend run build
+npm --prefix frontend test              # UI tests (happy-dom), frontend/tests/*.test.jsx
+make test                               # backend integration tests in throwaway Postgres + Redis containers
 ```
 
-There is no test suite.
+Backend tests are plain scripts in `tests/test_*.py`. Each prints PASS/FAIL lines and exits non-zero on failure. `tests/run.py` gives every file a fresh, migrated database and flushes Redis. It needs `DB_HOST`, `OWNER_DB_PASSWORD`, `DB_APP_PASSWORD` and `REDIS_URL`. To run a single file: `python tests/run.py test_pivots.py`. Market data is stubbed in `tests/support.py`. `LIVE_DATA=1` adds a real yfinance check.
+
+CI/CD is `.github/workflows/ci.yml`: lint, tests, image builds, then a Coolify API deploy of `main` (held during market hours). Setup and behaviour are in deploy/COOLIFY.md.
 
 Docker (self-hosted): `make secrets && make up`, `make migrate`, `make admin EMAIL=...`, `make logs`.
 
@@ -39,7 +43,9 @@ The `web` target is Caddy serving `frontend/dist` and reverse-proxying `/rpc` an
 - `USER_METHODS`: signed in; the server passes `ctx.user_id` as the first positional argument.
 - `ADMIN_METHODS`: admin role; handler gets `ctx`.
 
-`rpc_guard.validate` is the only trust boundary. It introspects the target function's signature: `_`-prefixed params and `user_id` can never be set by a client, and required params and basic annotation types are enforced. Engine functions therefore need accurate type annotations. Wrappers must use `functools.wraps` (see `_then_refresh`) so validate still sees the real signature.
+`rpc_guard.validate` is the only trust boundary. It introspects the target function's signature: `_`-prefixed params and `user_id` can never be set by a client, and required params and basic annotation types are enforced (floats must be finite). Engine functions therefore need accurate type annotations. Wrappers must use `functools.wraps` (see `_then_refresh`) so validate still sees the real signature.
+
+A `symbol` param is checked against the current Nifty 50. Methods that act on stocks the user already holds (which may have left the index) are listed in `ANY_SYMBOL` and must check ownership themselves (`va_exit_group`, `va_price_levels`).
 
 Error handling: raise `ValueError`/`TimeoutError` for errors the user should see. Anything else is logged with a ref id, and the client only gets a generic message.
 
@@ -58,7 +64,7 @@ Migrations `GRANT` to `theta_app` only if the role already exists. The role must
 - `span.py`: parses NSE SPAN risk files into `engine/cache/`, a volume shared by api and worker.
 - `filters.py` / `risk_rules.py` / `greeks_sr.py`: screening rules, Black-Scholes, S/R zones.
 - `batch.py`: batched screening.
-- `virtual.py`: fills, margin, and the SL monitor.
+- `virtual.py`: fills, margin, and the SL monitor. Booking runs under `_lock` + `_lock_account` (row lock) and re-checks margin and state inside it. `place_order` refuses a second order on a stock/expiry with one still waiting unless `confirm_waiting` is set; auto-trade instead skips such pairs.
 - `pivots.py`: floor pivots (P, R1–R4, S1–S4) from the last completed day/week/month, for the Portfolio price chart.
 - `autotrade.py`, `auth.py`, `users.py`.
 
@@ -79,5 +85,3 @@ Screening thresholds live in `engine/config.py`. README.md documents the trading
 - `docker-compose.coolify.yml` + `deploy/Caddyfile.coolify`: behind Cloudflare → Coolify's Traefik. Caddy serves plain HTTP on `:80` with `auto_https off`. Never bind-mount repo files in this variant: Coolify keeps only the compose file on the host, so such mounts become empty directories. Bake files into an image instead (`Dockerfile --target web-coolify`). Caddy trusts `CF-Connecting-IP` only when Traefik's peer is a Cloudflare range, then sends the visitor IP as the sole `X-Forwarded-For` entry for the API's ProxyFix. Passwords come from Coolify env vars: `DB_OWNER_PASSWORD`, `DB_APP_PASSWORD`, `REDIS_PASSWORD`, plus `DOMAIN`/`PUBLIC_URL` and `ADMIN_EMAIL`. `PUBLIC_URL` must exactly match the public HTTPS origin, or every `/rpc` call gets a 403 from the Origin check.
 
 Self-hosted: Postgres init scripts run only when the `pg_data` volume is first created, so changing the app password later does not update the `theta_app` role. The Coolify variant re-syncs the role password on every deploy.
-
-README's "Portfolio & virtual account" section still mentions SQLite (`virtual.db`). That is outdated: accounts now live in Postgres.
