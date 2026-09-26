@@ -136,7 +136,8 @@ def get_positions(user_id: int) -> list[dict]:
 
 def get_margins(user_id: int) -> dict:
     _require_active(user_id)
-    return (cache.get_json(f"broker_snap:{user_id}") or {}).get("margins", {"available_margin": 0.0})
+    return (cache.get_json(f"broker_snap:{user_id}") or {}).get(
+        "margins", {"available_margin": 0.0, "cash_margin": 0.0, "collateral_margin": 0.0})
 
 
 def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> dict:

@@ -73,10 +73,12 @@ export default function BrokerAccount() {
         {margins ? (
           <>
             <Fund label="Available margin" value={rupee(margins.available_margin)} sub="free to place new real orders" />
+            <Fund label="Cash margin" value={rupee(margins.cash_margin)} sub="your own funds" />
+            <Fund label="Collateral margin" value={rupee(margins.collateral_margin)} sub="from pledged stock/MF, can't be withdrawn" />
             <Fund label="Open positions" value={netPositions.length} sub="at your broker, right now" />
           </>
         ) : (
-          Array.from({ length: 2 }, (_, i) => (
+          Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="stat">
               <span className="skeleton" style={{ width: '50%', height: 12 }} />
               <span className="skeleton" style={{ width: '70%', height: 26, margin: '6px 0' }} />
