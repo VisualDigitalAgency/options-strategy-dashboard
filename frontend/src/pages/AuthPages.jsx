@@ -4,6 +4,7 @@ import { Eye, EyeOff, Hourglass } from 'lucide-react'
 import { useAuth } from '../auth'
 import { rpc } from '../rpc'
 import DialMark from '../components/DialMark'
+import { SHOW_KEY as BROKER_POPUP_KEY } from '../components/BrokerOnboarding'
 
 const MIN = 10
 
@@ -78,6 +79,7 @@ export function Login() {
   const [password, setPassword] = useState('')
   const { busy, error, submit } = useSubmit(async () => {
     await login(email, password)
+    try { sessionStorage.setItem(BROKER_POPUP_KEY, '1') } catch { /* storage blocked: popup just won't show */ }
     nav(next && next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true })
   })
   return (
