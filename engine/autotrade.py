@@ -10,11 +10,14 @@ on real numbers, not the screener's estimate. Never touches a broker.
 """
 
 import json
+import logging
 import threading
 import time
 from datetime import datetime, timedelta
 
 from . import cache, db, users, virtual
+
+log = logging.getLogger("theta.autotrade")
 
 CHECK_INTERVAL = 30
 FIELDS = ("enabled", "run_at", "min_pop", "reserve_pct", "max_trade_pct")
@@ -102,6 +105,11 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
     reserve = value * s["reserve_pct"] / 100
     cap = value * s["max_trade_pct"] / 100
     held = {(g["symbol"], g["expiry"]) for g in virtual.get_positions(user_id)["groups"]}
+    # An order still waiting to fill (placed outside market hours, or a limit away from the touch)
+    # isn't a position yet, but it will be: without this, the next run places the same trade again.
+    with db.tx(user_id) as c:
+        waiting = {(r["symbol"], r["expiry"]) for r in c.all(
+            "SELECT DISTINCT symbol, expiry FROM pending_orders WHERE user_id=:u AND status='open'", u=user_id)}
     free = acct["available_margin"]
 
     placed, skipped = [], []
@@ -117,6 +125,9 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
             continue
         if (sym, exp) in held:
             skipped.append({**tag, "reason": "Already holding this stock and expiry"})
+            continue
+        if (sym, exp) in waiting:
+            skipped.append({**tag, "reason": "An order for this stock and expiry is still waiting to fill"})
             continue
         room = min(cap, free - reserve)
         lots = int(room // st["margin"]) if room > 0 else 0
@@ -171,8 +182,8 @@ def start_scheduler(get_candidates) -> None:
                     if due:
                         run(uid, get_candidates(), trigger="schedule")
                         virtual.refresh_positions(uid)
-                except Exception:
-                    pass  # one user's failure never stops the others; next pass retries
+                except Exception:  # one user's failure never stops the others; next pass retries
+                    log.exception("auto-trade pass failed for user %s", uid)
             time.sleep(CHECK_INTERVAL)
 
     threading.Thread(target=loop, daemon=True, name="virtual-autotrade").start()

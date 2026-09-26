@@ -10,6 +10,7 @@ fetches from NSE itself; it asks the worker for an early refresh via `screen:for
 """
 
 import json
+import secrets
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -45,7 +46,7 @@ class ScreenJob:
         self.results: dict[str, dict] = {}
         self.order: list[str] = []
         self.state = _empty_state()
-        self._version = 0
+        self._version = ""
         self._load_cache()
 
     def _load_cache(self) -> None:
@@ -66,7 +67,9 @@ class ScreenJob:
     def _publish(self, rows: bool) -> None:
         """Rows go out after each batch; the small meta record on every progress step."""
         if rows:
-            self._version += 1
+            # Unique across worker restarts: a counter would restart at 1, and an API process still
+            # holding an old version with the same number would keep serving stale rows.
+            self._version = f"{time.time_ns():x}-{secrets.token_hex(3)}"
             cache.set_json(LATEST, {"version": self._version, "order": self.order, "results": self.results})
         cache.set_json(META, {**{k: self.state[k] for k in STATE_KEYS}, "version": self._version})
 

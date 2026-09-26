@@ -299,6 +299,9 @@ ADMIN_METHODS = {
     "admin_audit_log": admin_audit_log,
 }
 
+# Methods whose `symbol` may be outside the current Nifty 50 (they only act on existing positions).
+ANY_SYMBOL = {"va_exit_group"}
+
 # With a temporary password, only these work until it is changed.
 WHILE_MUST_CHANGE = {"auth_me", "auth_logout", "auth_change_password"}
 
@@ -396,7 +399,9 @@ def rpc():
             return _error(req_id, FORBIDDEN, "Admins only")
 
     try:
-        params = validate(method, body.get("params"), universe=universe)
+        # Closing what you hold never depends on today's index list: a stock that left the Nifty 50
+        # at a rebalance must still be exitable. The ticker shape is checked either way.
+        params = validate(method, body.get("params"), universe=None if name in ANY_SYMBOL else universe)
     except InvalidParams as e:
         return _error(req_id, -32602, f"Invalid params: {e}")
     except Exception:  # e.g. the Nifty 50 list couldn't be loaded; never an HTML 500

@@ -10,6 +10,9 @@ export function ScreenProvider({ children }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const timer = useRef(null)
+  // False once unmounted (e.g. sign-out): a request still in flight then must not re-arm the poll,
+  // or it keeps running forever next to the new provider's.
+  const alive = useRef(false)
 
   const load = useCallback(async (force = false) => {
     clearTimeout(timer.current)
@@ -22,13 +25,17 @@ export function ScreenProvider({ children }) {
     } catch (e) {
       setError(e.message) // keep showing the last data; the error shows as a banner
     } finally {
-      timer.current = setTimeout(() => load(false), next)
+      if (alive.current) timer.current = setTimeout(() => load(false), next)
     }
   }, [])
 
   useEffect(() => {
+    alive.current = true
     load()
-    return () => clearTimeout(timer.current)
+    return () => {
+      alive.current = false
+      clearTimeout(timer.current)
+    }
   }, [load])
 
   const refreshing = !!data?.refreshing

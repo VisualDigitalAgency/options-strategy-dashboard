@@ -27,6 +27,7 @@ export function SettingsProvider({ children }) {
   const [error, setError] = useState(null)
   const timer = useRef(null)
   const pctTimer = useRef(null)
+  const alive = useRef(false) // see screen.jsx: no re-arming the poll after unmount
 
   const refresh = useCallback(async () => {
     clearTimeout(timer.current)
@@ -38,13 +39,18 @@ export function SettingsProvider({ children }) {
     } catch (e) {
       setError(e.message)
     } finally {
-      timer.current = setTimeout(refresh, POLL_MS)
+      if (alive.current) timer.current = setTimeout(refresh, POLL_MS)
     }
   }, [])
 
   useEffect(() => {
+    alive.current = true
     refresh()
-    return () => clearTimeout(timer.current)
+    return () => {
+      alive.current = false
+      clearTimeout(timer.current)
+      clearTimeout(pctTimer.current)
+    }
   }, [refresh])
 
   // Backend value wins once loaded; the local copy only covers the first paint.

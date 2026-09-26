@@ -501,6 +501,8 @@ def exit_position(user_id: int, position_id: int) -> list[dict]:
 def exit_group(user_id: int, symbol: str, expiry: str) -> list[dict]:
     with db.tx(user_id) as c:
         rows = _open_rows(c, user_id, symbol, expiry)
+    if not rows:
+        raise ValueError(f"No open positions in {symbol} {expiry}")
     return _exit_rows(user_id, rows, "manual")
 
 
