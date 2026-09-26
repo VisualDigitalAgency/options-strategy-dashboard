@@ -30,9 +30,9 @@ def client() -> redis.Redis:
     return _client
 
 
-def _call(fn, default=None):
+def _call(fn, default=None, *, bypass_breaker: bool = False):
     global _down_until
-    if time.monotonic() < _down_until:
+    if time.monotonic() < _down_until and not bypass_breaker:
         return default
     try:
         return fn(client())
@@ -84,7 +84,9 @@ class Lock:
         return bool(_call(lambda r: r.set(self.key, self.token, nx=True, px=self.ttl_ms), False))
 
     def renew(self) -> bool:
-        return bool(_call(lambda r: r.eval(_RENEW, 1, self.key, self.token, self.ttl_ms), 0))
+        # Always really asks Redis: one slow write elsewhere in the process (which trips the
+        # breaker) mustn't look like a lost lock.
+        return bool(_call(lambda r: r.eval(_RENEW, 1, self.key, self.token, self.ttl_ms), 0, bypass_breaker=True))
 
     def release(self) -> None:
         _call(lambda r: r.eval(_RELEASE, 1, self.key, self.token))

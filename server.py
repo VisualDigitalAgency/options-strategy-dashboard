@@ -13,7 +13,9 @@ import time
 import traceback
 
 import pandas as pd
+import requests
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 
 from engine import auth, autotrade, cache, config, data_fetch, db, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
@@ -144,7 +146,12 @@ def _then_refresh(fn):
     @functools.wraps(fn)  # keeps fn's signature visible to rpc_guard.validate
     def wrapped(user_id, **kw):
         result = fn(user_id, **kw)
-        virtual.refresh_positions(user_id)
+        # The change is committed. A failed re-price (NSE slow or down) must not turn that into an
+        # error, or the user retries and trades twice; the monitor re-prices within a minute anyway.
+        try:
+            virtual.refresh_positions(user_id)
+        except Exception:
+            log.warning("re-price after %s failed for user %s", fn.__name__, user_id, exc_info=True)
         return result
     return wrapped
 
@@ -311,6 +318,27 @@ def _error(req_id, code, message, status=200):
 # chain, stale screen, wrong password). Anything else is a bug or an upstream failure and stays
 # in the server log.
 USER_ERRORS = (ValueError, TimeoutError)
+# NSE or another data source failed or changed shape: not a bug here, and worth telling the user.
+UPSTREAM_ERRORS = (requests.RequestException, data_fetch.NseSchemaError)
+UPSTREAM_MESSAGE = "Market data from NSE isn't available right now. Try again in a minute"
+
+
+def _internal(req_id, what: str):
+    """Logs the traceback under a short reference and returns a generic error carrying it."""
+    ref = secrets.token_hex(3)
+    log.error("%s failed (ref %s): %s", what, ref, traceback.format_exc())
+    return _error(req_id, -32603, f"Something went wrong on the server (ref {ref})")
+
+
+@app.errorhandler(HTTPException)
+def http_error(e: HTTPException):
+    """404, 405, 413 and the rest as JSON-RPC errors, not Flask's HTML pages."""
+    return _error(None, -32600, e.description or e.name, e.code or 500)
+
+
+@app.errorhandler(Exception)
+def unhandled_error(e: Exception):
+    return _internal(None, f"{request.method} {request.path}")[0], 500
 
 
 @app.after_request
@@ -358,9 +386,7 @@ def rpc():
     try:
         ctx = Ctx()
     except Exception:
-        ref = secrets.token_hex(3)
-        log.error("session lookup failed (ref %s): %s", ref, traceback.format_exc())
-        return _error(req_id, -32603, f"Something went wrong on the server (ref {ref})")
+        return _internal(req_id, "session lookup")
     if kind != "public":
         if not ctx.user:
             return _error(req_id, NOT_SIGNED_IN, "Sign in to continue")
@@ -373,6 +399,8 @@ def rpc():
         params = validate(method, body.get("params"), universe=universe)
     except InvalidParams as e:
         return _error(req_id, -32602, f"Invalid params: {e}")
+    except Exception:  # e.g. the Nifty 50 list couldn't be loaded; never an HTML 500
+        return _internal(req_id, f"validating rpc {name}")
 
     try:
         if kind == "user":
@@ -381,12 +409,13 @@ def rpc():
             result = method(**params)
         else:
             result = method(ctx, **params)
+    except UPSTREAM_ERRORS:  # before USER_ERRORS: requests' JSON decode error is a ValueError
+        log.warning("rpc %s: upstream data failed", name, exc_info=True)
+        return _error(req_id, -32000, UPSTREAM_MESSAGE)
     except USER_ERRORS as e:
         return _error(req_id, -32000, str(e))
     except Exception:
-        ref = secrets.token_hex(3)
-        log.error("rpc %s failed (ref %s): %s", name, ref, traceback.format_exc())
-        return _error(req_id, -32603, f"Something went wrong on the server (ref {ref})")
+        return _internal(req_id, f"rpc {name}")
 
     resp = jsonify({"jsonrpc": "2.0", "id": req_id, "result": result})
     secure = COOKIE.startswith("__Host-") or os.environ.get("COOKIE_SECURE", "1") == "1"

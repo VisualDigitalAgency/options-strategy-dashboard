@@ -365,11 +365,20 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         notes.add("Market closed: the order waits and fills in the next session if the price is reached")
     elif not all(f["fills_now"] for f in fills):
         notes.add("A limit away from the market waits as an open order and expires at 15:30")
-    spot = fills[0]["spot"]
-
     with db.tx(user_id) as c:
         existing = _open_rows(c, user_id, symbol, expiry)
         default_sl = _account_row(c, user_id)["sl_mode_default"]
+    premium = sum(f["price"] * f["qty"] * (1 if f["action"] == "SELL" else -1) for f in fills)
+    return {
+        "symbol": symbol, "expiry": expiry, "lot_size": lot, "fills": fills,
+        "premium": round(premium, 2), **_margin_impact(user_id, symbol, expiry, existing, fills),
+        "sl_mode_default": default_sl, "notes": sorted(notes), "market_open": market_open(),
+    }
+
+
+def _margin_impact(user_id: int, symbol: str, expiry: str, existing: list[dict], fills: list[dict]) -> dict:
+    """Margin the group needs after `fills`, against what the account has free right now."""
+    spot = fills[0]["spot"]
     before = [{"side": r["side"], "strike": r["strike"], "qty": r["qty"]} for r in existing]
     after = {(b["side"], b["strike"]): b["qty"] for b in before}
     for f in fills:
@@ -378,15 +387,15 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
     after_legs = [{"side": s, "strike": k, "qty": q} for (s, k), q in after.items()]
     m_before = group_margin(symbol, expiry, before, spot)["total"]
     m_after = group_margin(symbol, expiry, after_legs, spot)
-    acct = get_account(user_id)
-    premium = sum(f["price"] * f["qty"] * (1 if f["action"] == "SELL" else -1) for f in fills)
-    return {
-        "symbol": symbol, "expiry": expiry, "lot_size": lot, "fills": fills,
-        "premium": round(premium, 2), "margin_after": m_after, "margin_change": round(m_after["total"] - m_before, 2),
-        "available_margin": acct["available_margin"], "sl_mode_default": default_sl,
-        "sufficient": m_after["total"] - m_before <= acct["available_margin"],
-        "notes": sorted(notes), "market_open": market_open(),
-    }
+    change = round(m_after["total"] - m_before, 2)
+    available = get_account(user_id)["available_margin"]
+    return {"margin_after": m_after, "margin_change": change, "available_margin": available,
+            "sufficient": change <= available}
+
+
+def _insufficient(m: dict) -> ValueError:
+    return ValueError(f"Insufficient margin: needs ₹{m['margin_change']:,.0f}, "
+                      f"available ₹{m['available_margin']:,.0f}")
 
 
 def place_order(user_id: int, symbol: str, expiry: str, legs: list[dict], sl_mode: str | None = None) -> dict:
@@ -400,16 +409,21 @@ def execute_order(user_id: int, p: dict, sl_mode: str | None = None, reason: str
     it trusts the fills inside `p`, so it must never be reachable from the RPC table."""
     symbol, expiry = p["symbol"], p["expiry"]
     if not p["sufficient"]:
-        raise ValueError(f"Insufficient margin: needs ₹{p['margin_change']:,.0f}, "
-                         f"available ₹{p['available_margin']:,.0f}")
+        raise _insufficient(p)
     mode = sl_mode if sl_mode in SL_MODES else p["sl_mode_default"]
     note = "; ".join([n for n in [extra_note, *p["notes"]] if n]) or None
     resting = [f for f in p["fills"] if not f["fills_now"]]
-    # Open entry orders hold their share of the margin until they fill or end.
-    hold = max(p["margin_change"], 0) * len(resting) / len(p["fills"]) if resting else 0
     opened = []
     with _lock, db.tx(user_id) as c:
         _lock_account(c, user_id)
+        # Check again under the lock: an order booked since the preview (another tab, another API
+        # process, an auto-trade run) may have used the same free margin. Reads on other
+        # connections see it, because it committed before this lock was granted.
+        m = _margin_impact(user_id, symbol, expiry, _open_rows(c, user_id, symbol, expiry), p["fills"])
+        if not m["sufficient"]:
+            raise _insufficient(m)
+        # Open entry orders hold their share of the margin until they fill or end.
+        hold = max(m["margin_change"], 0) * len(resting) / len(p["fills"]) if resting else 0
         for f in p["fills"]:
             if f["fills_now"]:
                 _apply_trade(c, user_id, symbol, expiry, f["side"], f["strike"], f["action"], f["qty"], f["price"],
@@ -434,6 +448,10 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
     with _lock, db.tx(user_id) as c:
         _lock_account(c, user_id)
         for r in rows:
+            # Re-read under the lock: the caller's copy may be stale (a fill or exit since).
+            r = c.one("SELECT * FROM positions WHERE id=:i AND user_id=:u AND status='open'", i=r["id"], u=user_id)
+            if r is None:
+                continue
             action = "BUY" if r["qty"] < 0 else "SELL"
             if price_override and r["id"] in price_override:
                 px = price_override[r["id"]]
@@ -441,20 +459,34 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
                              px, r["lot_size"], reason, None, r["sl_mode"])
                 done.append({"id": r["id"], "price": px, "status": "filled"})
                 continue
+            contract = dict(u=user_id, s=r["symbol"], e=r["expiry"], sd=r["side"], k=r["strike"], a=action)
             q = quote(r["symbol"], r["expiry"], r["side"], r["strike"])
             limit = _default_limit(q, action)
             if _marketable(q, action, limit):
                 px = _touch(q, action)
                 _apply_trade(c, user_id, r["symbol"], r["expiry"], r["side"], r["strike"], action, abs(r["qty"]),
                              px, r["lot_size"], reason, None, r["sl_mode"], limit)
+                # The position is flat now; an older exit still waiting would reopen it the other way.
+                c.run("UPDATE pending_orders SET status='cancelled', updated_at=now() WHERE user_id=:u"
+                      " AND status='open' AND symbol=:s AND expiry=:e AND side=:sd AND strike=:k AND action=:a",
+                      **contract)
                 done.append({"id": r["id"], "price": px, "status": "filled"})
-            else:
-                oid = c.value(
-                    "INSERT INTO pending_orders (user_id, symbol, expiry, side, strike, action, qty, lot_size,"
-                    " limit_price, reason, sl_mode, valid_until) VALUES (:u,:s,:e,:sd,:k,:a,:q,:lot,:lim,:r,:m,:v)"
-                    " RETURNING id", u=user_id, s=r["symbol"], e=r["expiry"], sd=r["side"], k=r["strike"], a=action,
-                    q=abs(r["qty"]), lot=r["lot_size"], lim=limit, r=reason, m=r["sl_mode"], v=_valid_until())
-                done.append({"id": r["id"], "price": limit, "status": "open", "order_id": oid})
+                continue
+            # Orders already waiting in the closing direction reduce the position when they fill.
+            # Queue only what they don't cover, so pressing Exit twice can't overshoot into an
+            # opposite position.
+            covered = c.value("SELECT COALESCE(SUM(qty),0) FROM pending_orders WHERE user_id=:u AND status='open'"
+                              " AND symbol=:s AND expiry=:e AND side=:sd AND strike=:k AND action=:a", **contract)
+            left = abs(r["qty"]) - int(covered)
+            if left <= 0:
+                done.append({"id": r["id"], "price": None, "status": "already_open"})
+                continue
+            oid = c.value(
+                "INSERT INTO pending_orders (user_id, symbol, expiry, side, strike, action, qty, lot_size,"
+                " limit_price, reason, sl_mode, valid_until) VALUES (:u,:s,:e,:sd,:k,:a,:q,:lot,:lim,:r,:m,:v)"
+                " RETURNING id", **contract, q=left, lot=r["lot_size"], lim=limit, r=reason, m=r["sl_mode"],
+                v=_valid_until())
+            done.append({"id": r["id"], "price": limit, "status": "open", "order_id": oid})
     return done
 
 
@@ -491,8 +523,8 @@ def dismiss_alert(user_id: int, position_id: int) -> dict:
 
 
 def reset(user_id: int, starting_capital: float = config.STARTING_CAPITAL) -> dict:
-    if starting_capital < 10_000:
-        raise ValueError("Starting capital must be at least ₹10,000")
+    if not 10_000 <= starting_capital <= 10_000_000_000:  # the NaN-safe form: NaN fails both bounds
+        raise ValueError("Starting capital must be from ₹10,000 to ₹1,000 crore")
     with _lock, db.tx(user_id) as c:
         _lock_account(c, user_id)
         c.run("DELETE FROM orders WHERE user_id=:u", u=user_id)

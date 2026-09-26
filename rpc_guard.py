@@ -10,6 +10,7 @@ Engine functions stay free of web concerns; this module is the only trust bounda
 """
 
 import inspect
+import math
 import re
 import types
 import typing
@@ -60,7 +61,9 @@ def _type_ok(value, types: tuple) -> bool:
             return True
         if t is int and isinstance(value, int) and not isinstance(value, bool):
             return True
-        if t is float and isinstance(value, (int, float)) and not isinstance(value, bool):
+        # Python's JSON parser accepts NaN and Infinity. NaN slips past every range check (all its
+        # comparisons are false) and Postgres NUMERIC stores it, so refuse non-finite numbers here.
+        if t is float and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             return True
         if t in (str, list, dict) and isinstance(value, t):
             return True
@@ -76,7 +79,7 @@ def _check_legs(legs, need_action: bool) -> None:
         if l.get("side") not in ("CE", "PE"):
             raise InvalidParams("leg side must be CE or PE")
         strike = l.get("strike")
-        if isinstance(strike, bool) or not isinstance(strike, (int, float)) or not 0 < strike < 1_000_000:
+        if not _type_ok(strike, (float,)) or not 0 < strike < 1_000_000:
             raise InvalidParams("leg strike must be a positive number")
         if need_action:
             if l.get("action") not in ("BUY", "SELL"):
@@ -86,7 +89,7 @@ def _check_legs(legs, need_action: bool) -> None:
                 raise InvalidParams(f"leg lots must be a whole number from 1 to {MAX_LOTS}")
         if need_action and l.get("price") is not None:
             px = l["price"]
-            if isinstance(px, bool) or not isinstance(px, (int, float)) or not 0 < px < 1_000_000:
+            if not _type_ok(px, (float,)) or not 0 < px < 1_000_000:
                 raise InvalidParams("leg price must be a positive number")
         extra = set(l) - {"side", "strike", "action", "lots", "price"}
         if extra:

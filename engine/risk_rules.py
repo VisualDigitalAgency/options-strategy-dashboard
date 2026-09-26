@@ -1,5 +1,6 @@
 """Applies the full rule set to one symbol and returns an actionable recommendation."""
 
+import time
 from datetime import timedelta
 
 import numpy as np
@@ -207,14 +208,24 @@ def evaluate_symbol(symbol: str, yf_symbol: str, today: pd.Timestamp | None = No
     return result
 
 
+_universe = {"at": 0.0, "symbols": None}
+UNIVERSE_TTL = 6 * 3600
+
+
 def get_universe() -> list[str]:
+    """Nifty 50 from NSE's CSV, cached 6 h in this process (margin checks call this on every order).
+    A failed fetch falls back to the saved list and retries after 10 minutes, not on every call."""
+    if _universe["symbols"] and time.time() - _universe["at"] < UNIVERSE_TTL:
+        return _universe["symbols"]
     try:
         symbols = data_fetch.fetch_nifty50_symbols(config.NIFTY50_CSV_URL)
         if len(symbols) >= 45:
+            _universe.update(at=time.time(), symbols=symbols)
             return symbols
     except Exception:
         pass
-    return config.NIFTY50_FALLBACK
+    _universe.update(at=time.time() - UNIVERSE_TTL + 600, symbols=_universe["symbols"] or config.NIFTY50_FALLBACK)
+    return _universe["symbols"]
 
 
 def safe_evaluate(symbol: str, price_hist: pd.DataFrame | None = None) -> dict:

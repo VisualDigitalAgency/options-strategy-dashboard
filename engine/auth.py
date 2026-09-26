@@ -4,8 +4,9 @@
 - Sessions: a random 256-bit token in an HttpOnly cookie. Redis keeps only its SHA-256
   (`sess:{hash}`), so a Redis dump holds no usable cookies. 7-day sliding expiry, 30-day cap.
   `user_sess:{id}` lists a user's sessions so disable, reject or a password change ends all.
-- Login limits: 5 failures per email + IP pair and 30 per IP in 15 minutes, with a growing
-  delay. Keyed on the pair so a stranger can't lock the admin out by guessing wrong.
+- Login limits: 5 failures per email + IP pair and 30 per IP in 15 minutes. Keyed on the pair so
+  a stranger can't lock the admin out by guessing wrong. No sleep-based delay: with 12 request
+  slots, a handful of parallel slow logins would stall the site for everyone.
 - Sign-in never reveals whether an email is registered or what state it is in until the
   correct password is given. Sign-up does say an email is taken: one account per person
   matters more here than hiding who has signed up.
@@ -171,8 +172,6 @@ def _check_limits(email: str, ip: str | None) -> None:
     pair, per_ip = (_count(k) for k in _fail_keys(email, ip))
     if pair >= FAILS_PER_PAIR or per_ip >= FAILS_PER_IP:
         raise AuthError("Too many failed sign-ins. Wait 15 minutes and try again")
-    if pair >= 2:
-        time.sleep(min(pair - 1, 4))  # growing delay slows guessing without locking anyone out
 
 
 # ---------- account flows ----------

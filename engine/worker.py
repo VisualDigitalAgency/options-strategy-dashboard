@@ -23,6 +23,7 @@ from .batch import FORCE, ScreenJob
 
 LOCK_TTL = 60
 RENEW_EVERY = 15
+RENEW_RETRIES = 4  # at most 4 x 1.5 s timeouts + 3 x 3 s pauses: renewed within ~30 s, well inside LOCK_TTL
 HEARTBEAT = "worker:heartbeat"
 log = logging.getLogger("theta.worker")
 
@@ -64,7 +65,13 @@ def _hold(lock: cache.Lock) -> None:
     """Renews the leader lock and heartbeat. Losing the lock ends the process."""
     while True:
         time.sleep(RENEW_EVERY)
-        if not lock.renew():
+        # A renew answers 0 either because another worker owns the lock (exit now) or because Redis
+        # hiccupped. The lock lasts LOCK_TTL, so a few quick retries are still safely inside it.
+        for _ in range(RENEW_RETRIES):
+            if lock.renew():
+                break
+            time.sleep(3)
+        else:
             log.critical("lost the worker lock; exiting so two workers never trade at once")
             os._exit(1)
         cache.set_json(HEARTBEAT, {"at": time.time(), "pid": os.getpid()}, ttl=LOCK_TTL)

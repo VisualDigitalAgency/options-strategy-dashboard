@@ -312,7 +312,9 @@ export default function Portfolio() {
     try {
       const out = await rpc(method, params)
       const waiting = Array.isArray(out) ? out.filter((x) => x.status === 'open').length : 0
+      const already = Array.isArray(out) ? out.filter((x) => x.status === 'already_open').length : 0
       if (waiting) setNotice(`${waiting} exit order${waiting > 1 ? 's are' : ' is'} waiting as a limit order (market closed or no live price). See Open limit orders.`)
+      else if (already) setNotice('An exit order for this position is already waiting. See Open limit orders to change its price or cancel it.')
       if (method === 'va_modify_order' && out?.filled) setNotice('Filled at the new limit.')
       setConfirm(null)
       await load()
