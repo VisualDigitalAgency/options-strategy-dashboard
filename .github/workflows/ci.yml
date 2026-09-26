@@ -4,8 +4,9 @@
 # worker's SL monitor for up to a minute. A push to main during the session is tested but held;
 # the 15:45 IST scheduled run deploys it. "Run workflow" by hand can override the hold.
 #
-# Needs one repository secret, COOLIFY_TOKEN: a Coolify API token with the "deploy" and "read"
-# abilities (Coolify → Keys & Tokens → API tokens). See deploy/COOLIFY.md.
+# Repository secrets: COOLIFY_TOKEN, a Coolify API token with the "deploy" and "read" abilities
+# (Coolify → Keys & Tokens → API tokens), and ORIGIN_IP, the server's IP. Cloudflare challenges
+# GitHub's runners, so the deploy connects to the origin directly. See deploy/COOLIFY.md.
 name: CI/CD
 
 on:
@@ -47,6 +48,7 @@ jobs:
       - id: p
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          ORIGIN_IP: ${{ secrets.ORIGIN_IP }}
         run: |
           if [[ "${{ github.event_name }}" != "schedule" ]]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           live=$(bash scripts/ci_deploy.sh --live-commit)
@@ -175,10 +177,13 @@ jobs:
         if: steps.gate.outputs.go == 'true'
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          ORIGIN_IP: ${{ secrets.ORIGIN_IP }}
           EXPECT_SHA: ${{ github.sha }}
         run: |
-          if [[ -z "$COOLIFY_TOKEN" ]]; then
-            echo "::error::Repository secret COOLIFY_TOKEN is not set (see deploy/COOLIFY.md)."
-            exit 1
-          fi
+          for s in COOLIFY_TOKEN ORIGIN_IP; do
+            if [[ -z "${!s}" ]]; then
+              echo "::error::Repository secret $s is not set (see deploy/COOLIFY.md)."
+              exit 1
+            fi
+          done
           bash scripts/ci_deploy.sh

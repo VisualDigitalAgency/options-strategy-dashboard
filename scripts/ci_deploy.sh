@@ -5,11 +5,21 @@
 #   PUBLIC_URL=https://theta.example.com EXPECT_SHA=<commit> scripts/ci_deploy.sh
 #
 #   scripts/ci_deploy.sh --live-commit   print the commit of Coolify's last finished deployment
+#
+# ORIGIN_IP (optional): connect straight to the server at this IP instead of through Cloudflare,
+# which shows datacenter IPs such as GitHub's runners a bot challenge. The hostnames stay the
+# same, so TLS is still verified against Traefik's Let's Encrypt certificates.
 set -euo pipefail
 
 : "${COOLIFY_URL:?}" "${COOLIFY_TOKEN:?}" "${COOLIFY_APP_UUID:?}"
 API="${COOLIFY_URL%/}/api/v1"
-auth=(-H "Authorization: Bearer ${COOLIFY_TOKEN}" -H "Accept: application/json")
+pin=()
+for u in "$COOLIFY_URL" "${PUBLIC_URL:-}"; do  # only plain https://host URLs (port 443) are pinned
+  if [[ -n "${ORIGIN_IP:-}" && "$u" =~ ^https://([^/:]+)(/|$) ]]; then
+    pin+=(--resolve "${BASH_REMATCH[1]}:443:$ORIGIN_IP")
+  fi
+done
+auth=("${pin[@]}" -H "Authorization: Bearer ${COOLIFY_TOKEN}" -H "Accept: application/json")
 
 # Prints the body; on HTTP >= 400 shows status, server and the start of the body, then fails.
 # (A 403 served by Cloudflare rather than Coolify means a WAF / bot rule blocked the runner.)
@@ -60,7 +70,7 @@ fi
 # Smoke test. The new worker takes over the leader lock within ~40 s of the old one stopping.
 url="${PUBLIC_URL%/}"
 for i in $(seq 1 18); do
-  health=$(curl -fsS --max-time 10 "$url/healthz" || true)
+  health=$(curl -fsS "${pin[@]}" --max-time 10 "$url/healthz" || true)
   if [[ "$(jq -r '.postgres and .redis and .worker' <<<"${health:-null}" 2>/dev/null)" == "true" ]]; then break; fi
   [[ $i == 18 ]] && { echo "::error::/healthz not healthy after 3 minutes: ${health:-no response}"; exit 1; }
   sleep 10
@@ -71,13 +81,13 @@ check() {  # name, expected, actual
   if [[ "$2" == "$3" ]]; then echo "ok   $1 ($3)"; else echo "::error::$1: expected $2, got $3"; fail=1; fi
 }
 fail=0
-check "home page" 200 "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$url/")"
-check "cross-site /rpc refused" 403 "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -X POST \
+check "home page" 200 "$(curl -s -o /dev/null -w '%{http_code}' "${pin[@]}" --max-time 15 "$url/")"
+check "cross-site /rpc refused" 403 "$(curl -s -o /dev/null -w '%{http_code}' "${pin[@]}" --max-time 15 -X POST \
   -H 'Origin: https://evil.example' -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"auth_me"}' "$url/rpc")"
-check "same-origin /rpc answers" 200 "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -X POST \
+check "same-origin /rpc answers" 200 "$(curl -s -o /dev/null -w '%{http_code}' "${pin[@]}" --max-time 15 -X POST \
   -H "Origin: $url" -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"auth_me"}' "$url/rpc")"
-check "GET /rpc" 405 "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$url/rpc")"
-check "CSP header" 1 "$(curl -sI --max-time 15 "$url/" | grep -ci '^content-security-policy:')"
+check "GET /rpc" 405 "$(curl -s -o /dev/null -w '%{http_code}' "${pin[@]}" --max-time 15 "$url/rpc")"
+check "CSP header" 1 "$(curl -sI "${pin[@]}" --max-time 15 "$url/" | grep -ci '^content-security-policy:')"
 exit $fail

@@ -61,7 +61,8 @@ pack, compose file `/docker-compose.coolify.yml`, branch `main`.
 **One-time setup:**
 1. Coolify → *Keys & Tokens* → *API tokens* → create a token with the **deploy** and **read** abilities.
 2. Save it as a repository secret named `COOLIFY_TOKEN`: `gh secret set COOLIFY_TOKEN` (paste it when asked), or GitHub → Settings → Secrets and variables → Actions.
-3. Optional: GitHub → Settings → Environments → `production` → add yourself as a required reviewer if you want to approve each deploy.
+3. Save the server's IP as a second secret, `ORIGIN_IP`: `gh secret set ORIGIN_IP`. Cloudflare shows GitHub's runners a bot challenge ("Just a moment..."), so the deploy connects straight to the origin with the real hostnames (TLS still verified). If you later firewall the origin to Cloudflare's IP ranges only, allow GitHub's runners too or switch this to a Cloudflare WAF skip rule.
+4. Optional: GitHub → Settings → Environments → `production` → add yourself as a required reviewer if you want to approve each deploy.
 
 Don't also turn on Coolify's own auto-deploy webhook, or every push deploys twice, and without the tests or the market-hours hold.
 
