@@ -70,7 +70,6 @@ services:
       DB_HOST: postgres
       OWNER_DB_PASSWORD_FILE: /run/secrets/db_owner_password
     secrets: [db_owner_password]
-    volumes: []
     depends_on:
       postgres: { condition: service_healthy }
 
