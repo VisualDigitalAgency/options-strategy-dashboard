@@ -1,9 +1,15 @@
-# Coolify deployment variant of docker-compose.yml. Only the `web` service differs: it no
-# longer publishes host ports or manages its own TLS certificate, because Coolify's Traefik
-# proxy already owns 80/443 on the host and terminates TLS for the domain assigned to this
-# service (Settings > this app > Domains). Postgres/Redis volumes are unchanged, so existing
-# data is untouched if you ever move a deployment between the two compose files.
-# See docker-compose.yml for the plain self-hosted (own Caddy + own TLS) version.
+# Coolify deployment variant of docker-compose.yml. Differs from it in two ways:
+#  - `web` doesn't publish host ports or manage its own TLS certificate, because Coolify's
+#    Traefik proxy already owns 80/443 on the host and terminates TLS for the domain assigned
+#    to this service (Settings > this app > Domains).
+#  - Passwords come from plain Coolify-managed environment variables (DB_OWNER_PASSWORD,
+#    DB_APP_PASSWORD, REDIS_PASSWORD) instead of Docker Compose `secrets:` files, because
+#    those files would need to exist in the git checkout *before* `docker compose up` runs on
+#    every fresh clone Coolify makes, which nothing populates on a first deploy. engine/settings.py
+#    already supports a plain env var as a fallback when the matching *_FILE var isn't set.
+# Postgres/Redis volumes are unchanged, so existing data is untouched if you ever move a
+# deployment between the two compose files. See docker-compose.yml for the plain self-hosted
+# (own Caddy + own TLS + Docker secrets files) version.
 
 x-app: &app
   build: { context: ., target: app }
@@ -11,12 +17,11 @@ x-app: &app
   restart: unless-stopped
   environment:
     DB_HOST: postgres
-    DB_PASSWORD_FILE: /run/secrets/db_app_password
+    DB_PASSWORD: ${DB_APP_PASSWORD}
     REDIS_HOST: redis
-    REDIS_PASSWORD_FILE: /run/secrets/redis_password
+    REDIS_PASSWORD: ${REDIS_PASSWORD}
     ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
     TZ: Asia/Kolkata
-  secrets: [db_app_password, redis_password]
   volumes:
     - app_cache:/app/engine/cache
   read_only: true
@@ -32,11 +37,11 @@ services:
     environment:
       POSTGRES_USER: theta_owner
       POSTGRES_DB: theta
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_owner_password
-    secrets: [db_owner_password, db_app_password]
+      POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./deploy/postgres-init.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+      - ./deploy/postgres-init.coolify.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
     security_opt: [no-new-privileges:true]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U theta_owner -d theta"]
@@ -48,15 +53,16 @@ services:
   redis:
     image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: >
-      sh -c 'exec redis-server --requirepass "$$(cat /run/secrets/redis_password)" --appendonly yes
+      sh -c 'exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes
       --protected-mode yes --rename-command FLUSHALL "" --rename-command FLUSHDB ""
       --rename-command CONFIG "" --rename-command DEBUG "" --rename-command KEYS ""'
-    secrets: [redis_password]
     volumes: [redis_data:/data]
     security_opt: [no-new-privileges:true]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" --no-auth-warning ping | grep -q PONG"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -68,8 +74,7 @@ services:
     command: ["alembic", "upgrade", "head"]
     environment:
       DB_HOST: postgres
-      OWNER_DB_PASSWORD_FILE: /run/secrets/db_owner_password
-    secrets: [db_owner_password]
+      OWNER_DB_PASSWORD: ${DB_OWNER_PASSWORD}
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -77,9 +82,9 @@ services:
     <<: *app
     environment:
       DB_HOST: postgres
-      DB_PASSWORD_FILE: /run/secrets/db_app_password
+      DB_PASSWORD: ${DB_APP_PASSWORD}
       REDIS_HOST: redis
-      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
       TRUST_PROXY: "1"
       ALLOWED_ORIGINS: ${PUBLIC_URL:-https://${DOMAIN}}
@@ -127,11 +132,6 @@ services:
       timeout: 3s
       retries: 5
     networks: [default]
-
-secrets:
-  db_owner_password: { file: ./secrets/db_owner_password }
-  db_app_password: { file: ./secrets/db_app_password }
-  redis_password: { file: ./secrets/redis_password }
 
 volumes:
   pg_data:
