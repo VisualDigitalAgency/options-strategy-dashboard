@@ -1437,6 +1437,15 @@ td.out { color: var(--down-text); }
 .broker-name { font-size: 13.5px; }
 .broker-soon { position: absolute; top: 8px; right: 8px; background: var(--surface); color: var(--text-muted); border-color: var(--border-strong); }
 .broker-note { display: flex; align-items: center; gap: 6px; }
+.broker-status-active { position: absolute; top: 8px; right: 8px; color: var(--up-text); border-color: currentColor; }
+.broker-status-expired { position: absolute; top: 8px; right: 8px; color: var(--warn); border-color: currentColor; }
+.broker-status-disconnected { position: absolute; top: 8px; right: 8px; background: var(--surface); color: var(--text-muted); border-color: var(--border-strong); }
+.broker-connected-note { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--up-text); }
+.broker-linked-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; }
+/* Real-money confirm dialog: deliberately alarming, distinct from the virtual ConfirmDialog. */
+.real-order-warning { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; margin-bottom: 16px; background: var(--error-bg); border: 1px solid var(--down); border-radius: var(--radius-sm); }
+.real-order-warning svg { color: var(--down); flex: none; margin-top: 2px; }
+.real-order-warning p { margin: 0; font-size: 14px; line-height: 1.5; }
 @media (max-width: 767px) {
   .broker-grid, .broker-grid-popup { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
 }

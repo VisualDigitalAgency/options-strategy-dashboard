@@ -17,7 +17,7 @@ import requests
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from engine import auth, autotrade, cache, config, data_fetch, db, risk_rules, span, users, virtual
+from engine import auth, autotrade, broker, cache, config, data_fetch, db, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, screen_interval
 from rpc_guard import InvalidParams, validate
@@ -248,6 +248,18 @@ def admin_audit_log(_ctx: Ctx, limit: int = 100):
                      "LEFT JOIN users t ON t.id = l.target_user_id ORDER BY l.id DESC LIMIT :n", n=limit)
 
 
+# ---------- real broker (phase 1: Zerodha, admin-only soft launch) ----------
+# Only Zerodha is connectable right now, so the broker name isn't a client-supplied param yet;
+# a second broker later adds it back once there's a real choice to make.
+
+def broker_connect_url(_ctx: Ctx):
+    return broker.connect_url(_ctx.user_id)
+
+
+def broker_exchange_token(_ctx: Ctx, request_token: str, state: str):
+    return broker.exchange_token(_ctx.user_id, request_token, state)
+
+
 # ---------- method tables ----------
 # Who may call what:
 #   PUBLIC   anyone; the handler gets the request context
@@ -291,6 +303,14 @@ USER_METHODS = {
     "va_set_autotrade": autotrade.set_settings,
     "va_autotrade_runs": autotrade.get_runs,
     "va_autotrade_run_now": va_autotrade_run_now,
+    # Real broker (phase 1: Zerodha). Connecting itself is admin-only (ADMIN_METHODS below); once
+    # connected, these are the acting user's own methods same as the va_* ones above.
+    "broker_status": broker.status,
+    "broker_disconnect": broker.disconnect,
+    "broker_get_positions": broker.get_positions,
+    "broker_get_margins": broker.get_margins,
+    "broker_preview_order": broker.preview_order,
+    "broker_place_order": broker.place_order,
 }
 
 ADMIN_METHODS = {
@@ -298,6 +318,9 @@ ADMIN_METHODS = {
     "admin_set_status": admin_set_status,
     "admin_reset_password": admin_reset_password,
     "admin_audit_log": admin_audit_log,
+    # Real-money connection, soft-launched to admins only; see doc/2026-09-26-broker-integration-phase1-zerodha.md
+    "broker_connect_url": broker_connect_url,
+    "broker_exchange_token": broker_exchange_token,
 }
 
 # Methods whose `symbol` may be outside the current Nifty 50 (they only act on existing positions).

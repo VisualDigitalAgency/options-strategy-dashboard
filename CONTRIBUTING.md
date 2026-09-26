@@ -49,6 +49,12 @@ These trip people up. [CLAUDE.md](CLAUDE.md) has the full architecture notes.
 **Background work**
 - Scheduled work belongs in the worker (`engine/worker.py`), never in the API process.
 
+**Real broker code (`engine/broker.py`, `engine/brokers/`)**
+- A second broker adds one file implementing `engine/brokers/base.py`'s `BrokerAdapter` plus one line in `engine/brokers/registry.py` — no changes to the RPC or DB layers.
+- Broker order placement must never be retried automatically without a fresh user confirmation (`broker_preview_order`'s one-time `confirm_token`). A failed leg stops the whole order; never auto square-off a leg that already placed.
+- Never log or return a broker access/public token, api secret, or a raw broker API response body that might embed one — log a reference id the way `server.py` already does for unexpected errors.
+- Anything that reads or writes `broker_connections`/`broker_orders` goes through `engine/broker.py`; the worker's `engine/brokers/poller.py` is read-only reconciliation and must never place, modify or cancel an order.
+
 **Market data**
 - NSE's API is unofficial and rate-limits hard. Go through the existing caches and `cache.Throttle`, and don't add per-request NSE calls.
 

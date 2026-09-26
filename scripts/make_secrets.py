@@ -10,8 +10,12 @@ import os
 import secrets
 from pathlib import Path
 
+from cryptography.fernet import Fernet
+
 DIR = Path(__file__).resolve().parent.parent / "secrets"
 NAMES = ("db_owner_password", "db_app_password", "redis_password")
+# Fernet needs its own key format (32 url-safe base64 bytes), not a hex token.
+FERNET_NAMES = ("broker_enc_key",)
 
 
 def main() -> None:
@@ -24,6 +28,17 @@ def main() -> None:
         f.write_text(secrets.token_hex(24), encoding="utf-8")
         try:
             os.chmod(f, 0o600)  # owner read/write only (no effect on Windows)
+        except OSError:
+            pass
+        print(f"created {f.name}")
+    for name in FERNET_NAMES:
+        f = DIR / name
+        if f.exists():
+            print(f"kept    {f.name}")
+            continue
+        f.write_bytes(Fernet.generate_key())
+        try:
+            os.chmod(f, 0o600)
         except OSError:
             pass
         print(f"created {f.name}")

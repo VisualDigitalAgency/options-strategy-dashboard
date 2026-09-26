@@ -19,6 +19,8 @@ const Portfolio = lazy(() => import('./pages/Portfolio'))
 const VirtualAccount = lazy(() => import('./pages/VirtualAccount'))
 const Admin = lazy(() => import('./pages/Admin'))
 const Broker = lazy(() => import('./pages/Broker'))
+const BrokerAccount = lazy(() => import('./pages/BrokerAccount'))
+const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
 
 const NAV = [
   { to: '/', label: 'Screener', icon: LayoutGrid, end: true },
@@ -208,6 +210,8 @@ function SignedIn() {
             <Route path="/portfolio" element={lazyPage(Portfolio)} />
             <Route path="/virtual" element={lazyPage(VirtualAccount)} />
             <Route path="/broker" element={lazyPage(Broker)} />
+            <Route path="/broker/account" element={lazyPage(BrokerAccount)} />
+            <Route path="/broker/zerodha/callback" element={lazyPage(BrokerCallback)} />
             <Route path="/account/password" element={<ChangePassword />} />
             {user.role === 'admin' && <Route path="/admin" element={lazyPage(Admin)} />}
             <Route path="/login" element={<Navigate to="/" replace />} />
