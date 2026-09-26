@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from . import cache, config, data_fetch, db, greeks_sr, risk_rules, span, users
+from . import cache, config, data_fetch, db, greeks_sr, pivots, risk_rules, span, users
 
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: Windows Python has no tz database
 SL_MODES = ("auto", "alert", "off")
@@ -368,12 +368,22 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
     with db.tx(user_id) as c:
         existing = _open_rows(c, user_id, symbol, expiry)
         default_sl = _account_row(c, user_id)["sl_mode_default"]
+        waiting = _waiting(c, user_id, symbol, expiry)
     premium = sum(f["price"] * f["qty"] * (1 if f["action"] == "SELL" else -1) for f in fills)
     return {
         "symbol": symbol, "expiry": expiry, "lot_size": lot, "fills": fills,
         "premium": round(premium, 2), **_margin_impact(user_id, symbol, expiry, existing, fills),
         "sl_mode_default": default_sl, "notes": sorted(notes), "market_open": market_open(),
+        "waiting": waiting,
     }
+
+
+def _waiting(c, user_id: int, symbol: str, expiry: str) -> list[dict]:
+    """Open orders on this stock and expiry that haven't filled yet."""
+    rows = c.all("SELECT id, side, strike, action, qty, limit_price, reason, created_at FROM pending_orders"
+                 " WHERE user_id=:u AND symbol=:s AND expiry=:e AND status='open' ORDER BY id",
+                 u=user_id, s=symbol, e=expiry)
+    return [{**r, "strike": float(r["strike"]), "limit_price": float(r["limit_price"])} for r in rows]
 
 
 def _margin_impact(user_id: int, symbol: str, expiry: str, existing: list[dict], fills: list[dict]) -> dict:
@@ -398,13 +408,17 @@ def _insufficient(m: dict) -> ValueError:
                       f"available ₹{m['available_margin']:,.0f}")
 
 
-def place_order(user_id: int, symbol: str, expiry: str, legs: list[dict], sl_mode: str | None = None) -> dict:
-    """Public entry point (RPC). Always prices fills itself from live quotes."""
-    return execute_order(user_id, preview_order(user_id, symbol, expiry, legs), sl_mode, reason="manual")
+def place_order(user_id: int, symbol: str, expiry: str, legs: list[dict], sl_mode: str | None = None,
+                confirm_waiting: bool = False) -> dict:
+    """Public entry point (RPC). Always prices fills itself from live quotes. While an earlier order
+    on the same stock and expiry is still waiting, it refuses unless `confirm_waiting` is set, so a
+    second click never doubles the trade by accident."""
+    return execute_order(user_id, preview_order(user_id, symbol, expiry, legs), sl_mode, reason="manual",
+                         allow_waiting=confirm_waiting)
 
 
 def execute_order(user_id: int, p: dict, sl_mode: str | None = None, reason: str = "manual",
-                  extra_note: str | None = None) -> dict:
+                  extra_note: str | None = None, allow_waiting: bool = True) -> dict:
     """Books a preview produced by preview_order. In-process only (auto-trade, place_order):
     it trusts the fills inside `p`, so it must never be reachable from the RPC table."""
     symbol, expiry = p["symbol"], p["expiry"]
@@ -416,6 +430,10 @@ def execute_order(user_id: int, p: dict, sl_mode: str | None = None, reason: str
     opened = []
     with _lock, db.tx(user_id) as c:
         _lock_account(c, user_id)
+        # Under the lock, so two quick clicks or two tabs can't both pass.
+        if not allow_waiting and _waiting(c, user_id, symbol, expiry):
+            raise ValueError(f"Your earlier order on {symbol} {expiry} hasn't filled yet. "
+                             "Confirm to place another one")
         # Check again under the lock: an order booked since the preview (another tab, another API
         # process, an auto-trade run) may have used the same free margin. Reads on other
         # connections see it, because it committed before this lock was granted.
@@ -538,6 +556,17 @@ def reset(user_id: int, starting_capital: float = config.STARTING_CAPITAL) -> di
 
 
 # ---------- open limit orders ----------
+
+def price_levels(user_id: int, symbol: str) -> dict:
+    """Price history and floor pivots for a stock the user holds (Portfolio chart). Limited to held
+    stocks so a client can't use it to make the server fetch arbitrary tickers."""
+    with db.tx(user_id) as c:
+        held = c.value("SELECT 1 FROM positions WHERE user_id=:u AND symbol=:s AND status='open' LIMIT 1",
+                       u=user_id, s=symbol)
+    if not held:
+        raise ValueError(f"No open position in {symbol}")
+    return pivots.for_symbol(symbol, datetime.fromisoformat(_valid_until()).date())
+
 
 def get_open_orders(user_id: int) -> list[dict]:
     """Open limit orders with the current bid/ask beside each, for Improve 1 tick / Cancel."""

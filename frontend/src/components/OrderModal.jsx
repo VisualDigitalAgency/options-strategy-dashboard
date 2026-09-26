@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useBudget } from '../settings'
-import { rupee, rupee2, int, shortDate } from '../format'
+import { rupee, rupee2, int, shortDate, dateTime } from '../format'
 import Modal from './Modal'
 import SLModeSwitch, { slHelp } from './SLModeSwitch'
 
@@ -23,6 +23,9 @@ export default function OrderModal({ d, lots, onClose }) {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(null)
+  // An earlier order on this stock and expiry is still waiting: ask before placing another.
+  const [confirming, setConfirming] = useState(false)
+  const [reload, setReload] = useState(0)
   const { refresh } = useBudget()
 
   useEffect(() => {
@@ -38,16 +41,26 @@ export default function OrderModal({ d, lots, onClose }) {
     }, 350)
     return () => clearTimeout(debounce.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d.symbol, d.expiry, lots, JSON.stringify(limits)])
+  }, [d.symbol, d.expiry, lots, JSON.stringify(limits), reload])
 
-  async function place() {
+  const waiting = preview?.waiting ?? []
+
+  async function place(confirmWaiting = false) {
+    if (waiting.length && !confirmWaiting) {
+      setConfirming(true)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      setDone(await rpc('va_place_order', { symbol: d.symbol, expiry: d.expiry, legs, sl_mode: slMode }))
+      setDone(await rpc('va_place_order', {
+        symbol: d.symbol, expiry: d.expiry, legs, sl_mode: slMode, confirm_waiting: confirmWaiting,
+      }))
       refresh()
     } catch (e) {
       setError(e.message)
+      setConfirming(false)
+      setReload((n) => n + 1) // another tab may have placed an order since the preview; show it
     } finally {
       setBusy(false)
     }
@@ -132,17 +145,44 @@ export default function OrderModal({ d, lots, onClose }) {
         <p className="form-error" role="alert">Not enough virtual funds. Exit a position or reset the account with more capital.</p>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {confirming && (
+        <div className="alert warn-alert confirm-waiting" role="alert">
+          <AlertTriangle size={18} aria-hidden />
+          <div>
+            <b>Your previous order is not yet executed.</b>
+            <ul>
+              {waiting.map((w) => (
+                <li key={w.id} className="mono">
+                  {w.action} {w.strike} {w.side} × {int(w.qty)} at {rupee2(w.limit_price)}
+                  <span className="muted"> · placed {dateTime(w.created_at)}{w.reason === 'auto' ? ' by auto-trade' : ''}</span>
+                </li>
+              ))}
+            </ul>
+            <p>Placing this order adds to it, so both can fill. Do you want to proceed?</p>
+          </div>
+        </div>
+      )}
       <p className="notice muted-notice">
         <AlertTriangle size={16} aria-hidden /> Live broker not connected. Virtual orders use live NSE prices but no real money.
       </p>
 
-      <div className="modal-actions">
-        <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn" disabled title="Enabled once a broker API is connected">Place live order</button>
-        <button className="btn primary" onClick={place} disabled={!preview || !preview.sufficient || busy}>
-          {busy ? 'Placing…' : 'Place virtual limit order'}
-        </button>
-      </div>
+      {confirming ? (
+        <div className="modal-actions">
+          <Link className="btn ghost" to="/portfolio">Review open orders</Link>
+          <button className="btn ghost" onClick={() => setConfirming(false)} disabled={busy}>Don't place</button>
+          <button className="btn primary" onClick={() => place(true)} disabled={!preview || !preview.sufficient || busy}>
+            {busy ? 'Placing…' : 'Yes, place another'}
+          </button>
+        </div>
+      ) : (
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn" disabled title="Enabled once a broker API is connected">Place live order</button>
+          <button className="btn primary" onClick={() => place()} disabled={!preview || !preview.sufficient || busy}>
+            {busy ? 'Placing…' : 'Place virtual limit order'}
+          </button>
+        </div>
+      )}
     </Modal>
   )
 }

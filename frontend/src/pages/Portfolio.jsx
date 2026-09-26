@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, BellRing, ChevronDown, Hourglass, LineChart, LogOut, RefreshCw } from 'lucide-react'
+import { AlertTriangle, BellRing, ChartCandlestick, ChevronDown, Hourglass, LineChart, LogOut, RefreshCw } from 'lucide-react'
 import { rpc } from '../rpc'
 import UpdatedTag from '../components/UpdatedTag'
 import { useBudget } from '../settings'
@@ -8,6 +8,7 @@ import { num, pct, rupee, rupee2, int, shortDate, signed, signedRupee, todayIso 
 import DecayCurve from '../components/DecayCurve'
 import { LegTag } from '../components/Badges'
 import { GroupPayoff } from '../components/Charts'
+import PivotLevels from '../components/PivotLevels'
 import SLModeSwitch from '../components/SLModeSwitch'
 import { ConfirmDialog } from '../components/Modal'
 
@@ -91,6 +92,7 @@ function SLStatus({ leg, onDismiss }) {
 
 function Group({ g, onAction }) {
   const [open, setOpen] = useState(false)
+  const [levels, setLevels] = useState(false)
   const lotsLabel = (l) => `${Math.abs(l.lots)} lot${Math.abs(l.lots) > 1 ? 's' : ''}`
   const shorts = g.legs.filter((l) => l.qty < 0 && l.ltp != null)
   const collected = shorts.reduce((t, l) => t + l.avg_price * -l.qty, 0)
@@ -177,6 +179,10 @@ function Group({ g, onAction }) {
           <LineChart size={15} aria-hidden /> {open ? 'Hide payoff' : 'Show payoff & Greeks'}
           <ChevronDown size={15} aria-hidden className={open ? 'rot' : ''} />
         </button>
+        <button className="btn ghost small" onClick={() => setLevels((o) => !o)} aria-expanded={levels}>
+          <ChartCandlestick size={15} aria-hidden /> {levels ? 'Hide price chart' : 'Price & pivot levels'}
+          <ChevronDown size={15} aria-hidden className={levels ? 'rot' : ''} />
+        </button>
         <button className="btn danger-ghost small" onClick={() => onAction('exitGroup', null, g)}>
           <LogOut size={15} aria-hidden /> Exit all
         </button>
@@ -193,6 +199,12 @@ function Group({ g, onAction }) {
             <div><dt>Premium collected</dt><dd className="mono">{rupee(g.net_premium)}</dd></div>
             <div><dt>SPAN + exposure</dt><dd className="mono">{g.margin ? `${rupee(g.margin.span)} + ${rupee(g.margin.exposure)}` : '—'}</dd></div>
           </dl>
+        </div>
+      )}
+
+      {levels && (
+        <div className="pos-detail">
+          <PivotLevels symbol={g.symbol} spot={g.spot} legs={g.legs} />
         </div>
       )}
     </section>

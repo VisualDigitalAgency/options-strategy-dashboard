@@ -59,6 +59,7 @@ Migrations `GRANT` to `theta_app` only if the role already exists. The role must
 - `filters.py` / `risk_rules.py` / `greeks_sr.py`: screening rules, Black-Scholes, S/R zones.
 - `batch.py`: batched screening.
 - `virtual.py`: fills, margin, and the SL monitor.
+- `pivots.py`: floor pivots (P, R1–R4, S1–S4) from the last completed day/week/month, for the Portfolio price chart.
 - `autotrade.py`, `auth.py`, `users.py`.
 
 Screening thresholds live in `engine/config.py`. README.md documents the trading rules and metric formulas.

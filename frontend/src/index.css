@@ -979,6 +979,9 @@ td.out { color: var(--down-text); }
 .field-label { display: block; font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 6px; }
 .warn-alert { background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: var(--warn); }
 .warn-alert svg { color: var(--warn); }
+.confirm-waiting { align-items: flex-start; }
+.confirm-waiting ul { margin: 6px 0; padding-left: 18px; font-size: 13px; }
+.confirm-waiting p { margin: 0; }
 .success { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 18px; }
 .success svg { color: var(--up); flex: none; }
 .success p { margin: 0; font-size: 15px; }
@@ -1011,7 +1014,25 @@ td.out { color: var(--down-text); }
 .pos-legs { min-width: 860px; }
 .pos-legs td { vertical-align: middle; }
 .row-alert td { background: color-mix(in srgb, var(--warn) 8%, transparent); }
-.pos-foot { display: flex; justify-content: space-between; gap: 10px; }
+.pos-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pos-foot .danger-ghost { margin-left: auto; }
+.pivots-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 8px; }
+.pivot-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; margin: 12px 0 0; }
+.pivot-grid div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; border-top: 2px solid var(--border); }
+.pivot-grid dt { font-size: 12px; font-weight: 600; }
+.pivot-grid dd { margin: 2px 0 0; font-size: 13px; }
+.pivot-grid dd.muted { font-size: 12px; }
+.pivot-grid .pv-R { border-top-color: var(--down); }
+.pivot-grid .pv-R dt { color: var(--down-text); }
+.pivot-grid .pv-P { border-top-color: var(--accent); }
+.pivot-grid .pv-P dt { color: var(--accent-text); }
+.pivot-grid .pv-S { border-top-color: var(--up); }
+.pivot-grid .pv-S dt { color: var(--up-text); }
+.pivot-where { margin: 10px 0 0; }
+.sw-dash-down { height: 0; border-top: 2px dashed var(--down); }
+.sw-dash-up { height: 0; border-top: 2px dashed var(--up); }
+.sw-line-accent { height: 2px; background: var(--accent); }
+@media (max-width: 1023px) { .pivot-grid { grid-template-columns: repeat(3, 1fr); } }
 .pos-detail { border-top: 1px solid var(--border); padding-top: 12px; animation: drop 200ms var(--ease); }
 .greek-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin: 12px 0 0; }
 .greek-row div { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }

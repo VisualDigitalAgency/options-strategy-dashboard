@@ -276,6 +276,7 @@ USER_METHODS = {
     "va_get_orders": virtual.get_orders,
     "va_get_closed": virtual.get_closed,
     "va_get_open_orders": virtual.get_open_orders,
+    "va_price_levels": virtual.price_levels,
     "va_cancel_order": _then_refresh(virtual.cancel_order),
     "va_modify_order": _then_refresh(virtual.modify_order),
     "va_preview_order": virtual.preview_order,
@@ -300,7 +301,7 @@ ADMIN_METHODS = {
 }
 
 # Methods whose `symbol` may be outside the current Nifty 50 (they only act on existing positions).
-ANY_SYMBOL = {"va_exit_group"}
+ANY_SYMBOL = {"va_exit_group", "va_price_levels"}
 
 # With a temporary password, only these work until it is changed.
 WHILE_MUST_CHANGE = {"auth_me", "auth_logout", "auth_change_password"}
