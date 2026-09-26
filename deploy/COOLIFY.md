@@ -32,7 +32,7 @@ pack, compose file `/docker-compose.coolify.yml`, branch `main`.
 5. **Deploy** from Coolify. Expected order: postgres, redis healthy → migrate prints `theta_app role created` and exits 0 → api healthy → worker healthy → web healthy.
 6. **Create the admin**, then **verify** (next section):
    ```bash
-   sudo docker exec -it $(sudo docker ps -qf name=api-uygwpa9ukr3zdoufohiyvnfc) python scripts/set_admin.py muralikrishna.r.s.94@gmail.com
+   sudo docker exec -it $(sudo docker ps -qf name=api-uygwpa9ukr3zdoufohiyvnfc) python scripts/set_admin.py you@example.com
    ```
 7. **Cloudflare**: SSL/TLS mode **Full (strict)**. With Traefik's Let's Encrypt certificate at the origin, that works and stops Cloudflare accepting a downgraded origin.
 

@@ -26,7 +26,7 @@ x-app: &app
     DB_PASSWORD: ${DB_APP_PASSWORD}
     REDIS_HOST: redis
     REDIS_PASSWORD: ${REDIS_PASSWORD}
-    ADMIN_EMAIL: ${ADMIN_EMAIL:-muralikrishna.r.s.94@gmail.com}
+    ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
     TZ: Asia/Kolkata
   volumes:
     - app_cache:/app/engine/cache
