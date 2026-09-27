@@ -9,19 +9,11 @@ import { ConfirmDialog } from '../components/Modal'
 import AutoTradePanel from '../components/AutoTrade'
 import UpdatedTag from '../components/UpdatedTag'
 import PalettePicker from '../components/PalettePicker'
+import StatCard from '../components/StatCard'
+import EquityBar from '../components/EquityBar'
 import { pnlClass } from './Portfolio'
 
 const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry' }
-
-function Fund({ label, value, sub, tone }) {
-  return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <span className={`stat-value mono ${tone ?? ''}`}>{value}</span>
-      {sub && <span className="stat-sub">{sub}</span>}
-    </div>
-  )
-}
 
 /** XIRR for one deposit (starting capital) and today's value, no withdrawals: the annual rate r
  *  that solves capital x (1 + r)^(days/365) = value. Annualising under a week turns tiny moves
@@ -117,17 +109,9 @@ export default function VirtualAccount() {
           )}
         </div>
         {acct && (
-          <div className="equity" aria-label={`Margin in use ${rupee(acct.used_margin)}, free ${rupee(acct.available_margin)}`}>
-            <div className="equity-bar" aria-hidden>
-              <span className="eq-used" style={{ flexGrow: Math.max(acct.used_margin, 0) || 0.0001 }} />
-              <span className="eq-free" style={{ flexGrow: Math.max(acct.available_margin, 0) || 0.0001 }} />
-            </div>
-            <div className="equity-legend">
-              <span><i className="eq-used" aria-hidden /> Margin in use <b className="num">{rupee(acct.used_margin)}</b></span>
-              <span><i className="eq-free" aria-hidden /> Free for new trades <b className="num">{rupee(acct.available_margin)}</b></span>
-            </div>
+          <EquityBar used={acct.used_margin} free={acct.available_margin} usedLabel="Margin in use" freeLabel="Free for new trades">
             <Link className="btn" to="/portfolio">View {acct.open_positions} open leg{acct.open_positions === 1 ? '' : 's'}</Link>
-          </div>
+          </EquityBar>
         )}
       </section>
 
@@ -136,22 +120,22 @@ export default function VirtualAccount() {
       <section className="ledger" aria-label="Performance">
         {acct ? (
           <>
-            <Fund label="Overall profit" value={pct(acct.return_pct, 2)} tone={pnlClass(acct.return_pct)}
+            <StatCard label="Overall profit" value={pct(acct.return_pct, 2)} tone={pnlClass(acct.return_pct)}
               sub={`${signedRupee(acct.account_value - acct.starting_capital)} on ${rupee(acct.starting_capital)}, booked + unbooked`} />
             {(() => {
               const x = xirr(acct)
               const d = Math.max(1, Math.floor(x.days))
               return (
-                <Fund label="XIRR" value={x.rate == null ? '—' : pct(x.rate, 1)} tone={x.rate == null ? '' : pnlClass(x.rate)}
+                <StatCard label="XIRR" value={x.rate == null ? '—' : pct(x.rate, 1)} tone={x.rate == null ? '' : pnlClass(x.rate)}
                   sub={x.rate == null
                     ? `Annual rate shows after ${MIN_XIRR_DAYS} days; day ${d} now`
                     : `Annualised over ${d} days${d < 30 ? '; swings a lot in the first month' : ''}`} />
               )
             })()}
-            <Fund label="Booked P&L" value={signedRupee(acct.realized_pnl)} tone={pnlClass(acct.realized_pnl)} sub="locked in from closed trades" />
-            <Fund label="Unbooked P&L" value={signedRupee(acct.unrealized_pnl)} tone={pnlClass(acct.unrealized_pnl)} sub={`${acct.open_positions} open leg${acct.open_positions === 1 ? '' : 's'} at last price; moves until you exit`} />
-            <Fund label="Win rate" value={closed?.length ? pct((winners / closed.length) * 100, 0) : '—'} sub={closed ? `${winners} of ${closed.length} closed legs in profit` : ''} />
-            <Fund label="Orders placed" value={orders ? orders.length : '—'} sub={orders ? `${orders.filter((o) => o.reason === 'auto').length} by auto-trade, ${orders.filter((o) => o.reason === 'sl_auto').length} by stop loss, ${orders.filter((o) => o.reason === 'time_exit').length} by time exit, ${orders.filter((o) => o.reason === 'target_exit').length} at profit target` : ''} />
+            <StatCard label="Booked P&L" value={signedRupee(acct.realized_pnl)} tone={pnlClass(acct.realized_pnl)} sub="locked in from closed trades" />
+            <StatCard label="Unbooked P&L" value={signedRupee(acct.unrealized_pnl)} tone={pnlClass(acct.unrealized_pnl)} sub={`${acct.open_positions} open leg${acct.open_positions === 1 ? '' : 's'} at last price; moves until you exit`} />
+            <StatCard label="Win rate" value={closed?.length ? pct((winners / closed.length) * 100, 0) : '—'} sub={closed ? `${winners} of ${closed.length} closed legs in profit` : ''} />
+            <StatCard label="Orders placed" value={orders ? orders.length : '—'} sub={orders ? `${orders.filter((o) => o.reason === 'auto').length} by auto-trade, ${orders.filter((o) => o.reason === 'sl_auto').length} by stop loss, ${orders.filter((o) => o.reason === 'time_exit').length} by time exit, ${orders.filter((o) => o.reason === 'target_exit').length} at profit target` : ''} />
           </>
         ) : (
           Array.from({ length: 6 }, (_, i) => (

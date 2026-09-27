@@ -133,11 +133,20 @@ class ZerodhaAdapter(BrokerAdapter):
         cash = float(available.get("live_balance") or 0.0)
         collateral = float(available.get("collateral") or 0.0)
         used = float(utilised.get("debits") or 0.0)
-        # cash + collateral is NOT real usable margin: SEBI caps how much of a margin
-        # requirement can be met from non-cash collateral (currently 50%), so collateral isn't
-        # simply additive to cash the way an earlier version of this function assumed — that
-        # overstated available margin and would have let a real order through that the account
-        # couldn't actually fund. available_margin (used to gate real orders) stays cash-only,
-        # the conservative, always-safe number; collateral_margin is informational only.
+        span = float(utilised.get("span") or 0.0)
+        exposure = float(utilised.get("exposure") or 0.0)
+        collateral_liquid_used = float(utilised.get("liquid_collateral") or 0.0)
+        collateral_equity_used = float(utilised.get("stock_collateral") or 0.0)
+        # cash + collateral is NOT real usable margin: exchanges cap how much of a margin
+        # requirement can be met from non-cash collateral, so collateral isn't simply additive to
+        # cash the way an earlier version of this function assumed — that overstated available
+        # margin and would have let a real order through that the account couldn't actually fund.
+        # available_margin (the cash-only figure) stays as-is; engine.broker.preview_order applies
+        # the collateral-utilisation cap itself using collateral_margin minus the *_used fields
+        # below (how much of your currently-used margin is already funded by each collateral type
+        # — Kite's margins() API documents these two, but not an "available, by type" split).
         return {"available_margin": cash, "cash_margin": cash,
-                "collateral_margin": collateral, "used_margin": used, "raw": margins}
+                "collateral_margin": collateral, "used_margin": used,
+                "span": span, "exposure": exposure,
+                "collateral_liquid_used": collateral_liquid_used,
+                "collateral_equity_used": collateral_equity_used, "raw": margins}

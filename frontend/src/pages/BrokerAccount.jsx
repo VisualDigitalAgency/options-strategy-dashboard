@@ -1,37 +1,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Plug } from 'lucide-react'
+import { AlertTriangle, Info } from 'lucide-react'
 import { rpc } from '../rpc'
 import { num, rupee, signedRupee } from '../format'
 import { pnlClass } from './Portfolio'
-
-function Fund({ label, value, sub, tone }) {
-  return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <span className={`stat-value mono ${tone ?? ''}`}>{value}</span>
-      {sub && <span className="stat-sub">{sub}</span>}
-    </div>
-  )
-}
+import StatCard from '../components/StatCard'
+import UpdatedTag from '../components/UpdatedTag'
+import EquityBar from '../components/EquityBar'
 
 /** Real Zerodha account: funds/margin and open positions exactly as the broker reports them —
  *  unlike the virtual account, this is not simulated, so figures come straight from the worker's
- *  broker_snap cache (engine/brokers/poller.py), not recomputed here. */
+ *  broker_snap cache (engine/brokers/poller.py), not recomputed here. Mirrors VirtualAccount.jsx's
+ *  layout (statement hero + equity bar + ledger) so the two pages look the same. When no broker
+ *  is connected, engine.broker.account_summary falls back to the virtual account's own numbers so
+ *  this page always shows something, clearly flagged as approximate. */
 export default function BrokerAccount() {
-  const [connection, setConnection] = useState(null)
-  const [margins, setMargins] = useState(null)
+  const [summary, setSummary] = useState(null)
   const [positions, setPositions] = useState(null)
   const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
     try {
-      const s = await rpc('broker_status')
-      setConnection(s)
-      if (s.status === 'active') {
-        const [m, p] = await Promise.all([rpc('broker_get_margins'), rpc('broker_get_positions')])
-        setMargins(m)
-        setPositions(p)
+      const s = await rpc('broker_account_summary')
+      setSummary(s)
+      if (s.source === 'broker') {
+        setPositions(await rpc('broker_get_positions'))
       }
       setError(null)
     } catch (e) {
@@ -41,44 +34,58 @@ export default function BrokerAccount() {
 
   useEffect(() => { document.title = 'Real account · Theta Desk'; load() }, [load])
 
-  if (connection && connection.status !== 'active') {
-    return (
-      <div className="detail">
-        <header className="page-head"><h1 className="display">Real account</h1></header>
-        <div className="card empty-state">
-          <Plug size={22} aria-hidden />
-          <p>{connection.status === 'expired'
-            ? 'Your Zerodha connection expired (broker sessions reset daily). Reconnect to see your real account.'
-            : 'No broker is connected yet.'}</p>
-          <Link className="btn primary" to="/broker">Go to Broker</Link>
-        </div>
-      </div>
-    )
-  }
-
+  const isReal = summary?.source === 'broker'
   const netPositions = (positions ?? []).filter((p) => p.quantity !== 0)
 
   return (
     <div className="detail">
-      <header className="page-head">
-        <div>
-          <h1 className="display">Real account</h1>
-          <p className="lede">Live figures from your connected Zerodha account — real funds, real positions.</p>
+      <section className="statement">
+        <div className="statement-main">
+          <h1 className="sr-only">Real account</h1>
+          <p className="statement-label">Available margin (cash + collateral)</p>
+          {isReal && <UpdatedTag ts={summary.synced_at} label="Synced" />}
+          {summary ? (
+            <>
+              <p className="statement-value display-num">{rupee(summary.available_margin_total)}</p>
+              <p className="lede">
+                {rupee(summary.available_cash)} cash + {rupee(summary.total_collateral)} collateral.
+                Real orders are still checked against cash only — the exchange caps how much of a
+                trade collateral can fund.
+              </p>
+            </>
+          ) : (
+            <span className="skeleton" style={{ width: 260, height: 56 }} />
+          )}
         </div>
-      </header>
+        {summary && (
+          <EquityBar used={summary.used_margin} free={summary.available_cash} usedLabel="Used margin" freeLabel="Available cash" />
+        )}
+      </section>
 
       {error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
 
-      <section className="ledger" aria-label="Real broker funds">
-        {margins ? (
+      {summary && !isReal && (
+        <p className="notice muted-notice">
+          <Info size={16} aria-hidden />
+          {summary.status === 'expired'
+            ? ' Your Zerodha connection expired — showing approximate figures from your virtual account until you reconnect. '
+            : ' No broker is connected — showing approximate figures from your virtual account. '}
+          <Link to="/broker">{summary.status === 'expired' ? 'Reconnect' : 'Connect a broker'} →</Link>
+        </p>
+      )}
+
+      <section className="ledger" aria-label="Real broker margin detail">
+        {summary ? (
           <>
-            <Fund label="Available margin" value={rupee(margins.available_margin)} sub="cash only — what new real orders are checked against" />
-            <Fund label="Used margin" value={rupee(margins.used_margin)} sub="blocked by your open positions/orders" />
-            <Fund label="Collateral" value={rupee(margins.collateral_margin)} sub="pledged stock/MF; not counted above (exchange caps how much of a trade it can fund)" />
-            <Fund label="Open positions" value={netPositions.length} sub="at your broker, right now" />
+            <StatCard label="Span" value={rupee(summary.span)} sub="SPAN risk margin on open positions" />
+            <StatCard label="Exposure" value={rupee(summary.exposure)} sub="additional exchange exposure margin" />
+            <StatCard label="Total collateral" value={rupee(summary.total_collateral)} sub="pledged stock/MF, before use" />
+            <StatCard label="Collateral (liquid funds)" value={rupee(summary.collateral_liquid_used)} sub="of your used margin, funded by liquid MF/ETF collateral" />
+            <StatCard label="Collateral (equity)" value={rupee(summary.collateral_equity_used)} sub="of your used margin, funded by pledged stock" />
+            <StatCard label="Open positions" value={summary.open_positions} sub={isReal ? 'at your broker, right now' : 'in your virtual account'} />
           </>
         ) : (
-          Array.from({ length: 5 }, (_, i) => (
+          Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="stat">
               <span className="skeleton" style={{ width: '50%', height: 12 }} />
               <span className="skeleton" style={{ width: '70%', height: 26, margin: '6px 0' }} />
@@ -90,25 +97,31 @@ export default function BrokerAccount() {
       <section className="card">
         <header className="card-head"><h2>Open positions</h2></header>
         <div className="table-scroll">
-          {netPositions.length ? (
-            <table className="legs history">
-              <thead>
-                <tr><th>Instrument</th><th className="num">Qty</th><th className="num">Avg price</th><th className="num">LTP</th><th className="num">P&amp;L</th></tr>
-              </thead>
-              <tbody>
-                {netPositions.map((p, i) => (
-                  <tr key={p.tradingsymbol ?? i}>
-                    <td data-label="Instrument">{p.tradingsymbol}</td>
-                    <td data-label="Qty" className="num mono">{num(p.quantity)}</td>
-                    <td data-label="Avg price" className="num mono">{num(p.average_price)}</td>
-                    <td data-label="LTP" className="num mono">{num(p.last_price)}</td>
-                    <td data-label="P&L" className={`num mono ${pnlClass(p.pnl)}`}>{signedRupee(p.pnl)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {isReal ? (
+            netPositions.length ? (
+              <table className="legs history">
+                <thead>
+                  <tr><th>Instrument</th><th className="num">Qty</th><th className="num">Avg price</th><th className="num">LTP</th><th className="num">P&amp;L</th></tr>
+                </thead>
+                <tbody>
+                  {netPositions.map((p, i) => (
+                    <tr key={p.tradingsymbol ?? i}>
+                      <td data-label="Instrument">{p.tradingsymbol}</td>
+                      <td data-label="Qty" className="num mono">{num(p.quantity)}</td>
+                      <td data-label="Avg price" className="num mono">{num(p.average_price)}</td>
+                      <td data-label="LTP" className="num mono">{num(p.last_price)}</td>
+                      <td data-label="P&L" className={`num mono ${pnlClass(p.pnl)}`}>{signedRupee(p.pnl)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="empty">{positions ? 'No open positions at your broker right now.' : 'Loading…'}</p>
+            )
           ) : (
-            <p className="empty">{positions ? 'No open positions at your broker right now.' : 'Loading…'}</p>
+            <p className="empty">
+              {summary ? <>See your virtual open positions on the <Link to="/portfolio">Portfolio page</Link>.</> : 'Loading…'}
+            </p>
           )}
         </div>
       </section>

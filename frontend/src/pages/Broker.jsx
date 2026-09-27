@@ -6,11 +6,12 @@ import { useAuth } from '../auth'
 import { BROKERS } from '../brokers'
 import BrokerCard from '../components/BrokerCard'
 import { ConfirmDialog } from '../components/Modal'
+import { rupee } from '../format'
 
 export default function Broker() {
   const { user } = useAuth() ?? {}
   const isAdmin = user?.role === 'admin'
-  const [connection, setConnection] = useState(null)
+  const [summary, setSummary] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
@@ -18,7 +19,7 @@ export default function Broker() {
   const load = useCallback(async () => {
     if (!isAdmin) return // phase 1: connecting is admin-only; other accounts never have a real connection
     try {
-      setConnection(await rpc('broker_status'))
+      setSummary(await rpc('broker_account_summary'))
     } catch (e) {
       setError(e.message)
     }
@@ -68,9 +69,11 @@ export default function Broker() {
 
       {error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
 
-      {isAdmin && connection?.status === 'active' && (
+      {isAdmin && summary?.status === 'active' && (
         <p className="broker-linked-banner">
-          <Plug size={14} aria-hidden /> Connected to Zerodha. <Link to="/broker/account">View real account →</Link>
+          <Plug size={14} aria-hidden /> Connected to Zerodha.
+          {' '}Available cash <b className="mono">{rupee(summary.available_cash)}</b>.
+          {' '}<Link to="/broker/account">View real account →</Link>
         </p>
       )}
 
@@ -80,7 +83,7 @@ export default function Broker() {
             key={b.id}
             b={b}
             connectable={isAdmin && b.id === 'zerodha'}
-            connection={connection}
+            connection={summary}
             busy={busy}
             onConnect={connect}
             onDisconnect={() => setConfirmDisconnect(true)}

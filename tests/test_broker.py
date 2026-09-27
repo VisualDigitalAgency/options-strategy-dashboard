@@ -111,6 +111,24 @@ check("broker_status reports active, no secrets", j["result"]["status"] == "acti
 j = call("broker_status", {}, plain_c)
 check("a user with no connection sees disconnected", j["result"]["status"] == "disconnected", j["result"])
 
+# ---------- account_summary: real vs approx ----------
+
+cache.set_json(f"broker_snap:{admin_uid}", {
+    "positions": [{"tradingsymbol": "X", "quantity": -50}, {"tradingsymbol": "Y", "quantity": 0}],
+    "margins": {"cash_margin": 500000.0, "collateral_margin": 120000.0, "used_margin": 300000.0,
+                "span": 250000.0, "exposure": 40000.0},
+}, ttl=60)
+j = call("broker_account_summary", {}, admin_c)
+r = j.get("result", {})
+check("connected admin gets real figures", r.get("source") == "broker" and r.get("available_margin_total") == 620000.0
+      and r.get("span") == 250000.0 and r.get("exposure") == 40000.0 and r.get("total_collateral") == 120000.0, r)
+check("connected admin's open_positions only counts non-zero-qty legs", r.get("open_positions") == 1, r)
+
+j = call("broker_account_summary", {}, plain_c)
+r = j.get("result", {})
+check("a user with no connection gets an approximation from the virtual account", r.get("source") == "approx" and r.get("status") == "disconnected", r)
+check("approx has no real collateral", r.get("total_collateral") == 0.0, r)
+
 # ---------- preview + margin check ----------
 
 LEGS = [{"side": "CE", "strike": 1100.0, "action": "SELL", "lots": 1}]
@@ -121,6 +139,33 @@ check("insufficient real margin is refused before touching the broker", j.get("e
 cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {"available_margin": 10_000_000.0}}, ttl=60)
 j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
 check("sufficient margin returns a confirm_token", "confirm_token" in j.get("result", {}), j.get("error") or j.get("result"))
+token = j["result"]["confirm_token"]
+need = j["result"]["margin"]["total"]
+
+# ---------- collateral can fund part of an order, capped, never a blanket cash+collateral sum ----------
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
+    "available_margin": 0.0, "collateral_margin": need, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
+}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+check("zero cash but ample unused collateral still isn't enough alone: only half the order's margin is usable from collateral",
+      j.get("error", {}).get("code") == -32000 and "Insufficient" in j["error"]["message"], j.get("error"))
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
+    "available_margin": need * 0.5, "collateral_margin": need, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
+}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+check("half cash plus the capped half from unused collateral is exactly enough", "confirm_token" in j.get("result", {}), j.get("error") or j.get("result"))
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
+    "available_margin": 0.0, "collateral_margin": need, "collateral_liquid_used": need, "collateral_equity_used": 0.0,
+}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+check("collateral already fully consumed by other positions falls back to cash-only and is refused",
+      j.get("error", {}).get("code") == -32000 and "Insufficient" in j["error"]["message"], j.get("error"))
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {"available_margin": 10_000_000.0}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
 token = j["result"]["confirm_token"]
 
 j = call("broker_place_order", {"confirm_token": "not-a-real-token"}, admin_c)

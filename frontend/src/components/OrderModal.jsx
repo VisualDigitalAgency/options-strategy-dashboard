@@ -32,11 +32,18 @@ export default function OrderModal({ d, lots, onClose }) {
   // Real broker (phase 1: Zerodha, admin-only). null until checked; a non-admin or anyone
   // without a connection just never sees this become active — the button stays disabled.
   const [brokerConnected, setBrokerConnected] = useState(false)
+  const [realSummary, setRealSummary] = useState(null)
   const [realPreview, setRealPreview] = useState(null)
   const [realError, setRealError] = useState(null)
   const [realBusy, setRealBusy] = useState(false)
   useEffect(() => {
-    rpc('broker_status').then((s) => setBrokerConnected(s.status === 'active')).catch(() => {})
+    (async () => {
+      try {
+        const s = await rpc('broker_account_summary')
+        setBrokerConnected(s.status === 'active')
+        if (s.status === 'active') setRealSummary(s)
+      } catch { /* treated the same as "no broker connected" */ }
+    })()
   }, [])
 
   async function previewReal() {
@@ -192,9 +199,11 @@ export default function OrderModal({ d, lots, onClose }) {
           </div>
         </div>
       )}
-      <p className="notice muted-notice">
-        <AlertTriangle size={16} aria-hidden /> Live broker not connected. Virtual orders use live NSE prices but no real money.
-      </p>
+      {!brokerConnected && (
+        <p className="notice muted-notice">
+          <AlertTriangle size={16} aria-hidden /> Live broker not connected. Virtual orders use live NSE prices but no real money.
+        </p>
+      )}
 
       {confirming ? (
         <div className="modal-actions">
@@ -215,6 +224,13 @@ export default function OrderModal({ d, lots, onClose }) {
             {busy ? 'Placing…' : 'Place virtual limit order'}
           </button>
         </div>
+      )}
+      {brokerConnected && realSummary && (
+        <p className="muted small">
+          Real available margin: <b className="mono">{rupee(realSummary.available_margin_total)}</b>
+          {' '}({rupee(realSummary.available_cash)} cash + {rupee(realSummary.total_collateral)} collateral,
+          up to half a live order's own margin can come from collateral)
+        </p>
       )}
 
       {realPreview && (
