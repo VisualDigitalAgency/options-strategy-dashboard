@@ -4,7 +4,7 @@ This is a private, proprietary project (see [LICENSE](LICENSE)). These notes are
 
 ## Set up
 
-Follow [README → Run locally](README.md#run-locally): Postgres and Redis dev containers, `pip install -r requirements.txt`, `alembic upgrade head`, then run the API, the worker and the Vite dev server. You need Python 3.12, Node 22 and Docker.
+Follow [README → Run locally](README.md#run-locally): Postgres and Redis dev containers, `pip install --require-hashes -r requirements.txt` (to add or upgrade a package, edit `requirements.in` and run `make lock`), `alembic upgrade head`, then run the API, the worker and the Vite dev server. You need Python 3.12, Node 22 and Docker.
 
 ## Workflow
 
