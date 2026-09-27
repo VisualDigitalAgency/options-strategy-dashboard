@@ -8,6 +8,9 @@
 - Login limits: 5 failures per email + IP pair and 30 per IP in 15 minutes. Keyed on the pair so
   a stranger can't lock the admin out by guessing wrong. No sleep-based delay: with 12 request
   slots, a handful of parallel slow logins would stall the site for everyone.
+- Sign-up email check (#45): a new account is `unverified` until the 6-digit code emailed to it
+  is entered, then `pending` for the admin. Codes are stored hashed, expire in 10 minutes and
+  allow 5 wrong guesses; sending is throttled per account and per IP (engine/mail.py sends).
 - Sign-in never reveals whether an email is registered or what state it is in until the
   correct password is given. Sign-up does say an email is taken: one account per person
   matters more here than hiding who has signed up.
@@ -24,7 +27,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlalchemy.exc import IntegrityError
 
-from . import cache, db, users
+from . import cache, db, mail, users
 
 _ph = PasswordHasher(time_cost=3, memory_cost=64 * 1024, parallelism=2)
 _DUMMY_HASH = _ph.hash(secrets.token_hex(16))  # verify against this for unknown emails: same timing
@@ -35,12 +38,21 @@ FAILS_PER_PAIR, FAILS_PER_IP = 5, 30
 SIGNUPS_PER_IP = 5  # per hour
 MIN_PASSWORD = 10
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[a-z]{2,24}$")
-STATUSES = ("pending", "active", "rejected", "disabled")
+STATUSES = ("unverified", "pending", "active", "rejected", "disabled")
+CODE_TTL = 10 * 60  # sign-up email code lifetime
+CODE_TRIES = 5  # wrong guesses per code
+RESEND_GAP = 60  # seconds between codes for one account
+CODES_PER_IP = 10  # code sends per hour
+VERIFY_PER_IP = 30  # code checks per 15 minutes
 WRONG = "Email or password is wrong"
 
 
 class AuthError(ValueError):
     """A message safe to show the user. Subclass of ValueError, so the RPC layer shows it."""
+
+
+class EmailUnverified(AuthError):
+    """Right password, but the email isn't verified yet: the client shows the code form."""
 
 
 # ---------- passwords ----------
@@ -255,14 +267,17 @@ def register(name: str, email: str, password: str, ip: str | None = None, device
         raise AuthError("Too many sign-ups from this network. Try again in an hour")
     cache._call(lambda r: (r.incr(key), r.expire(key, 3600, nx=True)))
     try:
-        uid = users.create_user(email, name, status="pending", ip=ip)
+        uid = users.create_user(email, name, status="unverified", ip=ip)
     except IntegrityError:  # the same mailbox registered a moment ago, between the check and here
         raise AuthError(TAKEN)
     with db.tx() as c:
         c.run("UPDATE users SET password_hash=:h WHERE id=:u", h=hash_password(password), u=uid)
     see_device(uid, device, ip)
     audit("register", target_user_id=uid, ip=ip)
-    return {"message": "Thanks. Your request is waiting for approval. Sign in once an admin has approved it."}
+    sent = _send_code(uid, email, ip)
+    return {"verify": True, "email": email, "message": (
+        f"We've emailed a 6-digit code to {email}. Enter it below to confirm your address." if sent else
+        "We couldn't send the code just now. Try \"Send a new code\" in a minute; the admin has been told.")}
 
 
 def login(email: str, password: str, ip: str | None = None, ua: str | None = None,
@@ -277,6 +292,10 @@ def login(email: str, password: str, ip: str | None = None, ua: str | None = Non
         raise AuthError(WRONG)
     _release_attempt(email, ip)
     # Correct password: only now is it safe to say what state the account is in.
+    if u["status"] == "unverified":
+        audit("login_blocked", target_user_id=u["id"], ip=ip, status=u["status"])
+        _maybe_resend(u["id"], ip)
+        raise EmailUnverified("Confirm your email to continue. Enter the 6-digit code we emailed you")
     if u["status"] != "active":
         audit("login_blocked", target_user_id=u["id"], ip=ip, status=u["status"])
         raise AuthError({"pending": "Your account is waiting for approval",
@@ -291,6 +310,84 @@ def login(email: str, password: str, ip: str | None = None, ua: str | None = Non
         c.run("UPDATE users SET last_login_at=now() WHERE id=:u", u=u["id"])
     audit("login", actor_id=u["id"], target_user_id=u["id"], ip=ip)
     return token, me(u["id"])
+
+
+# ---------- email verification (#45) ----------
+# A 6-digit code, stored only as a hash, valid CODE_TTL, CODE_TRIES wrong guesses. Verify and
+# resend answer the same way whether or not the email has an unverified account.
+
+BAD_CODE = "That code is wrong or has expired. Check the latest email, or send a new code"
+
+
+def _code_hash(user_id: int, code: str) -> str:
+    return hashlib.sha256(f"{user_id}:{code}".encode()).hexdigest()
+
+
+def _send_code(user_id: int, email: str, ip: str | None) -> bool:
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    with db.tx() as c:
+        c.run("UPDATE users SET email_code_hash=:h, email_code_attempts=0, email_code_sent_at=now(), "
+              "email_code_expires_at=now() + make_interval(secs => :ttl) WHERE id=:u",
+              h=_code_hash(user_id, code), ttl=CODE_TTL, u=user_id)
+    try:
+        mail.send(email, f"{code} is your Theta Desk code",
+                  f"Your Theta Desk verification code is {code}\n\n"
+                  f"It expires in {CODE_TTL // 60} minutes. If you didn't sign up, ignore this email.\n")
+    except mail.MailError as e:
+        audit("mail_failed", target_user_id=user_id, ip=ip, kind="verify_code", error=str(e)[:300])
+        return False
+    audit("email_code_sent", target_user_id=user_id, ip=ip)
+    return True
+
+
+def _maybe_resend(user_id: int, ip: str | None) -> bool:
+    """Sends a fresh code unless one went out less than RESEND_GAP ago or the IP is over its limit."""
+    key = f"rl:codes:{ip or '-'}"
+    with db.tx() as c:
+        u = c.one("SELECT email, status, (email_code_sent_at IS NULL OR email_code_sent_at < "
+                  "now() - make_interval(secs => :g)) AS due FROM users WHERE id=:u", u=user_id, g=RESEND_GAP)
+    if not u or u["status"] != "unverified" or not u["due"] or _count(key) >= CODES_PER_IP:
+        return False
+    cache._call(lambda r: (r.incr(key), r.expire(key, 3600, nx=True)))
+    return _send_code(user_id, u["email"], ip)
+
+
+def _unverified_id(email: str) -> int | None:
+    with db.tx() as c:
+        return c.value("SELECT id FROM users WHERE email=:e AND status='unverified'", e=(email or "").strip().lower())
+
+
+def resend_code(email: str, ip: str | None = None) -> dict:
+    uid = _unverified_id(email)
+    if uid:
+        _maybe_resend(uid, ip)
+    return {"message": "If that account is waiting for confirmation, a new code is on its way. "
+                       "Codes can be resent once a minute"}
+
+
+def verify_email(email: str, code: str, ip: str | None = None) -> dict:
+    key = f"rl:verifyip:{ip or '-'}"
+    n = cache._call(lambda r: r.incr(key))
+    cache._call(lambda r: r.expire(key, FAIL_WINDOW, nx=True))
+    if int(n or 0) > VERIFY_PER_IP:
+        raise AuthError("Too many tries. Wait 15 minutes and try again")
+    code = "".join((code or "").split())
+    uid = _unverified_id(email)
+    row = None
+    if uid and re.fullmatch(r"\d{6}", code):
+        with db.tx() as c:  # one UPDATE counts the guess, so parallel guesses can't exceed CODE_TRIES
+            row = c.one("UPDATE users SET email_code_attempts = email_code_attempts + 1 "
+                        "WHERE id=:u AND email_code_hash IS NOT NULL AND email_code_attempts < :t "
+                        "AND email_code_expires_at > now() RETURNING email_code_hash", u=uid, t=CODE_TRIES)
+    if not row or not secrets.compare_digest(row["email_code_hash"], _code_hash(uid, code)):
+        if uid:
+            audit("email_verify_failed", target_user_id=uid, ip=ip)
+        raise AuthError(BAD_CODE)
+    with db.tx() as c:
+        c.run("UPDATE users SET status='pending', email_verified_at=now(), email_code_hash=NULL, "
+              "email_code_expires_at=NULL WHERE id=:u AND status='unverified'", u=uid)
+    audit("email_verified", target_user_id=uid, ip=ip)
+    return {"message": "Email confirmed. Your request is waiting for approval. Sign in once an admin has approved it."}
 
 
 def me(user_id: int) -> dict:
@@ -347,9 +444,11 @@ def list_users() -> list[dict]:
     network with it, so the admin sees a likely second account before approving it."""
     with db.tx() as c:
         rows = c.all("SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.approved_at, "
-                     "u.last_login_at, u.must_change_password, a.name AS approved_by_name "
+                     "u.last_login_at, u.must_change_password, u.email_verified_at, a.name AS approved_by_name, "
+                     "(SELECT max(l.ts) FROM audit_log l WHERE l.action='mail_failed' AND l.target_user_id=u.id "
+                     " AND l.ts >= coalesce(u.email_code_sent_at, '-infinity')) AS mail_failed_at "
                      "FROM users u LEFT JOIN users a ON a.id = u.approved_by "
-                     "ORDER BY CASE u.status WHEN 'pending' THEN 0 ELSE 1 END, u.created_at DESC")
+                     "ORDER BY CASE u.status WHEN 'pending' THEN 0 WHEN 'unverified' THEN 1 ELSE 2 END, u.created_at DESC")
         same_device = c.all("SELECT DISTINCT a.user_id AS id, b.user_id AS other FROM user_devices a "
                             "JOIN user_devices b ON a.device_hash = b.device_hash AND a.user_id <> b.user_id")
         # Networks: the sign-up IP plus every IP the user signed in from.
@@ -373,7 +472,7 @@ def list_users() -> list[dict]:
 
 
 def set_status(admin_id: int, target_id: int, status: str, ip: str | None = None) -> dict:
-    if status not in STATUSES or status == "pending":
+    if status not in STATUSES or status in ("pending", "unverified"):
         raise AuthError("Status must be active, rejected or disabled")
     if target_id == admin_id:
         raise AuthError("You can't change your own status")

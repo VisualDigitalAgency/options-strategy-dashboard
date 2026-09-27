@@ -5,7 +5,7 @@ import { useAuth } from '../auth'
 import { dateTime } from '../format'
 import Modal, { ConfirmDialog } from '../components/Modal'
 
-const STATUS = { pending: 'Waiting', active: 'Active', rejected: 'Rejected', disabled: 'Disabled' }
+const STATUS = { unverified: 'Email not confirmed', pending: 'Waiting', active: 'Active', rejected: 'Rejected', disabled: 'Disabled' }
 
 const ACTION = {
   register: 'Requested access', register_duplicate: 'Sign-up refused: email already registered', register_same_device: 'Sign-up refused: browser already has an account', login: 'Signed in',
@@ -35,6 +35,11 @@ function UserRow({ u, me, onAct }) {
       </td>
       <td><span className={`chip st-${u.status}`}>{STATUS[u.status]}</span>
         {u.must_change_password && <span className="muted small block">Temporary password</span>}
+        {u.status === 'unverified' && u.mail_failed_at && (
+          <span className="dup-flag" title="The verification email could not be sent. Check the mail settings, or approve by hand">
+            <AlertTriangle size={13} aria-hidden /> Code email failed {dateTime(u.mail_failed_at)}
+          </span>
+        )}
         {u.links.map((l) => (
           <span key={l.kind + l.user_id} className={`dup-flag ${l.kind}`}
             title={l.kind === 'browser' ? 'Signed up or signed in from the same browser' : `Same network (${l.ip})`}>
@@ -47,9 +52,11 @@ function UserRow({ u, me, onAct }) {
         <div className="admin-actions">
           {self ? <span className="muted small">You</span> : (
             <>
-              {u.status === 'pending' && (
+              {(u.status === 'pending' || u.status === 'unverified') && (
                 <>
-                  <button className="btn small primary" onClick={() => onAct(u, 'active')}><UserCheck size={15} aria-hidden /> Approve</button>
+                  <button className={`btn small ${u.status === 'pending' ? 'primary' : 'ghost'}`} onClick={() => onAct(u, 'active')}>
+                    <UserCheck size={15} aria-hidden /> {u.status === 'pending' ? 'Approve' : 'Approve anyway'}
+                  </button>
                   <button className="btn small ghost" onClick={() => onAct(u, 'rejected')}><UserX size={15} aria-hidden /> Reject</button>
                 </>
               )}

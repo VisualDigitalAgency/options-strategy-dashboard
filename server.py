@@ -209,6 +209,14 @@ def auth_login(_ctx: Ctx, email: str, password: str):
     return user
 
 
+def auth_verify_email(_ctx: Ctx, email: str, code: str):
+    return auth.verify_email(email, code, ip=_ctx.ip)
+
+
+def auth_resend_code(_ctx: Ctx, email: str):
+    return auth.resend_code(email, ip=_ctx.ip)
+
+
 def auth_me(_ctx: Ctx):
     return auth.me(_ctx.user_id) if _ctx.user else None
 
@@ -269,7 +277,8 @@ def broker_exchange_token(_ctx: Ctx, request_token: str, state: str):
 #            rpc_guard refuses a client-sent `user_id`, so no request can act for someone else.
 #   ADMIN    signed in with the admin role; context
 
-PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me}
+PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me,
+                  "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code}
 
 ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set}
 
@@ -336,7 +345,7 @@ TABLES = [(PUBLIC_METHODS, "public"), (ACCOUNT_METHODS, "account"), (METHODS, "s
 _names = [n for t, _ in TABLES for n in t]
 assert len(_names) == len(set(_names)), "an RPC name appears in two tables"
 
-NOT_SIGNED_IN, FORBIDDEN, MUST_CHANGE = -32001, -32003, -32004
+NOT_SIGNED_IN, FORBIDDEN, MUST_CHANGE, UNVERIFIED = -32001, -32003, -32004, -32005
 
 
 def _error(req_id, code, message, status=200):
@@ -443,6 +452,8 @@ def rpc():
     except UPSTREAM_ERRORS:  # before USER_ERRORS: requests' JSON decode error is a ValueError
         log.warning("rpc %s: upstream data failed", name, exc_info=True)
         return _error(req_id, -32000, UPSTREAM_MESSAGE)
+    except auth.EmailUnverified as e:  # the client swaps to the code form
+        return _error(req_id, UNVERIFIED, str(e))
     except USER_ERRORS as e:
         return _error(req_id, -32000, str(e))
     except Exception:
