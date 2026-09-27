@@ -44,7 +44,10 @@ class FakeAdapter:
         self.invalidated.append(session.access_token)
 
     def place_sell_limit_order(self, session, **kw):
-        return self.place_results.pop(0)
+        r = self.place_results.pop(0)
+        if isinstance(r, Exception):  # scripts "the broker never answered" for this leg
+            raise r
+        return r
 
     def get_order_status(self, session, broker_order_id):
         return self.order_status.get(broker_order_id, {"status": "OPEN"})
@@ -312,6 +315,51 @@ j = call("broker_connect_url", {}, admin_c)
 state = j["result"]["state"]
 j = call("broker_exchange_token", {"request_token": "again1", "state": state}, admin_c)
 check("can reconnect after disconnecting", j.get("result", {}).get("status") == "active", j)
+
+# ---------- issue #39: one confirm token can't place twice, even when two requests race ----------
+
+import threading  # noqa: E402
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {"available_margin": 10_000_000.0}}, ttl=600)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+race_token = j["result"]["confirm_token"]
+fake.place_results = [BrokerOrderResult(broker_order_id="RACE1", status="open"),
+                      BrokerOrderResult(broker_order_id="RACE2", status="open")]
+go, outcomes = threading.Barrier(2), []
+
+
+def confirm():
+    go.wait()
+    try:
+        outcomes.append(("ok", broker.place_order(admin_uid, race_token)))
+    except ValueError as e:
+        outcomes.append(("refused", str(e)))
+
+
+threads = [threading.Thread(target=confirm) for _ in range(2)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+check("two racing confirms with one token place the order once",
+      sorted(o[0] for o in outcomes) == ["ok", "refused"] and len(fake.place_results) == 1, outcomes)
+
+# ---------- issue #39: a leg with no answer from the broker is "unknown", not a generic error ----------
+
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": MULTI_LEGS}, admin_c)
+fake.place_results = [BrokerOrderResult(broker_order_id="KITE9", status="open"), TimeoutError("read timed out")]
+j = call("broker_place_order", {"confirm_token": j["result"]["confirm_token"]}, admin_c)
+msg = (j.get("error") or {}).get("message") or ""
+check("no-answer leg surfaces as a user error (not a generic server error)", j.get("error", {}).get("code") == -32000, j.get("error"))
+check("the message says the leg may have been placed and to check the order book",
+      "may or may not" in msg and "order book" in msg and "1 earlier leg" in msg, msg)
+with db.tx(admin_uid) as c:
+    last = c.all("SELECT kite_order_id, status FROM broker_orders WHERE user_id=:u ORDER BY id DESC LIMIT 2", u=admin_uid)
+check("the unanswered leg is recorded as 'pending' after the placed one",
+      [r["status"] for r in last] == ["pending", "open"] and last[1]["kite_order_id"] == "KITE9", last)
+with db.tx() as c:
+    n_unknown = c.value("SELECT count(*) FROM audit_log WHERE action='broker_order_unknown'")
+check("the unknown leg is audited", n_unknown == 1, n_unknown)
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)

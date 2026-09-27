@@ -25,7 +25,10 @@ _engine = None
 def engine():
     global _engine
     if _engine is None:
-        _engine = create_engine(DATABASE_URL, pool_size=5, max_overflow=5, pool_pre_ping=True, future=True)
+        # hide_parameters: a DB error's message otherwise carries every bound value (password
+        # hashes, encrypted broker tokens), and server.py logs that traceback in full.
+        _engine = create_engine(DATABASE_URL, pool_size=5, max_overflow=5, pool_pre_ping=True, future=True,
+                                hide_parameters=True)
     return _engine
 
 

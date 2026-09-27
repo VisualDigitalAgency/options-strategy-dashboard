@@ -163,15 +163,25 @@ def _count(key: str) -> int:
     return int(cache._call(lambda r: r.get(key), 0) or 0)
 
 
-def _record_fail(email: str, ip: str | None) -> None:
+def _reserve_attempt(email: str, ip: str | None) -> None:
+    """Counts this attempt before the password is checked, then refuses if it is over a limit.
+    Checking first and counting only failures let parallel requests all pass the check before
+    any of them was counted, so a burst could try far more than FAILS_PER_PAIR passwords."""
+    counts = []
     for key in _fail_keys(email, ip):
-        cache._call(lambda r, k=key: (r.incr(k), r.expire(k, FAIL_WINDOW, nx=True)))
-
-
-def _check_limits(email: str, ip: str | None) -> None:
-    pair, per_ip = (_count(k) for k in _fail_keys(email, ip))
-    if pair >= FAILS_PER_PAIR or per_ip >= FAILS_PER_IP:
+        n = cache._call(lambda r, k=key: r.incr(k))
+        cache._call(lambda r, k=key: r.expire(k, FAIL_WINDOW, nx=True))
+        counts.append(int(n or 0))
+    pair, per_ip = counts
+    if pair > FAILS_PER_PAIR or per_ip > FAILS_PER_IP:
         raise AuthError("Too many failed sign-ins. Wait 15 minutes and try again")
+
+
+def _release_attempt(email: str, ip: str | None) -> None:
+    """A successful sign-in isn't a failure: clear the pair and give the IP its attempt back."""
+    pair, per_ip = _fail_keys(email, ip)
+    cache.delete(pair)
+    cache._call(lambda r: r.decr(per_ip) if (int(r.get(per_ip) or 0)) > 0 else None)
 
 
 # ---------- account flows ----------
@@ -242,14 +252,14 @@ def register(name: str, email: str, password: str, ip: str | None = None, device
 def login(email: str, password: str, ip: str | None = None, ua: str | None = None,
           device: str | None = None) -> tuple[str, dict]:
     email = (email or "").strip().lower()
-    _check_limits(email, ip)
+    _reserve_attempt(email, ip)
     with db.tx() as c:
         u = c.one("SELECT id, name, email, role, status, password_hash, must_change_password "
                   "FROM users WHERE email=:e", e=email)
     if not _verify(u["password_hash"] if u else None, password or ""):
-        _record_fail(email, ip)
         audit("login_failed", target_user_id=u["id"] if u else None, ip=ip)
         raise AuthError(WRONG)
+    _release_attempt(email, ip)
     # Correct password: only now is it safe to say what state the account is in.
     if u["status"] != "active":
         audit("login_blocked", target_user_id=u["id"], ip=ip, status=u["status"])
@@ -263,8 +273,6 @@ def login(email: str, password: str, ip: str | None = None, ua: str | None = Non
     see_device(u["id"], device, ip)
     with db.tx() as c:
         c.run("UPDATE users SET last_login_at=now() WHERE id=:u", u=u["id"])
-    for k in _fail_keys(email, ip)[:1]:
-        cache.delete(k)
     audit("login", actor_id=u["id"], target_user_id=u["id"], ip=ip)
     return token, me(u["id"])
 
