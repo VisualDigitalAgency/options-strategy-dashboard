@@ -1,0 +1,37 @@
+type: draft-issue
+tag: "live-order-margin-calc-zero-collateral"
+issueNumber: 0
+repository: "VisualDigitalAgency/options-strategy-dashboard"
+state: "draft"
+title: "On placing live order: available margin shows zero and margin calculation incorrect"
+description: |
+  **Describe the bug**
+  On placing a live order in the available-margin check gate the collateral shows zero. And the margin calculation still has issues so a user can't place a live order even though they actually have sufficient margin (liquid collateral). Kindly check it.
+
+  **To Reproduce**
+  Steps to reproduce the behavior:
+  1. Sign in as a user with liquid collateral allocated.
+  2. Attempt to place a live order via the trading UI.
+  3. Observe the "available margin" or collateral field shows 0 and the order is blocked.
+
+  **Expected behavior**
+  The available margin / liquid collateral should be calculated correctly and allow orders when sufficient collateral is available.
+
+  **Screenshots**
+  (Attach screenshot showing the available margin showing zero and the order rejection message)
+
+  **Desktop (please complete the following information):**
+   - OS: [e.g. macOS]
+   - Browser [e.g. chrome]
+   - Version [e.g. latest]
+
+  **Additional context**
+  - Possibly related to the margin calculation logic in engine/brokers or the "available margin" aggregation code path.
+  - Possibly related to recent changes in collateral or settlement calculations.
+
+metadata:
+  labels:
+    - "bug"
+    - "severity:high"
+    - "trading"
+  assignees: []
