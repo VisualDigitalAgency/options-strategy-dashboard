@@ -7,6 +7,13 @@
 # Repository secrets: COOLIFY_TOKEN, a Coolify API token with the "deploy" and "read" abilities
 # (Coolify → Keys & Tokens → API tokens), and ORIGIN_IP, the server's IP. Cloudflare challenges
 # GitHub's runners, so the deploy connects to the origin directly. See deploy/COOLIFY.md.
+#
+# A separate, isolated preview environment (own DB/Redis/domain, no market-hours hold since it
+# never touches real trading) deploys from the branch named in deploy-preview's `if:` below on
+# every push to its open PR. One-time setup (new Coolify app, DNS, secrets
+# COOLIFY_PREVIEW_APP_UUID/COOLIFY_PREVIEW_PUBLIC_URL) is a manual runbook: see deploy/PREVIEW.md.
+# Until those two secrets exist, deploy-preview fails cleanly and the rest of the pipeline
+# (including production deploy) is unaffected.
 name: CI/CD
 
 on:
@@ -183,6 +190,36 @@ jobs:
           for s in COOLIFY_TOKEN ORIGIN_IP; do
             if [[ -z "${!s}" ]]; then
               echo "::error::Repository secret $s is not set (see deploy/COOLIFY.md)."
+              exit 1
+            fi
+          done
+          bash scripts/ci_deploy.sh
+
+  deploy-preview:
+    name: Deploy preview environment
+    needs: [frontend, backend, images]
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/broker-connect-preview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: preview
+    concurrency:
+      group: deploy-preview-${{ github.head_ref }}
+      cancel-in-progress: true
+    env:
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_PREVIEW_APP_UUID }}
+      PUBLIC_URL: ${{ secrets.COOLIFY_PREVIEW_PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy and smoke-test
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          ORIGIN_IP: ${{ secrets.ORIGIN_IP }}
+          EXPECT_SHA: ${{ github.sha }}
+        run: |
+          for s in COOLIFY_TOKEN ORIGIN_IP COOLIFY_APP_UUID PUBLIC_URL; do
+            if [[ -z "${!s}" ]]; then
+              echo "::error::Repository secret $s is not set (see deploy/PREVIEW.md)."
               exit 1
             fi
           done

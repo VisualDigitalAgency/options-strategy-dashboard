@@ -66,6 +66,8 @@ pack, compose file `/docker-compose.coolify.yml`, branch `main`.
 
 Don't also turn on Coolify's own auto-deploy webhook, or every push deploys twice, and without the tests or the market-hours hold.
 
+**Preview environment.** A separate, isolated Coolify application (own DB/Redis/domain, a feature branch instead of `main`) for testing live before merging — see `deploy/PREVIEW.md`.
+
 A failed deploy leaves the previous containers running only if the build failed; if new containers start but the smoke test fails, roll back as below.
 
 ## Rollback
