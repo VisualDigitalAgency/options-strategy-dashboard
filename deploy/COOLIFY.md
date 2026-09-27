@@ -123,7 +123,7 @@ New sign-ups confirm their email with a 6-digit code before they appear for appr
 - Resend: `RESEND_API_KEY`.
 - SMTP: `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS, 465 TLS), `SMTP_USER`, `SMTP_PASS`.
 
-A failed send is retried 3 times, then logged and recorded as `mail_failed` in the audit log. The admin page marks that sign-up "Code email failed", and the admin can still approve it by hand.
+The admin page lists only confirmed requests. Each account gets at most 5 codes a day, after which "Send a new code" says the daily limit is reached. An account not confirmed within 14 days is blocked but kept for reference, and its email can't sign up again. A failed send is retried 3 times, then logged and recorded as `mail_failed` in the audit log.
 
 ## Known residual risks
 

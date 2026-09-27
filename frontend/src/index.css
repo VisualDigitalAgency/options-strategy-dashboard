@@ -1411,7 +1411,6 @@ td.out { color: var(--down-text); }
 .admin-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .admin-chip { margin-left: 8px; background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
 .st-pending { color: var(--warn); border-color: currentColor; }
-.st-unverified { color: var(--text-muted); border-color: currentColor; }
 .st-active { color: var(--up-text); border-color: currentColor; }
 .st-rejected, .st-disabled { color: var(--text-muted); border-color: var(--border-strong); }
 .danger-text { color: var(--down-text); }

@@ -112,7 +112,49 @@ age_code("two@test.example", auth.CODE_TTL + 1)
 j = call("auth_verify_email", {"email": "two@test.example", "code": outbox[-1]["code"]})
 check("expired code refused", j["error"]["message"] == auth.BAD_CODE, j["error"])
 
-# 6. Mail failure: the user is told, the admin sees it, an admin can still approve.
+# 6. The admin only sees confirmed requests, and can't act on an unconfirmed one.
+admin = auth.users.create_user("boss@test.example", "Boss", role="admin", status="active")
+listed = {u["email"] for u in auth.list_users()}
+check("admin list has the confirmed request, not the unconfirmed one",
+      "new@test.example" in listed and "two@test.example" not in listed, listed)
+with db.tx() as c:
+    two = c.value("SELECT id FROM users WHERE email='two@test.example'")
+try:
+    auth.set_status(admin, two, "active")
+    check("admin can't approve an unconfirmed account", False)
+except auth.AuthError:
+    check("admin can't approve an unconfirmed account", status("two@test.example") == "unverified")
+
+# 7. At most CODES_PER_DAY codes a day; the resend button then says so, sign-in just shows the form.
+while len(outbox) < auth.CODES_PER_DAY:
+    age_code("two@test.example", auth.RESEND_GAP + 1)
+    j = call("auth_resend_code", {"email": "two@test.example"})
+    check(f"resend {len(outbox)} within the daily limit", "result" in j, j)
+age_code("two@test.example", auth.RESEND_GAP + 1)
+j = call("auth_resend_code", {"email": "two@test.example"})
+check("over the daily limit: resend says so", j.get("error", {}).get("message") == auth.DAILY_LIMIT, j)
+check("no code sent over the limit", len(outbox) == auth.CODES_PER_DAY, len(outbox))
+j = call("auth_login", {"email": "two@test.example", "password": PW})
+check("sign-in over the limit still shows the code form", j["error"]["code"] == -32005, j["error"])
+j = call("auth_verify_email", {"email": "two@test.example", "code": outbox[-1]["code"]})
+check("the last code sent still works", "result" in j and status("two@test.example") == "pending", j)
+
+# 8. Not confirmed within CONFIRM_DAYS: blocked everywhere, and the email stays taken.
+call("auth_register", {"name": "Old User", "email": "old@test.example", "password": PW})
+with db.tx() as c:
+    c.run("UPDATE users SET created_at = now() - make_interval(days => :d) WHERE email='old@test.example'",
+          d=auth.CONFIRM_DAYS + 1)
+j = call("auth_login", {"email": "old@test.example", "password": PW})
+check("sign-in after 14 days: blocked", j["error"]["message"] == auth.BLOCKED, j["error"])
+j = call("auth_resend_code", {"email": "old@test.example"})
+check("resend after 14 days: blocked", j["error"]["message"] == auth.BLOCKED, j["error"])
+j = call("auth_verify_email", {"email": "old@test.example", "code": outbox[-1]["code"]})
+check("verify after 14 days: blocked", j["error"]["message"] == auth.BLOCKED, j["error"])
+j = call("auth_register", {"name": "Old User", "email": "old@test.example", "password": PW})
+check("blocked email can't sign up again", j["error"]["message"] == auth.TAKEN, j["error"])
+check("blocked account is kept", status("old@test.example") == "unverified")
+
+# 9. Mail failure: the user is told, and it's in the audit log.
 
 
 def broken_send(to, subject, text):
@@ -122,18 +164,12 @@ def broken_send(to, subject, text):
 mail.send = broken_send
 j = call("auth_register", {"name": "Three User", "email": "three@test.example", "password": PW})
 check("register still succeeds when mail fails", j["result"]["verify"] and "couldn't send" in j["result"]["message"], j)
-row = next(u for u in auth.list_users() if u["email"] == "three@test.example")
-check("admin list shows the mail failure", row["status"] == "unverified" and row["mail_failed_at"] is not None, row)
-admin = auth.users.create_user("boss@test.example", "Boss", role="admin", status="active")
-auth.set_status(admin, row["id"], "active")
-check("admin can approve an unverified account", status("three@test.example") == "active")
-try:
-    auth.set_status(admin, row["id"], "unverified")
-    check("admin can't set unverified by hand", False)
-except auth.AuthError:
-    check("admin can't set unverified by hand", True)
+with db.tx() as c:
+    n = c.value("SELECT count(*) FROM audit_log l JOIN users u ON u.id = l.target_user_id "
+                "WHERE u.email='three@test.example' AND l.action='mail_failed'")
+check("the failure is in the audit log", n == 1, n)
 
-# 7. The mail module: log backend sends nothing; unknown backend is an error.
+# 10. The mail module: log backend sends nothing; unknown backend is an error.
 import importlib  # noqa: E402
 importlib.reload(mail)  # undoes the fake send
 mail.send("x@test.example", "s", "t")

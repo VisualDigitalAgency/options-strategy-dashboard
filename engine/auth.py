@@ -10,7 +10,8 @@
   slots, a handful of parallel slow logins would stall the site for everyone.
 - Sign-up email check (#45): a new account is `unverified` until the 6-digit code emailed to it
   is entered, then `pending` for the admin. Codes are stored hashed, expire in 10 minutes and
-  allow 5 wrong guesses; sending is throttled per account and per IP (engine/mail.py sends).
+  allow 5 wrong guesses; at most 5 codes per account per day, and throttled per IP (engine/mail.py
+  sends). The admin only sees confirmed requests. Unconfirmed after 14 days: blocked, row kept.
 - Sign-in never reveals whether an email is registered or what state it is in until the
   correct password is given. Sign-up does say an email is taken: one account per person
   matters more here than hiding who has signed up.
@@ -43,6 +44,8 @@ CODE_TTL = 10 * 60  # sign-up email code lifetime
 CODE_TRIES = 5  # wrong guesses per code
 RESEND_GAP = 60  # seconds between codes for one account
 CODES_PER_IP = 10  # code sends per hour
+CODES_PER_DAY = 5  # code sends per account per 24 hours, sign-up code included
+CONFIRM_DAYS = 14  # an account not confirmed by then is blocked (kept for reference)
 VERIFY_PER_IP = 30  # code checks per 15 minutes
 WRONG = "Email or password is wrong"
 
@@ -277,7 +280,7 @@ def register(name: str, email: str, password: str, ip: str | None = None, device
     sent = _send_code(uid, email, ip)
     return {"verify": True, "email": email, "message": (
         f"We've emailed a 6-digit code to {email}. Enter it below to confirm your address." if sent else
-        "We couldn't send the code just now. Try \"Send a new code\" in a minute; the admin has been told.")}
+        "We couldn't send the code just now. Try \"Send a new code\" in a minute.")}
 
 
 def login(email: str, password: str, ip: str | None = None, ua: str | None = None,
@@ -294,7 +297,7 @@ def login(email: str, password: str, ip: str | None = None, ua: str | None = Non
     # Correct password: only now is it safe to say what state the account is in.
     if u["status"] == "unverified":
         audit("login_blocked", target_user_id=u["id"], ip=ip, status=u["status"])
-        _maybe_resend(u["id"], ip)
+        _maybe_resend(u["id"], ip)  # raises BLOCKED once the CONFIRM_DAYS window has closed
         raise EmailUnverified("Confirm your email to continue. Enter the 6-digit code we emailed you")
     if u["status"] != "active":
         audit("login_blocked", target_user_id=u["id"], ip=ip, status=u["status"])
@@ -340,13 +343,37 @@ def _send_code(user_id: int, email: str, ip: str | None) -> bool:
     return True
 
 
-def _maybe_resend(user_id: int, ip: str | None) -> bool:
-    """Sends a fresh code unless one went out less than RESEND_GAP ago or the IP is over its limit."""
-    key = f"rl:codes:{ip or '-'}"
+BLOCKED = "This email is blocked: it wasn't confirmed within 14 days of signing up. Contact support"
+DAILY_LIMIT = "Your daily resend limit is reached. Come back later"
+
+
+def _code_state(user_id: int) -> dict | None:
+    """The account's email, whether a new code may go out (RESEND_GAP), how many went out in the
+    last 24 hours (sent or failed), and whether the CONFIRM_DAYS window has closed."""
     with db.tx() as c:
-        u = c.one("SELECT email, status, (email_code_sent_at IS NULL OR email_code_sent_at < "
-                  "now() - make_interval(secs => :g)) AS due FROM users WHERE id=:u", u=user_id, g=RESEND_GAP)
-    if not u or u["status"] != "unverified" or not u["due"] or _count(key) >= CODES_PER_IP:
+        return c.one(
+            "SELECT email, status, created_at < now() - make_interval(days => :d) AS expired, "
+            "(email_code_sent_at IS NULL OR email_code_sent_at < now() - make_interval(secs => :g)) AS due, "
+            "(SELECT count(*) FROM audit_log l WHERE l.target_user_id = u.id AND "
+            " l.action IN ('email_code_sent', 'mail_failed') AND l.ts > now() - interval '1 day') AS today "
+            "FROM users u WHERE id=:u", u=user_id, d=CONFIRM_DAYS, g=RESEND_GAP)
+
+
+def _maybe_resend(user_id: int, ip: str | None, asked: bool = False) -> bool:
+    """Sends a fresh code unless the account is blocked, over its daily limit, inside RESEND_GAP,
+    or the IP is over its limit. When the user `asked` (the resend button), the daily limit is an
+    error they see; on a sign-in it just means no new code. Blocked is always an error."""
+    u = _code_state(user_id)
+    if not u or u["status"] != "unverified":
+        return False
+    if u["expired"]:
+        raise AuthError(BLOCKED)
+    if u["today"] >= CODES_PER_DAY:
+        if asked:
+            raise AuthError(DAILY_LIMIT)
+        return False
+    key = f"rl:codes:{ip or '-'}"
+    if not u["due"] or _count(key) >= CODES_PER_IP:
         return False
     cache._call(lambda r: (r.incr(key), r.expire(key, 3600, nx=True)))
     return _send_code(user_id, u["email"], ip)
@@ -360,7 +387,7 @@ def _unverified_id(email: str) -> int | None:
 def resend_code(email: str, ip: str | None = None) -> dict:
     uid = _unverified_id(email)
     if uid:
-        _maybe_resend(uid, ip)
+        _maybe_resend(uid, ip, asked=True)
     return {"message": "If that account is waiting for confirmation, a new code is on its way. "
                        "Codes can be resent once a minute"}
 
@@ -373,6 +400,8 @@ def verify_email(email: str, code: str, ip: str | None = None) -> dict:
         raise AuthError("Too many tries. Wait 15 minutes and try again")
     code = "".join((code or "").split())
     uid = _unverified_id(email)
+    if uid and _code_state(uid)["expired"]:
+        raise AuthError(BLOCKED)
     row = None
     if uid and re.fullmatch(r"\d{6}", code):
         with db.tx() as c:  # one UPDATE counts the guess, so parallel guesses can't exceed CODE_TRIES
@@ -444,11 +473,9 @@ def list_users() -> list[dict]:
     network with it, so the admin sees a likely second account before approving it."""
     with db.tx() as c:
         rows = c.all("SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.approved_at, "
-                     "u.last_login_at, u.must_change_password, u.email_verified_at, a.name AS approved_by_name, "
-                     "(SELECT max(l.ts) FROM audit_log l WHERE l.action='mail_failed' AND l.target_user_id=u.id "
-                     " AND l.ts >= coalesce(u.email_code_sent_at, '-infinity')) AS mail_failed_at "
-                     "FROM users u LEFT JOIN users a ON a.id = u.approved_by "
-                     "ORDER BY CASE u.status WHEN 'pending' THEN 0 WHEN 'unverified' THEN 1 ELSE 2 END, u.created_at DESC")
+                     "u.last_login_at, u.must_change_password, u.email_verified_at, a.name AS approved_by_name "
+                     "FROM users u LEFT JOIN users a ON a.id = u.approved_by WHERE u.status <> 'unverified' "
+                     "ORDER BY CASE u.status WHEN 'pending' THEN 0 ELSE 1 END, u.created_at DESC")
         same_device = c.all("SELECT DISTINCT a.user_id AS id, b.user_id AS other FROM user_devices a "
                             "JOIN user_devices b ON a.device_hash = b.device_hash AND a.user_id <> b.user_id")
         # Networks: the sign-up IP plus every IP the user signed in from.
@@ -478,7 +505,7 @@ def set_status(admin_id: int, target_id: int, status: str, ip: str | None = None
         raise AuthError("You can't change your own status")
     with db.tx() as c:
         old = c.value("SELECT status FROM users WHERE id=:u", u=target_id)
-        if old is None:
+        if old is None or old == "unverified":  # not in the admin's list until the email is confirmed
             raise AuthError("User not found")
         c.run("UPDATE users SET status=:s, approved_by=CASE WHEN :s='active' THEN :a ELSE approved_by END, "
               "approved_at=CASE WHEN :s='active' AND approved_at IS NULL THEN now() ELSE approved_at END "
