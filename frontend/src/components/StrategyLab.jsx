@@ -63,7 +63,13 @@ export default function StrategyLab({ d, lots: initialLots }) {
   const [sdCount, setSdCount] = useState(2)
   const [tab, setTab] = useState('payoff')
   const [margin, setMargin] = useState(null)
-  const [ticket, setTicket] = useState(false)
+  // The order ticket, opened for an intent: 'virtual' or 'live' (null = closed).
+  const [ticket, setTicket] = useState(null)
+  // Live orders need a connected broker (phase 1: admin-only); anything else counts as not connected.
+  const [brokerConnected, setBrokerConnected] = useState(false)
+  useEffect(() => {
+    rpc('broker_account_summary').then((s) => setBrokerConnected(s.status === 'active')).catch(() => {})
+  }, [])
   useEffect(() => { setIdx(recommended); setDay(0); setTarget(d.spot) }, [recommended, d.spot])
   useEffect(() => setLots(Math.max(initialLots, 1)), [initialLots])
 
@@ -217,11 +223,13 @@ export default function StrategyLab({ d, lots: initialLots }) {
               <span>Lots</span>
               <Stepper label="lots" value={lots} onDec={() => setLots((l) => Math.max(1, l - 1))} onInc={() => setLots((l) => l + 1)} decDisabled={lots <= 1} />
             </div>
-            <button className="btn" onClick={() => setTicket(true)}>
-              <WalletCards size={16} aria-hidden /> Add to virtual
+            {/* The primary button follows the likely intent: live once a broker is connected, else virtual. */}
+            <button className={`btn ${brokerConnected ? '' : 'primary'}`} onClick={() => setTicket('virtual')}>
+              <WalletCards size={16} aria-hidden /> Place Virtual Order
             </button>
-            <button className="btn primary" disabled title="Enabled once a broker API is connected">
-              <Rocket size={16} aria-hidden /> Execute
+            <button className={`btn ${brokerConnected ? 'primary' : ''}`} onClick={() => setTicket('live')} disabled={!brokerConnected}
+              title={brokerConnected ? 'Places a real order at your connected broker' : 'Connect a broker on the Broker page first'}>
+              <Rocket size={16} aria-hidden /> Place Live Order
             </button>
           </div>
           {changed && (
@@ -375,7 +383,8 @@ export default function StrategyLab({ d, lots: initialLots }) {
         <OrderModal
           d={{ ...d, legs: m.rows.map((r) => ({ side: r.side, strike: r.strike, premium: r.premium })) }}
           lots={lots}
-          onClose={() => setTicket(false)}
+          intent={ticket}
+          onClose={() => setTicket(null)}
         />
       )}
     </div>

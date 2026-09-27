@@ -11,7 +11,7 @@ import RealOrderConfirmDialog from './RealOrderConfirmDialog'
 const TICK = 0.05
 const toTick = (v) => Math.round(v / TICK) * TICK
 
-export default function OrderModal({ d, lots, onClose }) {
+export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
   // Limit prices typed on the ticket, by leg. Empty means the default: the bid for a sell.
   const [limits, setLimits] = useState({})
   const legs = d.legs.map((l) => ({
@@ -101,6 +101,14 @@ export default function OrderModal({ d, lots, onClose }) {
       setBusy(false)
     }
   }
+
+  // Opened from "Place Live Order": the live button leads, but only while a broker is connected.
+  const live = intent === 'live' && brokerConnected
+  const virtualBtn = (
+    <button className={`btn ${live ? '' : 'primary'}`} onClick={() => place()} disabled={!preview || !preview.sufficient || busy}>
+      {busy ? 'Placing…' : 'Place virtual limit order'}
+    </button>
+  )
 
   if (done)
     return (
@@ -205,6 +213,7 @@ export default function OrderModal({ d, lots, onClose }) {
         </p>
       )}
 
+      {/* The button for the intent the ticket was opened with is primary and last (rightmost). */}
       {confirming ? (
         <div className="modal-actions">
           <Link className="btn ghost" to="/portfolio">Review open orders</Link>
@@ -216,13 +225,12 @@ export default function OrderModal({ d, lots, onClose }) {
       ) : (
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={previewReal} disabled={!brokerConnected || realBusy}
+          {live && virtualBtn}
+          <button className={`btn ${live ? 'primary' : ''}`} onClick={previewReal} disabled={!brokerConnected || realBusy}
             title={brokerConnected ? 'Places a real order at your connected broker' : 'Connect a broker on the Broker page first'}>
             {realBusy ? 'Checking…' : 'Place live order'}
           </button>
-          <button className="btn primary" onClick={() => place()} disabled={!preview || !preview.sufficient || busy}>
-            {busy ? 'Placing…' : 'Place virtual limit order'}
-          </button>
+          {!live && virtualBtn}
         </div>
       )}
       {brokerConnected && realSummary && (

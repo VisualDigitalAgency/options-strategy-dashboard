@@ -14,6 +14,7 @@ const { act, createElement: h } = React
 
 let waiting = []
 const placed = []
+let brokerStatus = 'disconnected'
 globalThis.fetch = async (_url, opts) => {
   const { method, params, id } = JSON.parse(opts.body)
   let result = {}
@@ -23,6 +24,8 @@ globalThis.fetch = async (_url, opts) => {
       available_margin: 900000, sufficient: true, sl_mode_default: 'alert', notes: [], market_open: false, waiting,
       fills: [{ side: 'CE', strike: 2200, action: 'SELL', qty: 350, limit: 30, price: 30, fills_now: false, bid: 30, ask: 31, ltp: 30, spot: 2000 }],
     }
+  } else if (method === 'broker_account_summary') {
+    result = { status: brokerStatus, available_margin_total: 100000, available_cash: 60000, total_collateral: 40000 }
   } else if (method === 'va_place_order') {
     placed.push(params)
     result = { filled: [], open: [{ side: 'CE', strike: 2200, limit: 30 }], open_ids: [9], premium: 10000, notes: [] }
@@ -45,10 +48,10 @@ function check(name, cond) {
   console.log(`${cond ? 'PASS' : 'FAIL'} ${name}`)
 }
 
-async function open() {
+async function open(intent) {
   document.body.replaceChildren(Object.assign(document.createElement('div'), { id: 'r' }))
   const root = createRoot(document.getElementById('r'))
-  await act(async () => root.render(h(MemoryRouter, null, h(SettingsProvider, null, h(OrderModal, { d, lots: 1, onClose: () => {} })))))
+  await act(async () => root.render(h(MemoryRouter, null, h(SettingsProvider, null, h(OrderModal, { d, lots: 1, intent, onClose: () => {} })))))
   await settle()
   return root
 }
@@ -77,6 +80,26 @@ await click('Place virtual limit order')
 await settle()
 check('no waiting order: places at once without confirm', placed.length === 1 && placed[0].confirm_waiting === false && !text().includes('not yet executed'))
 await act(async () => root.unmount())
+
+// 3. Primary button follows the intent (#41)
+const primary = () => document.querySelector('.modal-actions .btn.primary')?.textContent.trim()
+const last = () => [...document.querySelectorAll('.modal-actions button')].at(-1).textContent.trim()
+root = await open('virtual')
+check('virtual intent: virtual order is the primary, last button', primary() === 'Place virtual limit order' && last() === primary())
+check('no broker: live button disabled with a reason', button('Place live order').disabled && button('Place live order').title.includes('Connect a broker'))
+await act(async () => root.unmount())
+root = await open('live')
+check('live intent without a broker falls back to virtual primary', primary() === 'Place virtual limit order')
+await act(async () => root.unmount())
+brokerStatus = 'active'
+root = await open('live')
+check('live intent with a broker: live order is the primary, last button', primary() === 'Place live order' && last() === primary())
+check('live button enabled once connected', !button('Place live order').disabled)
+await act(async () => root.unmount())
+root = await open('virtual')
+check('virtual intent with a broker keeps virtual primary', primary() === 'Place virtual limit order')
+await act(async () => root.unmount())
+brokerStatus = 'disconnected'
 
 console.log(ok ? 'ALL PASS' : 'SOME FAILED')
 process.exit(ok ? 0 : 1)
