@@ -83,6 +83,7 @@ services:
       ALLOWED_ORIGINS: ${PUBLIC_URL:-https://${DOMAIN}}
       TZ: Asia/Kolkata
       BROKER_ENC_KEY_FILE: /run/secrets/broker_enc_key
+      BROKER_ENC_KEY_PREVIOUS: ${BROKER_ENC_KEY_PREVIOUS:-}
       KITE_API_KEY: ${KITE_API_KEY:-}
       KITE_API_SECRET_FILE: /run/secrets/kite_api_secret
       KITE_REDIRECT_URL: ${KITE_REDIRECT_URL:-}
@@ -108,6 +109,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
       TZ: Asia/Kolkata
       BROKER_ENC_KEY_FILE: /run/secrets/broker_enc_key
+      BROKER_ENC_KEY_PREVIOUS: ${BROKER_ENC_KEY_PREVIOUS:-}
       KITE_API_KEY: ${KITE_API_KEY:-}
       KITE_API_SECRET_FILE: /run/secrets/kite_api_secret
     secrets: [db_app_password, redis_password, broker_enc_key, kite_api_secret]

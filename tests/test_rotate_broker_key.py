@@ -75,4 +75,34 @@ p = subprocess.run([sys.executable, "scripts/rotate_broker_key.py", "--dry-run"]
                    env={**os.environ, "BROKER_ENC_KEY_PREVIOUS": ""}, capture_output=True, text=True)
 check("CLI refuses without a previous key", p.returncode != 0 and "BROKER_ENC_KEY_PREVIOUS" in (p.stdout + p.stderr), p.stderr)
 
+# ---------- broker_crypto during a rotation window (#16) ----------
+from engine import broker_crypto  # noqa: E402
+
+old_key, new_key = Fernet.generate_key().decode(), Fernet.generate_key().decode()
+
+
+def with_keys(current, previous=None):
+    os.environ["BROKER_ENC_KEY"] = current
+    os.environ.pop("BROKER_ENC_KEY_PREVIOUS", None)
+    if previous:
+        os.environ["BROKER_ENC_KEY_PREVIOUS"] = previous
+    broker_crypto._fernet = None
+
+
+with_keys(old_key)
+stored = broker_crypto.encrypt("tok-before")
+
+with_keys(new_key, old_key)
+check("old-key token still decrypts during the window", broker_crypto.decrypt(stored) == "tok-before")
+fresh = broker_crypto.encrypt("tok-after")
+check("new tokens are encrypted with the new key only", Fernet(new_key.encode()).decrypt(fresh) == b"tok-after")
+
+with_keys(new_key)
+try:
+    broker_crypto.decrypt(stored)
+    check("old-key token unreadable once previous key is removed", False)
+except ValueError:
+    check("old-key token unreadable once previous key is removed", True)
+check("new-key token still decrypts after the window", broker_crypto.decrypt(fresh) == "tok-after")
+
 sys.exit(1 if fails else 0)
