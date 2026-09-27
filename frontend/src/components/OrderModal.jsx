@@ -32,11 +32,16 @@ export default function OrderModal({ d, lots, onClose }) {
   // Real broker (phase 1: Zerodha, admin-only). null until checked; a non-admin or anyone
   // without a connection just never sees this become active — the button stays disabled.
   const [brokerConnected, setBrokerConnected] = useState(false)
+  const [realSummary, setRealSummary] = useState(null)
   const [realPreview, setRealPreview] = useState(null)
   const [realError, setRealError] = useState(null)
   const [realBusy, setRealBusy] = useState(false)
   useEffect(() => {
-    rpc('broker_status').then((s) => setBrokerConnected(s.status === 'active')).catch(() => {})
+    rpc('broker_status').then((s) => {
+      const active = s.status === 'active'
+      setBrokerConnected(active)
+      if (active) rpc('broker_account_summary').then(setRealSummary).catch(() => {})
+    }).catch(() => {})
   }, [])
 
   async function previewReal() {
@@ -192,9 +197,11 @@ export default function OrderModal({ d, lots, onClose }) {
           </div>
         </div>
       )}
-      <p className="notice muted-notice">
-        <AlertTriangle size={16} aria-hidden /> Live broker not connected. Virtual orders use live NSE prices but no real money.
-      </p>
+      {!brokerConnected && (
+        <p className="notice muted-notice">
+          <AlertTriangle size={16} aria-hidden /> Live broker not connected. Virtual orders use live NSE prices but no real money.
+        </p>
+      )}
 
       {confirming ? (
         <div className="modal-actions">
@@ -215,6 +222,9 @@ export default function OrderModal({ d, lots, onClose }) {
             {busy ? 'Placing…' : 'Place virtual limit order'}
           </button>
         </div>
+      )}
+      {brokerConnected && realSummary && (
+        <p className="muted small">Real available cash: <b className="mono">{rupee(realSummary.available_cash)}</b></p>
       )}
 
       {realPreview && (

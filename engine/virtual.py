@@ -258,6 +258,8 @@ def get_account(user_id: int, _positions: list | None = None) -> dict:
     groups = _positions if _positions is not None else (get_positions(user_id)["groups"] if n_open else [])
     unrealized = sum(g["pnl"] for g in groups)
     used = sum(g["margin"]["total"] for g in groups if g["margin"]) + blocked
+    span_used = sum(g["margin"]["span"] for g in groups if g["margin"])
+    exposure_used = sum(g["margin"]["exposure"] for g in groups if g["margin"])
     value = acct["starting_capital"] + realized + unrealized
     return {
         "starting_capital": acct["starting_capital"], "created_at": acct["created_at"],
@@ -265,6 +267,7 @@ def get_account(user_id: int, _positions: list | None = None) -> dict:
         "realized_pnl": round(realized, 2), "unrealized_pnl": round(unrealized, 2),
         "account_value": round(value, 2), "used_margin": round(used, 2),
         "available_margin": round(value - used, 2),
+        "span_used": round(span_used, 2), "exposure_used": round(exposure_used, 2),
         "return_pct": round((value / acct["starting_capital"] - 1) * 100, 2),
         "open_positions": n_open,
         "open_orders": n_pending, "blocked_margin": round(blocked, 2),

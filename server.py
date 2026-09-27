@@ -309,6 +309,7 @@ USER_METHODS = {
     "broker_disconnect": broker.disconnect,
     "broker_get_positions": broker.get_positions,
     "broker_get_margins": broker.get_margins,
+    "broker_account_summary": broker.account_summary,
     "broker_preview_order": broker.preview_order,
     "broker_place_order": broker.place_order,
 }

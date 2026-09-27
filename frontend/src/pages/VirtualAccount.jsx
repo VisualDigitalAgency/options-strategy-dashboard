@@ -9,19 +9,11 @@ import { ConfirmDialog } from '../components/Modal'
 import AutoTradePanel from '../components/AutoTrade'
 import UpdatedTag from '../components/UpdatedTag'
 import PalettePicker from '../components/PalettePicker'
+import StatCard from '../components/StatCard'
 import { pnlClass } from './Portfolio'
 
 const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry' }
-
-function Fund({ label, value, sub, tone }) {
-  return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <span className={`stat-value mono ${tone ?? ''}`}>{value}</span>
-      {sub && <span className="stat-sub">{sub}</span>}
-    </div>
-  )
-}
+const Fund = StatCard
 
 /** XIRR for one deposit (starting capital) and today's value, no withdrawals: the annual rate r
  *  that solves capital x (1 + r)^(days/365) = value. Annualising under a week turns tiny moves

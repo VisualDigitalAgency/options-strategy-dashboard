@@ -133,11 +133,14 @@ class ZerodhaAdapter(BrokerAdapter):
         cash = float(available.get("live_balance") or 0.0)
         collateral = float(available.get("collateral") or 0.0)
         used = float(utilised.get("debits") or 0.0)
+        span = float(utilised.get("span") or 0.0)
+        exposure = float(utilised.get("exposure") or 0.0)
         # cash + collateral is NOT real usable margin: SEBI caps how much of a margin
         # requirement can be met from non-cash collateral (currently 50%), so collateral isn't
         # simply additive to cash the way an earlier version of this function assumed — that
         # overstated available margin and would have let a real order through that the account
         # couldn't actually fund. available_margin (used to gate real orders) stays cash-only,
-        # the conservative, always-safe number; collateral_margin is informational only.
+        # the conservative, always-safe number; collateral_margin/span/exposure are informational.
         return {"available_margin": cash, "cash_margin": cash,
-                "collateral_margin": collateral, "used_margin": used, "raw": margins}
+                "collateral_margin": collateral, "used_margin": used,
+                "span": span, "exposure": exposure, "raw": margins}
