@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info, RotateCw } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useBudget } from '../settings'
 import { rupee, rupee2, int, shortDate, dateTime } from '../format'
@@ -81,6 +81,28 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
 
   const waiting = preview?.waiting ?? []
 
+  // Reload one leg's limit with the current best price: a fresh preview priced at the default
+  // (the bid for a sell), leaving the other legs as typed. A failure keeps the typed value.
+  const [pricing, setPricing] = useState({})
+  const [priceError, setPriceError] = useState({})
+  async function refreshPrice(side) {
+    setPricing((m) => ({ ...m, [side]: true }))
+    setPriceError((m) => ({ ...m, [side]: null }))
+    try {
+      const p = await rpc('va_preview_order', {
+        symbol: d.symbol, expiry: d.expiry,
+        legs: legs.map((l) => (l.side === side ? { side: l.side, strike: l.strike, action: l.action, lots: l.lots } : l)),
+      })
+      const f = p.fills.find((x) => x.side === side)
+      if (!(f?.limit > 0)) throw new Error('No live price for this strike right now')
+      setLimits((m) => ({ ...m, [side]: toTick(f.limit).toFixed(2) }))
+    } catch (e) {
+      setPriceError((m) => ({ ...m, [side]: `Couldn't refresh the price: ${e.message}` }))
+    } finally {
+      setPricing((m) => ({ ...m, [side]: false }))
+    }
+  }
+
   async function place(confirmWaiting = false) {
     if (waiting.length && !confirmWaiting) {
       setConfirming(true)
@@ -154,10 +176,18 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
                 </td>
                 <td className="num mono">{f ? `${rupee2(f.bid)} / ${rupee2(f.ask)}` : <span className="skeleton sk-right" style={{ width: 80 }} />}</td>
                 <td className="num">
-                  <input className="limit-input mono" type="number" inputMode="decimal" step={TICK} min={TICK}
-                    aria-label={`Limit price for ${l.strike} ${l.side}`}
-                    value={limits[l.side] ?? (f ? f.limit.toFixed(2) : '')}
-                    onChange={(e) => setLimits((m) => ({ ...m, [l.side]: e.target.value }))} />
+                  <span className="limit-cell">
+                    <input className="limit-input mono" type="number" inputMode="decimal" step={TICK} min={TICK}
+                      aria-label={`Limit price for ${l.strike} ${l.side}`}
+                      value={limits[l.side] ?? (f ? f.limit.toFixed(2) : '')}
+                      onChange={(e) => setLimits((m) => ({ ...m, [l.side]: e.target.value }))} />
+                    <button type="button" className={`icon-btn ${priceError[l.side] ? 'failed' : ''}`}
+                      aria-label="Refresh price" onClick={() => refreshPrice(l.side)}
+                      disabled={!(preview?.market_open && f?.bid > 0) || pricing[l.side]}
+                      title={priceError[l.side] || (preview?.market_open ? 'Fetch the current best price' : 'Market is closed')}>
+                      <RotateCw size={14} aria-hidden className={pricing[l.side] ? 'spin' : ''} />
+                    </button>
+                  </span>
                 </td>
                 <td className="num mono">{f ? int(f.qty) : int(d.lot_size * lots)}</td>
                 <td className="num mono">{f ? rupee2(f.price) : '—'}</td>
@@ -236,8 +266,8 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
       {brokerConnected && realSummary && (
         <p className="muted small">
           Real available margin: <b className="mono">{rupee(realSummary.available_margin_total)}</b>
-          {' '}({rupee(realSummary.available_cash)} cash + {rupee(realSummary.total_collateral)} collateral,
-          up to half a live order's own margin can come from collateral)
+          {' '}(your broker's own figure: {rupee(realSummary.available_cash)} cash + {rupee(realSummary.total_collateral)} collateral,
+          less margin already in use)
         </p>
       )}
 
