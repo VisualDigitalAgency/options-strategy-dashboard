@@ -78,7 +78,7 @@ The Coolify UI can redeploy a previous commit. The database is only created by m
 
 See `doc/2026-09-26-broker-integration-phase1-zerodha.md` for the full design. Coolify env vars to add (theta-desk → Environment Variables):
 
-- `BROKER_ENC_KEY` — a Fernet key (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`), used to encrypt every user's Zerodha access token at rest. Rotating it makes existing connections unreadable (users just reconnect).
+- `BROKER_ENC_KEY` — a Fernet key (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`), used to encrypt every user's Zerodha access token at rest. To rotate it, see `scripts/rotate_broker_key.py` (run with the new key as `BROKER_ENC_KEY` and the old one as `BROKER_ENC_KEY_PREVIOUS`); changing it without that makes existing connections unreadable (users just reconnect).
 - `KITE_API_KEY` / `KITE_API_SECRET` — from the one Kite Connect app registered at developers.kite.trade for this deployment. Every user connects their own Zerodha account through it; these two are operator-level, not per-user.
 - `KITE_REDIRECT_URL` — must exactly match the redirect URL registered for the Kite Connect app, e.g. `https://theta.connectbiomedical.com/broker/zerodha/callback`.
 
