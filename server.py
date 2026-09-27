@@ -245,6 +245,14 @@ def admin_set_status(_ctx: Ctx, target_id: int, status: str):
     return auth.set_status(_ctx.user_id, target_id, status, ip=_ctx.ip)
 
 
+def admin_list_blocked(_ctx: Ctx):
+    return auth.list_blocked()
+
+
+def admin_unblock_signup(_ctx: Ctx, target_id: int):
+    return auth.unblock_signup(_ctx.user_id, target_id, ip=_ctx.ip)
+
+
 def admin_reset_password(_ctx: Ctx, target_id: int):
     return auth.reset_password(_ctx.user_id, target_id, ip=_ctx.ip)
 
@@ -329,6 +337,8 @@ ADMIN_METHODS = {
     "admin_set_status": admin_set_status,
     "admin_reset_password": admin_reset_password,
     "admin_audit_log": admin_audit_log,
+    "admin_list_blocked": admin_list_blocked,
+    "admin_unblock_signup": admin_unblock_signup,
     # Real-money connection, soft-launched to admins only; see doc/2026-09-26-broker-integration-phase1-zerodha.md
     "broker_connect_url": broker_connect_url,
     "broker_exchange_token": broker_exchange_token,

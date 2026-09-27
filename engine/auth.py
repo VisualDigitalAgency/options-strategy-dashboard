@@ -352,10 +352,11 @@ def _code_state(user_id: int) -> dict | None:
     last 24 hours (sent or failed), and whether the CONFIRM_DAYS window has closed."""
     with db.tx() as c:
         return c.one(
-            "SELECT email, status, created_at < now() - make_interval(days => :d) AS expired, "
+            "SELECT email, status, coalesce(unblocked_at, created_at) < now() - make_interval(days => :d) AS expired, "
             "(email_code_sent_at IS NULL OR email_code_sent_at < now() - make_interval(secs => :g)) AS due, "
             "(SELECT count(*) FROM audit_log l WHERE l.target_user_id = u.id AND "
-            " l.action IN ('email_code_sent', 'mail_failed') AND l.ts > now() - interval '1 day') AS today "
+            " l.action IN ('email_code_sent', 'mail_failed') "
+            " AND l.ts > greatest(now() - interval '1 day', coalesce(u.unblocked_at, '-infinity'))) AS today "
             "FROM users u WHERE id=:u", u=user_id, d=CONFIRM_DAYS, g=RESEND_GAP)
 
 
@@ -513,6 +514,28 @@ def set_status(admin_id: int, target_id: int, status: str, ip: str | None = None
     ended = end_all_sessions(target_id) if status != "active" else 0
     audit(f"user_{status}", actor_id=admin_id, target_user_id=target_id, ip=ip, was=old, sessions_ended=ended)
     return {"id": target_id, "status": status, "sessions_ended": ended}
+
+
+def list_blocked() -> list[dict]:
+    """Sign-ups not confirmed within CONFIRM_DAYS, newest first, for the admin's unblock list."""
+    with db.tx() as c:
+        return c.all("SELECT id, name, email, created_at, unblocked_at FROM users WHERE status='unverified' "
+                     "AND coalesce(unblocked_at, created_at) < now() - make_interval(days => :d) "
+                     "ORDER BY created_at DESC", d=CONFIRM_DAYS)
+
+
+def unblock_signup(admin_id: int, target_id: int, ip: str | None = None) -> dict:
+    """For a person support has checked: a fresh CONFIRM_DAYS and daily code allowance, and a new
+    code by email now. They still confirm the email, then wait for approval as usual."""
+    with db.tx() as c:
+        row = c.one("UPDATE users SET unblocked_at=now() WHERE id=:u AND status='unverified' "
+                    "AND coalesce(unblocked_at, created_at) < now() - make_interval(days => :d) "
+                    "RETURNING email", u=target_id, d=CONFIRM_DAYS)
+    if not row:
+        raise AuthError("That sign-up isn't blocked")
+    audit("signup_unblocked", actor_id=admin_id, target_user_id=target_id, ip=ip)
+    sent = _send_code(target_id, row["email"], ip)
+    return {"id": target_id, "sent": sent}
 
 
 def reset_password(admin_id: int, target_id: int, ip: str | None = None) -> dict:

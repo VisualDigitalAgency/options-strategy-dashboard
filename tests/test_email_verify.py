@@ -154,6 +154,26 @@ j = call("auth_register", {"name": "Old User", "email": "old@test.example", "pas
 check("blocked email can't sign up again", j["error"]["message"] == auth.TAKEN, j["error"])
 check("blocked account is kept", status("old@test.example") == "unverified")
 
+# 8b. The admin can unblock someone support has checked: new code, 14 more days, still confirms.
+check("unblock is an admin-only RPC", "admin_unblock_signup" in server.ADMIN_METHODS
+      and "admin_unblock_signup" not in server.PUBLIC_METHODS)
+blocked = auth.list_blocked()
+check("blocked list has only the expired sign-up", [b["email"] for b in blocked] == ["old@test.example"], blocked)
+try:
+    auth.unblock_signup(admin, two, None)
+    check("unblocking a sign-up that isn't blocked is refused", False)
+except auth.AuthError:
+    check("unblocking a sign-up that isn't blocked is refused", True)
+sent_before = len(outbox)
+r = auth.unblock_signup(admin, blocked[0]["id"], "10.2.0.1")
+check("unblock sends a new code", r["sent"] and len(outbox) == sent_before + 1
+      and outbox[-1]["to"] == "old@test.example", r)
+check("unblocked sign-up leaves the blocked list", auth.list_blocked() == [])
+j = call("auth_login", {"email": "old@test.example", "password": PW})
+check("unblocked sign-in shows the code form again", j["error"]["code"] == -32005, j["error"])
+j = call("auth_verify_email", {"email": "old@test.example", "code": outbox[-1]["code"]})
+check("unblocked account can confirm, then waits for approval", "result" in j and status("old@test.example") == "pending", j)
+
 # 9. Mail failure: the user is told, and it's in the audit log.
 
 
