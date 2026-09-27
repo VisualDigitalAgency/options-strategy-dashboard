@@ -78,11 +78,39 @@ The Coolify UI can redeploy a previous commit. The database is only created by m
 
 See `doc/2026-09-26-broker-integration-phase1-zerodha.md` for the full design. Coolify env vars to add (theta-desk → Environment Variables):
 
-- `BROKER_ENC_KEY` — a Fernet key (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`), used to encrypt every user's Zerodha access token at rest. To rotate it: set the new key as `BROKER_ENC_KEY` and the old one as `BROKER_ENC_KEY_PREVIOUS` and redeploy (both keys decrypt, only the new one encrypts), run `python scripts/rotate_broker_key.py` in the api container, then remove `BROKER_ENC_KEY_PREVIOUS` and redeploy. Changing the key without this makes existing connections unreadable (users just reconnect).
+- `BROKER_ENC_KEY` — a Fernet key (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`), used to encrypt every user's Zerodha access token at rest. To change it, follow [Rotating `BROKER_ENC_KEY`](#rotating-broker_enc_key); swapping the key any other way makes existing connections unreadable (users would have to reconnect).
 - `KITE_API_KEY` / `KITE_API_SECRET` — from the one Kite Connect app registered at developers.kite.trade for this deployment. Every user connects their own Zerodha account through it; these two are operator-level, not per-user.
 - `KITE_REDIRECT_URL` — must exactly match the redirect URL registered for the Kite Connect app, e.g. `https://theta.connectbiomedical.com/broker/zerodha/callback`.
 
 Phase 1 is soft-launched to admin accounts only (`ctx.user["role"] == "admin"` gates `broker_connect_url`/`broker_exchange_token`), so these vars can be set without exposing real-money trading to every user.
+
+### Rotating `BROKER_ENC_KEY`
+
+Rotate when the key may have leaked (a Coolify admin left, the env was pasted somewhere) or on a schedule. Users stay connected throughout: during the window the app decrypts with either key and encrypts only with the new one (`engine/broker_crypto.py`).
+
+Do it outside market hours (09:15–15:30 IST): each step restarts the worker, which runs the SL monitor and the broker poller.
+
+1. **Count connections first**, to compare at the end:
+   ```bash
+   sudo docker exec $(sudo docker ps -qf name=postgres-uygwpa9ukr3zdoufohiyvnfc)      psql -U theta_owner -d theta -c "SELECT status, count(*) FROM broker_connections GROUP BY status"
+   ```
+2. **Generate the new key** and keep the old one at hand:
+   `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+3. **Open the window.** In theta-desk → Environment Variables, add `BROKER_ENC_KEY_PREVIOUS` = the *old* key, set `BROKER_ENC_KEY` = the *new* key, and redeploy. Both vars must change in the same deploy: setting only `BROKER_ENC_KEY` makes every stored token unreadable until the previous key is added.
+4. **Check the window works** before touching data: `/healthz` shows the worker up, and the worker log has no `broker poll failed` warnings for connected users (`sudo docker logs --since 5m $(sudo docker ps -qf name=worker-uygwpa9ukr3zdoufohiyvnfc)`).
+5. **Dry run, then rotate**:
+   ```bash
+   API=$(sudo docker ps -qf name=api-uygwpa9ukr3zdoufohiyvnfc)
+   sudo docker exec $API python scripts/rotate_broker_key.py --dry-run
+   sudo docker exec $API python scripts/rotate_broker_key.py
+   ```
+   It prints `Re-encrypted N connection(s); M already on the new key.` Exit code 1 lists row ids that open with neither key: **stop here and keep the window open.** Those rows were already unreadable before the rotation (e.g. a key swapped by hand in the past). Their users must reconnect; a row that's `disconnected`/`expired` can be ignored.
+6. **Verify**: run the script again. It must print `Re-encrypted 0` and exit 0. Repeat step 1: the counts must match (a user connecting in between only adds to `active`).
+7. **Close the window**: delete `BROKER_ENC_KEY_PREVIOUS` in Coolify and redeploy. Check step 4 again. Then destroy every copy of the old key.
+
+If anything looks wrong before step 7, the rollback is to put the old key back as `BROKER_ENC_KEY`, keep the new one as `BROKER_ENC_KEY_PREVIOUS`, and redeploy. Both keys keep decrypting everything, so nobody is disconnected.
+
+**Self-hosted (`docker-compose.yml`)**: the current key is the `./secrets/broker_enc_key` file. Put the old key in `.env` as `BROKER_ENC_KEY_PREVIOUS=...`, write the new key to `./secrets/broker_enc_key`, then `docker compose up -d api worker`. Run steps 5–6 with `docker compose exec api python scripts/rotate_broker_key.py`, then remove the line from `.env` and `docker compose up -d api worker` again.
 
 ## Known residual risks
 
