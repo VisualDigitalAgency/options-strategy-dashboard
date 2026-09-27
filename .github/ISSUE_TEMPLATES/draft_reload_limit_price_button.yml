@@ -1,0 +1,34 @@
+type: draft-issue
+tag: "reload-limit-price-button"
+issueNumber: 0
+repository: "VisualDigitalAgency/options-strategy-dashboard"
+state: "draft"
+title: "Add reload button next to Limit input in Order ticket to fetch current best price"
+description: |
+  **Describe the feature**
+  In the Order ticket popup, add a small reload/refresh button adjacent to the Limit input that, when clicked while the market is live, fetches the current best price for the selected near strike and populates the Limit field.
+
+  **How it should work**
+  - The button appears inside the Limit input or immediately next to it (small icon-only button).
+  - It is enabled only when market data for the near strike is available (market open and bid/ask present).
+  - On click, it fetches the best current price (bid/ask mid or tick as per existing pricing rules) and updates the Limit input with proper rounding/tick size.
+  - Shows a loading spinner/state while fetching and a non-intrusive error tooltip if the fetch fails.
+  - Accessible: has aria-label="Refresh price" and is keyboard focusable.
+
+  **Acceptance criteria**
+  - The button is visible and enabled when market data is live for the selected strike.
+  - Clicking the button replaces the Limit value with the freshly fetched price.
+  - Loading and failure states are handled gracefully without disrupting the user's partially-entered order.
+  - Unit and e2e tests cover the new button: success path, disabled path, and failure path.
+
+  **Files / implementation pointers**
+  - frontend/src/components/OrderModal.jsx (Limit input and modal actions)
+  - frontend/src/components/OrderInput.jsx or similar input component (if present)
+  - frontend/tests/order-ticket.test.jsx — add tests for the reload behavior
+  - Use existing `virtual.quote`/`rpc('...')` helpers or the same pricing call the Order preview uses to fetch current prices.
+
+metadata:
+  labels:
+    - "ui"
+    - "enhancement"
+  assignees: []
