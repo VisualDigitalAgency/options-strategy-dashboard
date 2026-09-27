@@ -15,11 +15,13 @@ const { act, createElement: h } = React
 
 let summary = null
 let positions = []
+let stops = []
 globalThis.fetch = async (_url, opts) => {
   const { method, id } = JSON.parse(opts.body)
   let result = {}
   if (method === 'broker_account_summary') result = summary
   else if (method === 'broker_get_positions') result = positions
+  else if (method === 'broker_stop_alerts') result = stops
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result }) }
 }
 
@@ -74,6 +76,26 @@ check('connected: shows the collateral-used breakdown by type', text().includes(
 check('connected: does not show the approximate notice', !text().includes('showing approximate figures'))
 check('connected: renders the real positions table', !!document.querySelector('table.legs.history'))
 check('connected: lists the real position', text().includes('SUNPHARMA26O2200CE'))
+check('connected, no real legs: no stop-loss section', !text().includes('Stop losses at your broker'))
+await act(async () => root.unmount())
+
+// 4. Broker-side stops (#43): each real leg shows its day-15 alert state
+const leg = { symbol: 'SUNPHARMA', expiry: '2026-10-27', side: 'CE', strike: 2200, qty: 350, limit_price: 30, sl_alert_error: null }
+stops = [
+  { ...leg, id: 1, status: 'complete', average_price: 30, sl_price: 30, sl_alert_status: 'enabled', sl_activates_on: '2026-10-10' },
+  { ...leg, id: 2, status: 'complete', average_price: 12, sl_price: 12, sl_alert_status: 'pending', sl_activates_on: '2026-10-12' },
+  { ...leg, id: 3, status: 'open', average_price: null, sl_price: null, sl_alert_status: 'pending', sl_activates_on: null },
+  { ...leg, id: 4, status: 'complete', average_price: 20, sl_price: 20, sl_alert_status: 'triggered', sl_activates_on: '2026-10-01' },
+  { ...leg, id: 5, status: 'complete', average_price: 15, sl_price: 15, sl_alert_status: 'skipped', sl_activates_on: '2026-10-01',
+    sl_alert_error: 'Not available at Upstox: manage the stop yourself' },
+]
+root = await render()
+check('stops: section shown', text().includes('Stop losses at your broker'))
+check('stops: installed alert', text().includes('Installed at Zerodha') && text().includes('₹30.00'))
+check('stops: not yet due shows its install date', text().includes('Installs on'))
+check('stops: unfilled entry waits', text().includes('Waiting for the entry to fill'))
+check('stops: triggered alert', text().includes('Triggered: buy-back order placed'))
+check('stops: unsupported broker says to manage it yourself', text().includes('Not available at Upstox: manage the stop yourself'))
 await act(async () => root.unmount())
 
 console.log(ok ? 'ALL PASS' : 'SOME FAILED')

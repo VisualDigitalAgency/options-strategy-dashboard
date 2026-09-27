@@ -228,7 +228,7 @@ Point the domain's DNS A record at the server first: Caddy fetches the certifica
 - Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator.
 - Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
 - Market hours are fixed at 09:15–15:30 IST on weekdays; NSE holidays are not in the calendar.
-- Real broker execution (Zerodha) is admin-only for now, manual-confirm-only, and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account[...]
+- Real broker execution (Zerodha) is admin-only for now, manual-confirm-only for entries (from day 15 a filled real leg gets a Kite alert-triggered buy-back at the premium collected; see the Real account page), and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account[...]
 - This is primarily a paper-trading and research tool, not investment advice.
 
 ## Contributing, security, licence

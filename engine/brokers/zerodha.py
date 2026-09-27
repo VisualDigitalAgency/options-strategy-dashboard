@@ -10,6 +10,7 @@ must redo the browser login every trading day (engine/brokers/poller.py flips th
 'expired' rather than trying to silently refresh it).
 """
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -50,6 +51,7 @@ def _credentials() -> tuple[str, str]:
 
 class ZerodhaAdapter(BrokerAdapter):
     name = "zerodha"
+    supports_stop_alerts = True
 
     def __init__(self):
         self._instruments_cache: tuple[float, list[dict]] | None = None
@@ -122,6 +124,43 @@ class ZerodhaAdapter(BrokerAdapter):
         kite = self._client(session)
         history = kite.order_history(broker_order_id)
         return history[-1] if history else {"status": "unknown"}
+
+    def tradingsymbol(self, session: BrokerSession, symbol: str, expiry, side: str, strike: float) -> str:
+        return self._tradingsymbol(self._client(session), symbol, expiry, side, strike)
+
+    # Kite's Alerts API (POST/GET/DELETE /alerts). kiteconnect 5.2 has no wrapper for it, so the
+    # routes are added to the client's own request helper, which keeps its auth and error handling.
+    _ALERT_ROUTES = {"alerts.create": "/alerts", "alerts.get": "/alerts/{uuid}", "alerts.delete": "/alerts"}
+
+    def _alerts_client(self, session: BrokerSession) -> KiteConnect:
+        kite = self._client(session)
+        kite._routes = {**kite._routes, **self._ALERT_ROUTES}
+        return kite
+
+    def create_stop_alert(self, session: BrokerSession, *, tradingsymbol: str, qty: int,
+                           trigger_price: float, limit_price: float) -> str:
+        """An ATO ("Alert Triggers Order") alert: when the leg's LTP reaches the stop, Kite places a
+        BUY LIMIT that closes the short. NRML/DAY like the entry order."""
+        basket = {"name": f"theta-sl-{tradingsymbol}", "type": "alert", "tags": [], "items": [{
+            "type": "insert", "tradingsymbol": tradingsymbol, "exchange": "NFO", "weight": 0,
+            "params": {"transaction_type": "BUY", "product": "NRML", "order_type": "LIMIT",
+                       "validity": "DAY", "validity_ttl": 1, "quantity": int(qty),
+                       "price": round(limit_price, 2), "trigger_price": 0, "disclosed_quantity": 0,
+                       "last_price": 0, "variety": "regular", "tags": [], "squareoff": 0,
+                       "stoploss": 0, "trailing_stoploss": 0, "iceberg_legs": 0, "market_protection": 0},
+        }]}
+        data = self._alerts_client(session)._post("alerts.create", params={
+            "name": f"Theta Desk stop {tradingsymbol}"[:50], "type": "ato",
+            "lhs_exchange": "NFO", "lhs_tradingsymbol": tradingsymbol, "lhs_attribute": "LastTradedPrice",
+            "operator": ">=", "rhs_type": "constant", "rhs_constant": round(trigger_price, 2),
+            "basket": json.dumps(basket)})
+        return str(data["uuid"])
+
+    def get_alert(self, session: BrokerSession, alert_id: str) -> dict:
+        return self._alerts_client(session)._get("alerts.get", url_args={"uuid": alert_id})
+
+    def delete_alert(self, session: BrokerSession, alert_id: str) -> None:
+        self._alerts_client(session)._delete("alerts.delete", params={"uuid": alert_id})
 
     def get_positions(self, session: BrokerSession) -> list[dict]:
         return self._client(session).positions().get("net", [])

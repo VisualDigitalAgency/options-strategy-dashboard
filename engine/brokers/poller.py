@@ -1,9 +1,13 @@
-"""Read-only worker loop reconciling real broker state into a per-user Redis cache.
+"""Worker loop reconciling real broker state into a per-user Redis cache.
 
 Runs only inside the worker's single-leader lock (see engine/worker.py), so at most one process
 ever polls a given user's broker account. This loop must NEVER place, modify or cancel an order —
 the only order-placing path is the RPC-triggered engine.broker.place_order, so a stalled or
 duplicated poller can't ever fire a trade twice.
+
+The one thing it does write at the broker is the day-15 stop-loss alert (issue #43,
+engine.broker.sync_stop_alerts): a Kite ATO alert installed once per filled leg, and deleted again
+only if that leg was already closed. The alert, not this loop, places the closing order.
 """
 
 import logging
@@ -11,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from .. import broker_crypto, cache, db, users
+from .. import broker, broker_crypto, cache, db, users
 from .base import BrokerSession
 from .registry import adapter
 
@@ -60,6 +64,7 @@ def _poll_once() -> None:
             cache.set_json(f"broker_snap:{row['user_id']}", {"positions": positions, "margins": margins}, ttl=SNAP_TTL)
             with db.tx(row["user_id"]) as c:
                 c.run("UPDATE broker_connections SET last_synced_at=now() WHERE id=:id", id=row["id"])
+            broker.sync_stop_alerts(row["user_id"], row["broker"], session, positions)
         except Exception:
             # One user's broker hiccup (e.g. a slow Kite response) must not stop the others, and
             # must not crash the worker's single leader.
