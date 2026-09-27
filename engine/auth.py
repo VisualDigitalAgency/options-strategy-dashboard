@@ -4,6 +4,7 @@
 - Sessions: a random 256-bit token in an HttpOnly cookie. Redis keeps only its SHA-256
   (`sess:{hash}`), so a Redis dump holds no usable cookies. 7-day sliding expiry, 30-day cap.
   `user_sess:{id}` lists a user's sessions so disable, reject or a password change ends all.
+  Expired hashes are pruned at each sign-in, and the set expires with the 30-day cap.
 - Login limits: 5 failures per email + IP pair and 30 per IP in 15 minutes. Keyed on the pair so
   a stranger can't lock the admin out by guessing wrong. No sleep-based delay: with 12 request
   slots, a handful of parallel slow logins would stall the site for everyone.
@@ -113,8 +114,23 @@ def new_session(user_id: int, ip: str | None, ua: str | None) -> str:
     h = _hash(token)
     now = time.time()
     _store(h, {"user_id": user_id, "created": now, "seen": now, "ip": ip, "ua": (ua or "")[:200]})
-    cache._call(lambda r: r.sadd(f"user_sess:{user_id}", h))
+    _index_session(user_id, h)
     return token
+
+
+def _index_session(user_id: int, h: str) -> None:
+    """Adds h to user_sess:{id}, drops hashes whose session already expired, and lets the set
+    itself expire with the 30-day cap: no session in it can outlive the newest one."""
+    key = f"user_sess:{user_id}"
+
+    def run(r):
+        dead = [x for x in r.smembers(key) if not r.exists(f"sess:{x}")]
+        p = r.pipeline()
+        if dead:
+            p.srem(key, *dead)
+        p.sadd(key, h).expire(key, SESSION_CAP_DAYS * 86400)
+        p.execute()
+    cache._call(run)
 
 
 def session_user(token: str | None) -> int | None:
