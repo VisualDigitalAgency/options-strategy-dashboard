@@ -4,12 +4,13 @@ import { AlertTriangle, BellRing, ChartCandlestick, ChevronDown, Hourglass, Line
 import { rpc } from '../rpc'
 import UpdatedTag from '../components/UpdatedTag'
 import { useBudget } from '../settings'
-import { num, pct, rupee, rupee2, int, shortDate, signed, signedRupee, todayIso } from '../format'
+import { num, pct, pnlClass, rupee, rupee2, int, shortDate, signed, signedRupee, todayIso } from '../format'
 import DecayCurve from '../components/DecayCurve'
 import { LegTag } from '../components/Badges'
 import { GroupPayoff } from '../components/Charts'
 import PivotLevels from '../components/PivotLevels'
 import SLModeSwitch from '../components/SLModeSwitch'
+import RealAccountView from '../components/RealAccountView'
 import { ConfirmDialog } from '../components/Modal'
 
 const POLL_MS = 30000
@@ -67,8 +68,6 @@ function RiskRow({ r, s, className = '' }) {
     </dl>
   )
 }
-
-export const pnlClass = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : '')
 
 function SLStatus({ leg, onDismiss }) {
   switch (leg.sl_status) {
@@ -281,8 +280,17 @@ export default function Portfolio() {
   const [actionError, setActionError] = useState(null)
   const [openOrders, setOpenOrders] = useState(null)
   const [notice, setNotice] = useState(null)
+  // Virtual vs. real (broker) account view (issue #52). Only the active mode's data is polled —
+  // switching modes starts that loader and lets the other one's pending timer lapse.
+  const [mode, setMode] = useState('virtual')
+  const [brokerConnected, setBrokerConnected] = useState(false)
+  const [real, setReal] = useState(null)
+  const [realError, setRealError] = useState(null)
+  const [realRefreshing, setRealRefreshing] = useState(false)
   const timer = useRef(null)
+  const timerReal = useRef(null)
   const alive = useRef(true)
+  const modeRef = useRef('virtual')
   const { refresh: refreshBudget } = useBudget()
 
   const load = useCallback(async (reprice = false) => {
@@ -302,20 +310,65 @@ export default function Portfolio() {
     } finally {
       if (alive.current) {
         setRefreshing(false)
-        timer.current = setTimeout(load, POLL_MS)
+        if (modeRef.current === 'virtual') timer.current = setTimeout(load, POLL_MS)
       }
     }
   }, [])
 
+  const loadReal = useCallback(async (preSummary) => {
+    clearTimeout(timerReal.current)
+    setRealRefreshing(true)
+    try {
+      const s = preSummary ?? await rpc('broker_account_summary')
+      if (!alive.current) return
+      const connected = s.source === 'broker'
+      setBrokerConnected(connected)
+      let positions = null, stops = null
+      if (connected) [positions, stops] = await Promise.all([rpc('broker_get_positions'), rpc('broker_stop_alerts')])
+      if (!alive.current) return
+      setReal({ summary: s, positions, stops })
+      setRealError(null)
+    } catch (e) {
+      if (alive.current) setRealError(e.message)
+    } finally {
+      if (alive.current) {
+        setRealRefreshing(false)
+        if (modeRef.current === 'real') timerReal.current = setTimeout(loadReal, POLL_MS)
+      }
+    }
+  }, [])
+
+  function switchMode(next) {
+    if (next === mode || (next === 'real' && !brokerConnected)) return
+    modeRef.current = next
+    setMode(next)
+    clearTimeout(timer.current)
+    clearTimeout(timerReal.current)
+    if (next === 'virtual') load()
+    else loadReal()
+  }
+
   useEffect(() => {
     alive.current = true
     document.title = 'Portfolio · Theta Desk'
-    load()
+    ;(async () => {
+      // One cheap check decides both the default view and whether "Real" is even selectable —
+      // the same call the Broker/connect-banner pages already make.
+      const s = await rpc('broker_account_summary').catch(() => null)
+      if (!alive.current) return
+      const initialMode = s?.source === 'broker' ? 'real' : 'virtual'
+      modeRef.current = initialMode
+      setMode(initialMode)
+      setBrokerConnected(s?.source === 'broker')
+      if (initialMode === 'real') loadReal(s)
+      else load()
+    })()
     return () => {
       alive.current = false
       clearTimeout(timer.current)
+      clearTimeout(timerReal.current)
     }
-  }, [load])
+  }, [load, loadReal])
 
   async function run(method, params) {
     setBusy(true)
@@ -367,30 +420,44 @@ export default function Portfolio() {
         <div>
           <h1 className="display">Portfolio</h1>
           <p className="lede">
-            {data?.groups.length
-              ? `${data.groups.length} position${data.groups.length > 1 ? 's' : ''} open, earning ${rupee(data.totals.theta)} a day from time decay.`
-              : 'Your virtual positions, priced live from NSE.'}{' '}
-            {data && <span className={`market ${data.market_open ? 'open' : ''}`}>{data.market_open ? 'Market is open.' : 'Market is closed.'}</span>}
+            {mode === 'virtual'
+              ? (data?.groups.length
+                ? `${data.groups.length} position${data.groups.length > 1 ? 's' : ''} open, earning ${rupee(data.totals.theta)} a day from time decay.`
+                : 'Your virtual positions, priced live from NSE.')
+              : 'Your real broker positions, synced from your connected account.'}{' '}
+            {mode === 'virtual' && data && <span className={`market ${data.market_open ? 'open' : ''}`}>{data.market_open ? 'Market is open.' : 'Market is closed.'}</span>}
           </p>
-          <UpdatedTag ts={data?.updated_at} refreshing={refreshing} label="Prices updated" />
+          <UpdatedTag ts={mode === 'virtual' ? data?.updated_at : real?.summary?.synced_at} refreshing={mode === 'virtual' ? refreshing : realRefreshing} label={mode === 'virtual' ? 'Prices updated' : 'Synced'} />
         </div>
-        <button className="btn" onClick={() => load(true)} disabled={refreshing} title="Re-price every position from NSE now">
-          <RefreshCw size={16} className={refreshing ? 'spin' : ''} aria-hidden /> <span className="btn-label">Refresh</span>
-        </button>
+        <div className="page-head-actions">
+          <div className="segmented account-mode-switch small" role="radiogroup" aria-label="Account view">
+            <button type="button" role="radio" aria-checked={mode === 'virtual'} className={mode === 'virtual' ? 'active' : ''} onClick={() => switchMode('virtual')}>Virtual</button>
+            <button type="button" role="radio" aria-checked={mode === 'real'} className={mode === 'real' ? 'active' : ''} disabled={!brokerConnected}
+              title={brokerConnected ? undefined : 'Connect a broker on the Broker page first'} onClick={() => switchMode('real')}>Real</button>
+          </div>
+          <button className="btn" onClick={() => (mode === 'virtual' ? load(true) : loadReal())} disabled={mode === 'virtual' ? refreshing : realRefreshing}
+            title={mode === 'virtual' ? 'Re-price every position from NSE now' : 'Refresh from your broker'}>
+            <RefreshCw size={16} className={(mode === 'virtual' ? refreshing : realRefreshing) ? 'spin' : ''} aria-hidden /> <span className="btn-label">Refresh</span>
+          </button>
+        </div>
       </section>
 
-      {error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
+      {mode === 'real' && (
+        <RealAccountView summary={real?.summary} positions={real?.positions} stops={real?.stops} error={realError} />
+      )}
 
-      {alerts.length > 0 && (
+      {mode === 'virtual' && error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
+
+      {mode === 'virtual' && alerts.length > 0 && (
         <div className="alert warn-alert" role="alert">
           <BellRing size={18} aria-hidden />
           <span>Stop loss hit on {alerts.join(', ')}. Exit the whole position with Exit all, or dismiss the alert.</span>
         </div>
       )}
 
-      {!data && !error && <PortfolioSkeleton />}
+      {mode === 'virtual' && !data && !error && <PortfolioSkeleton />}
 
-      {a && (
+      {mode === 'virtual' && a && (
         <section className="ledger" aria-label="Account summary">
           <div className="stat"><span className="stat-label">Unbooked P&L</span><span className={`stat-value mono ${pnlClass(a.unrealized_pnl)}`}>{signedRupee(a.unrealized_pnl)}</span></div>
           <div className="stat"><span className="stat-label">Booked P&L</span><span className={`stat-value mono ${pnlClass(a.realized_pnl)}`}>{signedRupee(a.realized_pnl)}</span></div>
@@ -400,7 +467,7 @@ export default function Portfolio() {
           <div className="stat"><span className="stat-label">Net delta</span><span className="stat-value mono">{signed(data.totals.delta, 1)}</span><span className="stat-sub">Return {pct(a.return_pct, 2)}</span></div>
         </section>
       )}
-      {a && data.groups.length > 0 && (() => {
+      {mode === 'virtual' && a && data.groups.length > 0 && (() => {
         const rs = data.groups.map((g) => riskFigures(g.legs))
         const sum = (k) => rs.reduce((t, r) => t + r[k], 0) // Infinity propagates: one naked call makes the total unlimited
         const left = rs.some((r) => r.left == null) ? null : sum('left')
@@ -424,7 +491,7 @@ export default function Portfolio() {
         )
       })()}
 
-      {data && data.groups.length === 0 && (
+      {mode === 'virtual' && data && data.groups.length === 0 && (
         <div className="card empty-state">
           <h2>No open positions</h2>
           <p className="muted">Pick a setup from the screener and place a virtual order to start paper trading your strategy.</p>
@@ -432,12 +499,14 @@ export default function Portfolio() {
         </div>
       )}
 
-      {notice && <p className="notice" role="status"><Hourglass size={16} aria-hidden /> {notice}</p>}
-      <OpenOrders rows={openOrders} busy={busy}
-        onImprove={(o, price) => run('va_modify_order', { order_id: o.id, price: Math.round(price * 100) / 100 })}
-        onCancel={(o) => run('va_cancel_order', { order_id: o.id })} />
+      {mode === 'virtual' && notice && <p className="notice" role="status"><Hourglass size={16} aria-hidden /> {notice}</p>}
+      {mode === 'virtual' && (
+        <OpenOrders rows={openOrders} busy={busy}
+          onImprove={(o, price) => run('va_modify_order', { order_id: o.id, price: Math.round(price * 100) / 100 })}
+          onCancel={(o) => run('va_cancel_order', { order_id: o.id })} />
+      )}
 
-      {data?.groups.map((g) => <Group key={`${g.symbol}-${g.expiry}`} g={g} onAction={onAction} />)}
+      {mode === 'virtual' && data?.groups.map((g) => <Group key={`${g.symbol}-${g.expiry}`} g={g} onAction={onAction} />)}
 
       {actionError && !confirm && <p className="form-error" role="alert">{actionError}</p>}
 

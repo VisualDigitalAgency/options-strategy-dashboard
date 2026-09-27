@@ -6,6 +6,7 @@ const fmtFixed = (d) =>
   (fixed[d] ??= new Intl.NumberFormat('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }))
 /** Indian digit grouping with fixed decimals: 11990 -> 11,990.00 */
 export const num = (v, d = 2) => (v == null || Number.isNaN(v) ? '—' : fmtFixed(d).format(v))
+export const pnlClass = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : '')
 export const signedPct = (v, d = 2) =>
   v == null || Number.isNaN(v) ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}%`
 export const rupee = (v) => (v == null ? '—' : `₹${inr.format(Math.round(v))}`)

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useBudget } from '../settings'
-import { dateTime, int, num, pct, rupee, rupee2, shortDate, signedRupee } from '../format'
+import { dateTime, int, num, pct, pnlClass, rupee, rupee2, shortDate, signedRupee } from '../format'
 import SLModeSwitch, { slHelp } from '../components/SLModeSwitch'
 import { ConfirmDialog } from '../components/Modal'
 import AutoTradePanel from '../components/AutoTrade'
@@ -11,7 +11,6 @@ import UpdatedTag from '../components/UpdatedTag'
 import PalettePicker from '../components/PalettePicker'
 import StatCard from '../components/StatCard'
 import EquityBar from '../components/EquityBar'
-import { pnlClass } from './Portfolio'
 
 const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry' }
 
