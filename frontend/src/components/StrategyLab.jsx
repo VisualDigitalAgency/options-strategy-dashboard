@@ -229,7 +229,7 @@ export default function StrategyLab({ d, lots: initialLots }) {
             </button>
             <button className={`btn ${brokerConnected ? 'primary' : ''}`} onClick={() => setTicket('live')} disabled={!brokerConnected}
               title={brokerConnected ? 'Places a real order at your connected broker' : 'Connect a broker on the Broker page first'}>
-              <Rocket size={16} aria-hidden /> Place Live Order
+              <Rocket size={16} aria-hidden /> Execute
             </button>
           </div>
           {changed && (

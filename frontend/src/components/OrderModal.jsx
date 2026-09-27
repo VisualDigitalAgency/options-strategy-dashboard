@@ -124,7 +124,7 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
     }
   }
 
-  // Opened from "Place Live Order": the live button leads, but only while a broker is connected.
+  // Opened from the Strategy Builder's "Execute": the live button leads, but only while a broker is connected.
   const live = intent === 'live' && brokerConnected
   const virtualBtn = (
     <button className={`btn ${live ? '' : 'primary'}`} onClick={() => place()} disabled={!preview || !preview.sufficient || busy}>
