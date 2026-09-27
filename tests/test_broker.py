@@ -140,6 +140,33 @@ cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {"availa
 j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
 check("sufficient margin returns a confirm_token", "confirm_token" in j.get("result", {}), j.get("error") or j.get("result"))
 token = j["result"]["confirm_token"]
+need = j["result"]["margin"]["total"]
+
+# ---------- collateral can fund part of an order, capped, never a blanket cash+collateral sum ----------
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
+    "available_margin": 0.0, "collateral_margin": need, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
+}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+check("zero cash but ample unused collateral still isn't enough alone: only half the order's margin is usable from collateral",
+      j.get("error", {}).get("code") == -32000 and "Insufficient" in j["error"]["message"], j.get("error"))
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
+    "available_margin": need * 0.5, "collateral_margin": need, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
+}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+check("half cash plus the capped half from unused collateral is exactly enough", "confirm_token" in j.get("result", {}), j.get("error") or j.get("result"))
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
+    "available_margin": 0.0, "collateral_margin": need, "collateral_liquid_used": need, "collateral_equity_used": 0.0,
+}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+check("collateral already fully consumed by other positions falls back to cash-only and is refused",
+      j.get("error", {}).get("code") == -32000 and "Insufficient" in j["error"]["message"], j.get("error"))
+
+cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {"available_margin": 10_000_000.0}}, ttl=60)
+j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
+token = j["result"]["confirm_token"]
 
 j = call("broker_place_order", {"confirm_token": "not-a-real-token"}, admin_c)
 check("an unknown confirm_token is refused", j.get("error", {}).get("code") == -32000, j.get("error"))

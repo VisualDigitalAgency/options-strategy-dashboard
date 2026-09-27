@@ -224,7 +224,11 @@ export default function OrderModal({ d, lots, onClose }) {
         </div>
       )}
       {brokerConnected && realSummary && (
-        <p className="muted small">Real available cash: <b className="mono">{rupee(realSummary.available_cash)}</b></p>
+        <p className="muted small">
+          Real available margin: <b className="mono">{rupee(realSummary.available_margin_total)}</b>
+          {' '}({rupee(realSummary.available_cash)} cash + {rupee(realSummary.total_collateral)} collateral,
+          up to half a live order's own margin can come from collateral)
+        </p>
       )}
 
       {realPreview && (

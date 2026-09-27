@@ -84,16 +84,18 @@ export default function BrokerAccount() {
         </p>
       )}
 
-      <section className="ledger ledger-4" aria-label="Real broker margin detail">
+      <section className="ledger" aria-label="Real broker margin detail">
         {summary ? (
           <>
             <Fund label="Span" value={rupee(summary.span)} sub="SPAN risk margin on open positions" />
             <Fund label="Exposure" value={rupee(summary.exposure)} sub="additional exchange exposure margin" />
-            <Fund label="Total collateral" value={rupee(summary.total_collateral)} sub="pledged stock/MF, informational only" />
+            <Fund label="Total collateral" value={rupee(summary.total_collateral)} sub="pledged stock/MF, before use" />
+            <Fund label="Collateral (liquid funds)" value={rupee(summary.collateral_liquid_used)} sub="of your used margin, funded by liquid MF/ETF collateral" />
+            <Fund label="Collateral (equity)" value={rupee(summary.collateral_equity_used)} sub="of your used margin, funded by pledged stock" />
             <Fund label="Open positions" value={summary.open_positions} sub={isReal ? 'at your broker, right now' : 'in your virtual account'} />
           </>
         ) : (
-          Array.from({ length: 4 }, (_, i) => (
+          Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="stat">
               <span className="skeleton" style={{ width: '50%', height: 12 }} />
               <span className="skeleton" style={{ width: '70%', height: 26, margin: '6px 0' }} />
