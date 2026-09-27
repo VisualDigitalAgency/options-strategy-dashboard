@@ -131,6 +131,21 @@ Shipped as planned above, plus a few things this plan didn't anticipate:
   against. An earlier version rebuilt this from `available.collateral` minus
   `utilised.liquid_collateral`/`stock_collateral` with a 50% cap; that read collateral as zero and
   blocked orders that had enough margin (issue #40), so it was replaced.
+- **Broker-side stop loss (issue #43).** Entries stay plain SELL LIMIT orders. Each poller pass
+  (`engine.broker.sync_stop_alerts`) learns fills from `order_history`, and once a filled leg is
+  `SL_GRACE_DAYS` (15) old it installs one Kite **ATO ("Alert Triggers Order") alert**: when the
+  leg's LTP reaches the stop (the fill price, i.e. the premium collected) Kite itself places a BUY
+  LIMIT (`BROKER_SL_LIMIT_BUFFER_PCT` above the stop, NRML) that closes it. No order placed earlier
+  is ever edited. Migration `0005` adds the fill and alert columns to `broker_orders`. The poller
+  follows the alert (`triggered`/`disabled`/`deleted`) and deletes it if the leg was already closed
+  at the broker, so it can't open a long; a leg already closed on day 15 is `skipped`. A failed
+  install is retried at most hourly (`BROKER_SL_RETRY_SECONDS`). This is the one broker write the
+  worker makes: it installs/removes that alert, never a regular order. New RPC
+  `broker_stop_alerts` feeds the "Stop losses at your broker" table on the Real account page.
+  Adapters declare `supports_stop_alerts` (Zerodha: true); for a broker without a broker-held
+  trigger order the leg is marked `skipped` ("Not available at <broker>: manage the stop
+  yourself") rather than retried. Needs the user's Kite session to be active that day (tokens expire daily), so the alert goes in
+  on the first day on/after day 15 that the user has logged in.
 - **New RPC `broker_account_summary(user_id)`** (`USER_METHODS`), not in the original plan. It's
   the single unified shape for every place that shows margin figures for real trading: the real
   account page, the `/broker` connected banner, and the order ticket's real-order helper line.

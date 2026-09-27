@@ -48,6 +48,11 @@ TIME_EXIT_DTE = 7            # close every leg once fewer than this many days re
                              # settle by physical delivery, and NSE delivery margins climb into expiry
 PROFIT_TARGET_DECAY_PCT = 90  # close the whole group once this % of the premium collected has decayed
 SL_TARGET = "original_premium"  # breakeven-style SL from day 15 onward
+# Real (broker) legs: on day SL_GRACE_DAYS a Kite ATO alert is installed that buys the leg back when
+# its LTP reaches the stop. The BUY is a limit this far above the stop, so a fast move still fills
+# without an unbounded market order.
+BROKER_SL_LIMIT_BUFFER_PCT = 10
+BROKER_SL_RETRY_SECONDS = 3600  # a failed alert install is retried at most this often
 
 # Background refresh: the backend fetches on these timers and the dashboard only reads the cache.
 SCREEN_REFRESH_MARKET_SECONDS = 600     # option chains every 10 min while NSE is open (NSE rate-limits harder polling)

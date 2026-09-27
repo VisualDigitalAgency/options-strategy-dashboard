@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Info } from 'lucide-react'
 import { rpc } from '../rpc'
-import { num, rupee, signedRupee } from '../format'
+import { num, rupee, rupee2, shortDate, signedRupee } from '../format'
 import { pnlClass } from './Portfolio'
 import StatCard from '../components/StatCard'
 import UpdatedTag from '../components/UpdatedTag'
@@ -17,6 +17,7 @@ import EquityBar from '../components/EquityBar'
 export default function BrokerAccount() {
   const [summary, setSummary] = useState(null)
   const [positions, setPositions] = useState(null)
+  const [stops, setStops] = useState(null)
   const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
@@ -24,7 +25,9 @@ export default function BrokerAccount() {
       const s = await rpc('broker_account_summary')
       setSummary(s)
       if (s.source === 'broker') {
-        setPositions(await rpc('broker_get_positions'))
+        const [p, st] = await Promise.all([rpc('broker_get_positions'), rpc('broker_stop_alerts')])
+        setPositions(p)
+        setStops(st)
       }
       setError(null)
     } catch (e) {
@@ -125,6 +128,46 @@ export default function BrokerAccount() {
           )}
         </div>
       </section>
+
+      {isReal && stops?.length > 0 && (
+        <section className="card">
+          <header className="card-head"><h2>Stop losses at your broker</h2></header>
+          <p className="muted small">
+            From day 15 of a filled leg, a Kite alert buys it back if its price reaches the premium you sold at.
+            The alert sits at Zerodha, so it works even when Theta Desk is offline.
+          </p>
+          <div className="table-scroll">
+            <table className="legs history">
+              <thead>
+                <tr><th>Leg</th><th className="num">Qty</th><th className="num">Sold at</th><th className="num">Stop</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {stops.map((s) => (
+                  <tr key={s.id}>
+                    <td data-label="Leg">{s.symbol} {shortDate(s.expiry)} {num(s.strike)} {s.side}</td>
+                    <td data-label="Qty" className="num mono">{num(s.qty)}</td>
+                    <td data-label="Sold at" className="num mono">{s.average_price != null ? rupee2(s.average_price) : '—'}</td>
+                    <td data-label="Stop" className="num mono">{s.sl_price != null ? rupee2(s.sl_price) : '—'}</td>
+                    <td data-label="Status" title={s.sl_alert_error ?? undefined}>{stopStatus(s)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   )
+}
+
+function stopStatus(s) {
+  if (s.status === 'open') return 'Waiting for the entry to fill'
+  switch (s.sl_alert_status) {
+    case 'pending': return s.sl_alert_error ? `Install failed, retrying: ${s.sl_alert_error}` : `Installs on ${shortDate(s.sl_activates_on)}`
+    case 'enabled': return 'Installed at Zerodha'
+    case 'triggered': return 'Triggered: buy-back order placed'
+    case 'cancelled': return 'Removed: position closed first'
+    case 'skipped': return s.sl_alert_error ?? 'Not installed'
+    default: return `Alert ${s.sl_alert_status} at Zerodha`
+  }
 }

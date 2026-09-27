@@ -30,6 +30,9 @@ class BrokerOrderResult:
 
 class BrokerAdapter(ABC):
     name: str
+    # Whether create_stop_alert is backed by a broker-held trigger order (Kite ATO alerts, GTT, ...).
+    # Without one, day-15 stops are marked "not available" for the user to manage, never retried.
+    supports_stop_alerts: bool = False
 
     @abstractmethod
     def login_url(self) -> str:
@@ -51,6 +54,25 @@ class BrokerAdapter(ABC):
     @abstractmethod
     def get_order_status(self, session: BrokerSession, broker_order_id: str) -> dict:
         """Returns at least {"status": ...}, broker-native status mapped by the caller."""
+
+    @abstractmethod
+    def tradingsymbol(self, session: BrokerSession, symbol: str, expiry, side: str, strike: float) -> str:
+        """The broker's own instrument name for one option contract (matches get_positions rows)."""
+
+    # Broker-side stop loss (issue #43): an alert held at the broker that places the closing BUY
+    # itself when the option's LTP reaches the stop. Installed once, never edited.
+    @abstractmethod
+    def create_stop_alert(self, session: BrokerSession, *, tradingsymbol: str, qty: int,
+                           trigger_price: float, limit_price: float) -> str:
+        """Installs the alert; returns its broker id. Raises on failure."""
+
+    @abstractmethod
+    def get_alert(self, session: BrokerSession, alert_id: str) -> dict:
+        """Returns at least {"status": 'enabled'|'disabled'|'deleted', "alert_count": int}."""
+
+    @abstractmethod
+    def delete_alert(self, session: BrokerSession, alert_id: str) -> None:
+        ...
 
     @abstractmethod
     def get_positions(self, session: BrokerSession) -> list[dict]:

@@ -312,6 +312,7 @@ USER_METHODS = {
     "broker_account_summary": broker.account_summary,
     "broker_preview_order": broker.preview_order,
     "broker_place_order": broker.place_order,
+    "broker_stop_alerts": broker.stop_alerts,
 }
 
 ADMIN_METHODS = {

@@ -23,10 +23,15 @@ class FakeAdapter:
     """Never touches a network. `place_results` is consumed one result per call, in order, so a
     test can script "leg 1 fills, leg 2 is rejected by the broker"."""
     name = "zerodha"
+    supports_stop_alerts = True
 
     def __init__(self):
         self.place_results = []
         self.invalidated = []
+        self.order_status = {}
+        self.alerts_created, self.alerts_deleted = [], []
+        self.alert_error = None
+        self.alert_state = {"status": "enabled", "alert_count": 0}
 
     def login_url(self):
         return "https://kite.zerodha.com/connect/login?fake=1"
@@ -42,7 +47,22 @@ class FakeAdapter:
         return self.place_results.pop(0)
 
     def get_order_status(self, session, broker_order_id):
-        return {"status": "COMPLETE"}
+        return self.order_status.get(broker_order_id, {"status": "OPEN"})
+
+    def tradingsymbol(self, session, symbol, expiry, side, strike):
+        return f"{symbol}{int(strike)}{side}"
+
+    def create_stop_alert(self, session, **kw):
+        if self.alert_error:
+            raise RuntimeError(self.alert_error)
+        self.alerts_created.append(kw)
+        return f"alert-{len(self.alerts_created)}"
+
+    def get_alert(self, session, alert_id):
+        return self.alert_state
+
+    def delete_alert(self, session, alert_id):
+        self.alerts_deleted.append(alert_id)
 
     def get_positions(self, session):
         return []
@@ -195,6 +215,88 @@ with db.tx(admin_uid) as c:
     rows = c.all("SELECT status FROM broker_orders WHERE user_id=:u ORDER BY id", u=admin_uid)
 check("first leg's row stays 'open', second is 'rejected', no third leg attempted",
       [r["status"] for r in rows] == ["open", "open", "rejected"], [r["status"] for r in rows])
+
+# ---------- issue #43: day-15 broker stop = a Kite ATO alert, installed once, never an edit ----------
+
+IST = timezone(timedelta(hours=5, minutes=30))
+filled = datetime.now(IST).replace(hour=10, minute=0, second=0, microsecond=0)
+day = lambda n: filled + timedelta(days=n, hours=1)
+fake.order_status = {"KITE1": {"status": "COMPLETE", "average_price": 30.0,
+                               "exchange_timestamp": filled.strftime("%Y-%m-%d %H:%M:%S")}}
+short = [{"tradingsymbol": f"{SYM}1100CE", "quantity": -100}]
+sess = BrokerSession(access_token="t")
+
+
+def stop_rows():
+    with db.tx(admin_uid) as c:
+        return c.all("SELECT kite_order_id, status, sl_price, sl_alert_status, sl_alert_uuid, sl_alert_error "
+                     "FROM broker_orders WHERE user_id=:u AND kite_order_id IS NOT NULL ORDER BY id", u=admin_uid)
+
+
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, short, _now=day(3))
+r = stop_rows()
+check("a filled entry is recorded with its stop at the fill price, no alert before day 15",
+      n["filled"] == 1 and r[0]["status"] == "complete" and float(r[0]["sl_price"]) == 30.0
+      and r[0]["sl_alert_status"] == "pending" and not fake.alerts_created, (n, r[0]))
+check("an entry still open at the broker is left alone", r[1]["status"] == "open" and r[1]["sl_alert_status"] == "pending", r[1])
+check("no order is placed by the sync", fake.place_results == [], fake.place_results)
+
+fake.alert_error = "Kite: alerts limit reached"
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, short, _now=day(15))
+check("a failed install is recorded, not retried on the next pass",
+      n["failed"] == 1 and stop_rows()[0]["sl_alert_error"] == "Kite: alerts limit reached", (n, stop_rows()[0]))
+fake.alert_error = None
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, short, _now=day(15) + timedelta(minutes=5))
+check("retry waits for BROKER_SL_RETRY_SECONDS", n["installed"] == 0 and not fake.alerts_created, n)
+
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, short, _now=day(15) + timedelta(hours=2))
+a = fake.alerts_created[0] if fake.alerts_created else {}
+check("day 15: one ATO alert installed for the leg", n["installed"] == 1 and len(fake.alerts_created) == 1, n)
+check("alert triggers at the original premium and buys back the full qty with a capped limit",
+      a.get("tradingsymbol") == f"{SYM}1100CE" and a.get("qty") == 100 and a.get("trigger_price") == 30.0
+      and a.get("limit_price") == 33.0, a)
+check("the alert is tracked on the order", stop_rows()[0]["sl_alert_status"] == "enabled"
+      and stop_rows()[0]["sl_alert_uuid"] == "alert-1" and stop_rows()[0]["sl_alert_error"] is None, stop_rows()[0])
+
+broker.sync_stop_alerts(admin_uid, "zerodha", sess, short, _now=day(16))
+check("an installed alert is never created again", len(fake.alerts_created) == 1, len(fake.alerts_created))
+
+j = call("broker_stop_alerts", {}, admin_c)
+rows = j.get("result", [])
+mine = [x for x in rows if x["sl_alert_status"] == "enabled"]
+check("broker_stop_alerts lists the leg with its stop and activation date",
+      len(mine) == 1 and mine[0]["sl_price"] == 30.0
+      and mine[0]["sl_activates_on"] == str((filled + timedelta(days=15)).date()), rows)
+
+fake.alert_state = {"status": "enabled", "alert_count": 1}
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, short, _now=day(17))
+check("a fired alert is marked triggered", n["updated"] == 1 and stop_rows()[0]["sl_alert_status"] == "triggered", stop_rows()[0])
+
+# The position was closed by hand after the alert went in: remove the alert so it can't open a long.
+with db.tx(admin_uid) as c:
+    c.run("UPDATE broker_orders SET sl_alert_status='enabled' WHERE user_id=:u AND kite_order_id='KITE1'", u=admin_uid)
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, [], _now=day(18))
+check("alert deleted when the leg is no longer short at the broker",
+      n["cancelled"] == 1 and fake.alerts_deleted == ["alert-1"] and stop_rows()[0]["sl_alert_status"] == "cancelled", (n, stop_rows()[0]))
+
+# A leg closed before day 15 never gets an alert.
+fake.order_status["KITE2"] = {"status": "COMPLETE", "average_price": 12.0,
+                              "exchange_timestamp": filled.strftime("%Y-%m-%d %H:%M:%S")}
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, [], _now=day(15) + timedelta(hours=3))
+check("a leg already closed at day 15 is skipped, no alert", n["installed"] == 0
+      and stop_rows()[1]["sl_alert_status"] == "skipped" and len(fake.alerts_created) == 1, stop_rows()[1])
+
+# A broker without broker-held trigger orders: marked for the user to manage, never retried.
+fake.supports_stop_alerts = False
+with db.tx(admin_uid) as c:
+    c.run("UPDATE broker_orders SET sl_alert_status='pending', sl_alert_uuid=NULL, sl_alert_error=NULL "
+          "WHERE user_id=:u AND kite_order_id='KITE1'", u=admin_uid)
+n = broker.sync_stop_alerts(admin_uid, "zerodha", sess, short, _now=day(19))
+check("no stop-alert support: skipped with a clear reason, nothing created",
+      n["installed"] == 0 and n["failed"] == 0 and len(fake.alerts_created) == 1
+      and stop_rows()[0]["sl_alert_status"] == "skipped"
+      and "manage the stop yourself" in (stop_rows()[0]["sl_alert_error"] or ""), stop_rows()[0])
+fake.supports_stop_alerts = True
 
 # ---------- disconnect ----------
 

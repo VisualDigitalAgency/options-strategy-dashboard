@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
-from . import auth, broker_crypto, cache, data_fetch, db, virtual
+from . import auth, broker_crypto, cache, config, data_fetch, db, virtual
 from .brokers import registry
 from .brokers.base import BrokerSession
 
@@ -298,3 +298,133 @@ def place_order(user_id: int, confirm_token: str) -> dict:
                f"check Zerodha and manage them manually." if placed else
                "No legs were placed."))
     return {"placed": placed}
+
+
+# ---------- broker-side stop loss (issue #43), run by the worker's poller ----------
+# Entries are plain SELL LIMIT orders. Once a filled leg is SL_GRACE_DAYS old, a Kite ATO alert is
+# installed for it: when the option's LTP reaches the stop (the original premium, config.SL_TARGET),
+# Kite itself places the BUY LIMIT that closes the leg. Nothing placed earlier is ever edited. The
+# worker never places a regular order here; it only installs, watches and (if the leg was already
+# closed by hand) removes that one alert, so a triggered alert can't open a fresh long position.
+
+_KITE_ORDER_STATUS = {"COMPLETE": "complete", "CANCELLED": "cancelled", "REJECTED": "rejected"}
+
+
+def _short_qty(positions: list[dict], tradingsymbol: str) -> int:
+    """How many units of this contract are still short at the broker (0 if none)."""
+    net = sum(int(p.get("quantity") or 0) for p in positions if p.get("tradingsymbol") == tradingsymbol)
+    return max(-net, 0)
+
+
+def _ist_ts(v) -> str:
+    """A timestamp for a TIMESTAMPTZ column with its IST offset spelled out: Kite's timestamps and
+    ours are IST wall-clock, and a bare string would be read in the database session's zone."""
+    return str(v)[:19] + "+05:30"
+
+
+def _set_order(user_id: int, oid: int, **cols) -> None:
+    sets = ", ".join(f"{k}=:{k}" for k in cols)
+    with db.tx(user_id) as c:
+        c.run(f"UPDATE broker_orders SET {sets}, updated_at=now() WHERE id=:id AND user_id=:u", id=oid, u=user_id, **cols)
+
+
+def sync_stop_alerts(user_id: int, broker_name: str, session: BrokerSession, positions: list[dict],
+                     _now: datetime | None = None) -> dict:
+    """One pass for one connected user. Returns counts, for logs and tests."""
+    now = (_now or datetime.now(IST)).astimezone(IST)
+    today = pd.Timestamp(now.date())
+    adapter = registry.adapter(broker_name)
+    done = {"filled": 0, "installed": 0, "failed": 0, "updated": 0, "cancelled": 0}
+    with db.tx(user_id) as c:
+        rows = c.all("SELECT * FROM broker_orders WHERE user_id=:u AND expiry >= :d AND "
+                     "(status='open' OR (status='complete' AND sl_alert_status IN ('pending', 'enabled')))",
+                     u=user_id, d=str(today.date()))
+    for r in rows:
+        try:
+            # 1. Learn the fill: an entry is only protected once it has actually filled.
+            if r["status"] == "open":
+                if not r["kite_order_id"]:
+                    continue
+                h = adapter.get_order_status(session, r["kite_order_id"])
+                status = _KITE_ORDER_STATUS.get(str(h.get("status", "")).upper())
+                if not status:
+                    continue  # still open at the broker
+                if status != "complete":
+                    _set_order(user_id, r["id"], status=status, sl_alert_status="skipped")
+                    continue
+                avg = float(h.get("average_price") or 0) or float(r["limit_price"])
+                filled = _ist_ts(h.get("exchange_timestamp") or h.get("order_timestamp") or now.strftime("%Y-%m-%d %H:%M:%S"))
+                _set_order(user_id, r["id"], status="complete", average_price=avg, filled_at=filled,
+                           sl_price=virtual.tick(avg))
+                r.update(status="complete", average_price=avg, filled_at=filled, sl_price=virtual.tick(avg))
+                done["filled"] += 1
+
+            tsym = adapter.tradingsymbol(session, r["symbol"], r["expiry"], r["side"], float(r["strike"]))
+            short = _short_qty(positions, tsym)
+
+            # 2. Installed: follow it, and remove it if the leg was already closed by hand.
+            if r["sl_alert_status"] == "enabled":
+                if short < int(r["qty"]):
+                    adapter.delete_alert(session, r["sl_alert_uuid"])
+                    _set_order(user_id, r["id"], sl_alert_status="cancelled",
+                               sl_alert_error="Position closed at the broker before the stop was hit")
+                    auth.audit("broker_sl_alert_cancelled", actor_id=user_id, target_user_id=user_id,
+                               broker=broker_name, broker_order_id=r["kite_order_id"], alert=r["sl_alert_uuid"])
+                    done["cancelled"] += 1
+                    continue
+                a = adapter.get_alert(session, r["sl_alert_uuid"])
+                new = "triggered" if int(a.get("alert_count") or 0) > 0 else a.get("status", "enabled")
+                if new in ("triggered", "disabled", "deleted"):
+                    _set_order(user_id, r["id"], sl_alert_status=new, sl_alert_error=a.get("disabled_reason") or None)
+                    done["updated"] += 1
+                continue
+
+            # 3. Due: install once, on day SL_GRACE_DAYS after the fill.
+            filled_day = pd.Timestamp(str(r["filled_at"])[:10])
+            if today < filled_day + pd.Timedelta(days=config.SL_GRACE_DAYS):
+                continue
+            if short < int(r["qty"]):
+                _set_order(user_id, r["id"], sl_alert_status="skipped",
+                           sl_alert_error="Position no longer open at the broker")
+                continue
+            if not adapter.supports_stop_alerts:
+                _set_order(user_id, r["id"], sl_alert_status="skipped",
+                           sl_alert_error=f"Not available at {broker_name.title()}: manage the stop yourself")
+                continue
+            tried = r.get("sl_alert_tried_at")
+            if tried and (now - _parse_ist(str(tried)[:19])).total_seconds() < config.BROKER_SL_RETRY_SECONDS:
+                continue
+            stop = float(r["sl_price"] or r["average_price"] or r["limit_price"])
+            limit = virtual.tick(stop * (1 + config.BROKER_SL_LIMIT_BUFFER_PCT / 100))
+            try:
+                uuid = adapter.create_stop_alert(session, tradingsymbol=tsym, qty=int(r["qty"]),
+                                                 trigger_price=stop, limit_price=limit)
+            except Exception as e:
+                _set_order(user_id, r["id"], sl_alert_error=str(e)[:500], sl_alert_tried_at=_ist_ts(now.strftime("%Y-%m-%d %H:%M:%S")))
+                auth.audit("broker_sl_alert_failed", actor_id=user_id, target_user_id=user_id,
+                           broker=broker_name, broker_order_id=r["kite_order_id"], reason=str(e)[:200])
+                done["failed"] += 1
+                continue
+            _set_order(user_id, r["id"], sl_alert_uuid=uuid, sl_alert_status="enabled", sl_alert_error=None,
+                       sl_price=stop, sl_alert_tried_at=_ist_ts(now.strftime("%Y-%m-%d %H:%M:%S")))
+            auth.audit("broker_sl_alert_installed", actor_id=user_id, target_user_id=user_id, broker=broker_name,
+                       broker_order_id=r["kite_order_id"], alert=uuid, trigger=stop, limit=limit)
+            done["installed"] += 1
+        except Exception:
+            # One order's hiccup (a slow Kite call, a delisted contract) must not stop the others.
+            log.warning("stop-alert sync failed for broker order %s", r["id"], exc_info=True)
+    return done
+
+
+def stop_alerts(user_id: int) -> list[dict]:
+    """Real legs and their broker-side stop, newest first, for the Broker account page."""
+    with db.tx(user_id) as c:
+        rows = c.all("SELECT id, symbol, expiry, side, strike, qty, limit_price, average_price, status, "
+                     "filled_at, sl_price, sl_alert_status, sl_alert_error FROM broker_orders "
+                     "WHERE user_id=:u AND status IN ('open', 'complete') ORDER BY id DESC LIMIT 100", u=user_id)
+    for r in rows:
+        r["sl_activates_on"] = (str((pd.Timestamp(str(r["filled_at"])[:10])
+                                     + pd.Timedelta(days=config.SL_GRACE_DAYS)).date()) if r["filled_at"] else None)
+        for k in ("strike", "limit_price", "average_price", "sl_price"):
+            r[k] = float(r[k]) if r[k] is not None else None
+    return rows
