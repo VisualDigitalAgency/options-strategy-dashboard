@@ -59,10 +59,12 @@ pack, compose file `/docker-compose.coolify.yml`, branch `main`.
 **Market hours.** Weekdays 09:00–15:35 IST the deploy job holds (tested, not shipped), because a restart pauses the SL monitor for up to a minute. A scheduled run at 15:45 IST deploys `main` if Coolify isn't already running it. *Actions → CI/CD → Run workflow* with "Deploy even if the market is open" overrides the hold.
 
 **One-time setup:**
-1. Coolify → *Keys & Tokens* → *API tokens* → create a token with the **deploy** and **read** abilities.
-2. Save it as a repository secret named `COOLIFY_TOKEN`: `gh secret set COOLIFY_TOKEN` (paste it when asked), or GitHub → Settings → Secrets and variables → Actions.
-3. Save the server's IP as a second secret, `ORIGIN_IP`: `gh secret set ORIGIN_IP`. Cloudflare shows GitHub's runners a bot challenge ("Just a moment..."), so the deploy connects straight to the origin with the real hostnames (TLS still verified). If you later firewall the origin to Cloudflare's IP ranges only, allow GitHub's runners too or switch this to a Cloudflare WAF skip rule.
-4. Optional: GitHub → Settings → Environments → `production` → add yourself as a required reviewer if you want to approve each deploy.
+1. Coolify → *Keys & Tokens* → *API tokens* → create a token with only the **deploy** and **read** abilities (not write or root). Coolify tokens can't be limited to one application, so this is as narrow as it gets.
+2. GitHub → Settings → Environments → `production` → *Deployment branches and tags* → **Selected branches** → add `main`. Only runs on `main` can then use this environment's secrets; PR workflows can't.
+3. Save the token as a `production` environment secret: `gh secret set COOLIFY_TOKEN --env production` (paste it when asked).
+4. Save the server's IP the same way: `gh secret set ORIGIN_IP --env production`. Cloudflare shows GitHub's runners a bot challenge ("Just a moment..."), so the deploy connects straight to the origin with the real hostnames (TLS still verified). If you later firewall the origin to Cloudflare's IP ranges only, allow GitHub's runners too or switch this to a Cloudflare WAF skip rule.
+5. Don't keep repository-level copies (`gh secret list` should not show them): every workflow run, PRs included, can read repository secrets (issue #65).
+6. Optional: add yourself as a required reviewer on `production` if you want to approve each deploy.
 
 Don't also turn on Coolify's own auto-deploy webhook, or every push deploys twice, and without the tests or the market-hours hold.
 

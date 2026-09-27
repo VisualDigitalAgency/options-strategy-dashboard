@@ -47,14 +47,17 @@ provisions on its own, since it touches a shared production server.
    sudo docker exec -it $(sudo docker ps -qf name=api-<preview-uuid>) python scripts/set_admin.py you@example.com
    ```
 
-6. **A deploy token for CI**: reuse the existing `COOLIFY_TOKEN` repository secret (same Coolify
-   instance, same token scope covers any application) — no new token needed.
+6. **A deploy token for CI**: create a *separate* Coolify API token (deploy + read abilities) and
+   save it in the `preview` GitHub Environment, not the repository:
+   `gh secret set COOLIFY_TOKEN --env preview`, plus `gh secret set ORIGIN_IP --env preview`.
+   The preview job runs on pull requests, so it can't use the `production` environment (which only
+   accepts `main`). A separate token means it can be revoked without touching production deploys.
 
-7. **GitHub secrets**: add the two preview-specific values
-   (`gh secret set COOLIFY_PREVIEW_APP_UUID`, `gh secret set COOLIFY_PREVIEW_PUBLIC_URL`, or
-   GitHub → Settings → Secrets and variables → Actions). Once both exist, `.github/workflows/ci.yml`'s
-   `deploy-preview` job deploys automatically on every push to the branch named in its `if:`
-   condition, while that branch's PR is open.
+7. **GitHub secrets**: add the two preview-specific values to the same environment
+   (`gh secret set COOLIFY_PREVIEW_APP_UUID --env preview`,
+   `gh secret set COOLIFY_PREVIEW_PUBLIC_URL --env preview`). Once all four exist,
+   `.github/workflows/ci.yml`'s `deploy-preview` job deploys automatically on every push to the
+   branch named in its `if:` condition, while that branch's PR is open.
 
 ## What CI does (`deploy-preview` job in `.github/workflows/ci.yml`)
 
@@ -67,7 +70,7 @@ Unlike production, there's **no market-hours hold** — preview never touches re
 credentials, see step 3), so there's nothing to protect by delaying a restart. It also has its own
 `concurrency` group, so it can never block or be blocked by a production deploy.
 
-Until the two secrets in step 7 exist, `deploy-preview` fails immediately with a clear message
+Until the secrets in steps 6–7 exist, `deploy-preview` fails immediately with a clear message
 naming the missing secret — it doesn't affect the `frontend`/`backend`/`images`/`deploy` jobs at all.
 
 ## To preview a different branch later
