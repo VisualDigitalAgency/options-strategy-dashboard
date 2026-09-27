@@ -53,6 +53,9 @@ SL_TARGET = "original_premium"  # breakeven-style SL from day 15 onward
 # without an unbounded market order.
 BROKER_SL_LIMIT_BUFFER_PCT = 10
 BROKER_SL_RETRY_SECONDS = 3600  # a failed alert install is retried at most this often
+# A limit typed on a real-order ticket must be within this % of the current bid (or LTP when there
+# is no bid), so a slipped digit (5 instead of 50) can't reach the broker.
+BROKER_LIMIT_BAND_PCT = 20
 
 # Background refresh: the backend fetches on these timers and the dashboard only reads the cache.
 SCREEN_REFRESH_MARKET_SECONDS = 600     # option chains every 10 min while NSE is open (NSE rate-limits harder polling)

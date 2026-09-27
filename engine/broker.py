@@ -234,14 +234,22 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
             raise ValueError("Only sell orders are supported")
         q = virtual.quote(symbol, expiry, leg["side"], float(leg["strike"]))
         spot = q["spot"]
-        limit_price = virtual.tick(q["bid"] or q["ltp"])
-        if limit_price <= 0:
+        market = virtual.tick(q["bid"] or q["ltp"])
+        if market <= 0:
             raise ValueError(f"No price available for {symbol} {leg['strike']} {leg['side']}")
+        limit_price = market
+        if leg.get("price") is not None:  # a limit typed on the ticket (#64), else the bid
+            limit_price = virtual.tick(leg["price"])
+            band = config.BROKER_LIMIT_BAND_PCT / 100
+            if not market * (1 - band) <= limit_price <= market * (1 + band):
+                raise ValueError(f"Limit ₹{limit_price:,.2f} for {leg['strike']:g} {leg['side']} is more than "
+                                 f"{config.BROKER_LIMIT_BAND_PCT}% away from the current price ₹{market:,.2f}")
         lots = int(leg["lots"])
         if lots <= 0:
             raise ValueError("Lots must be a positive integer")
         qty = lot * lots
-        priced.append({"side": leg["side"], "strike": float(leg["strike"]), "qty": qty, "limit_price": limit_price})
+        priced.append({"side": leg["side"], "strike": float(leg["strike"]), "qty": qty, "limit_price": limit_price,
+                       "market_price": market})
         signed.append({"side": leg["side"], "strike": float(leg["strike"]), "qty": -qty})
     margin = virtual.group_margin(symbol, expiry, signed, spot)
     m = get_margins(user_id)

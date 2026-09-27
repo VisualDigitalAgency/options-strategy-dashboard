@@ -35,11 +35,20 @@ export default function RealOrderConfirmDialog({ symbol, expiry, preview, onConf
             <tr key={i}>
               <td>{symbol} {expiry} <b className="mono">{l.strike}</b> {l.side}</td>
               <td className="num mono">{l.qty}</td>
-              <td className="num mono">{rupee2(l.limit_price)}</td>
+              <td className="num mono">
+                {rupee2(l.limit_price)}
+                {l.market_price != null && l.limit_price !== l.market_price && (
+                  <div className="muted small">your limit · bid {rupee2(l.market_price)}</div>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {preview.legs.some((l) => l.market_price != null && l.limit_price > l.market_price) && (
+        <p className="muted small">A limit above the bid waits in your Zerodha order book until a buyer
+          pays it, and may not fill today.</p>
+      )}
       <p className="confirm-body">Estimated margin required: <b>{rupee(preview.margin.total)}</b></p>
       {preview.legs.length > 1 && (
         <p className="muted small">Legs are placed one at a time; your broker has no all-or-nothing
