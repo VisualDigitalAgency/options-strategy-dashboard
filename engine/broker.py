@@ -129,6 +129,10 @@ def _require_active(user_id: int) -> dict:
     return row
 
 
+_EMPTY_MARGINS = {"available_margin": 0.0, "cash_margin": 0.0, "collateral_margin": 0.0, "used_margin": 0.0,
+                   "span": 0.0, "exposure": 0.0, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0}
+
+
 def get_positions(user_id: int) -> list[dict]:
     _require_active(user_id)
     return (cache.get_json(f"broker_snap:{user_id}") or {}).get("positions", [])
@@ -136,54 +140,56 @@ def get_positions(user_id: int) -> list[dict]:
 
 def get_margins(user_id: int) -> dict:
     _require_active(user_id)
-    return (cache.get_json(f"broker_snap:{user_id}") or {}).get(
-        "margins", {"available_margin": 0.0, "cash_margin": 0.0, "collateral_margin": 0.0, "used_margin": 0.0,
-                    "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0})
+    return (cache.get_json(f"broker_snap:{user_id}") or {}).get("margins", _EMPTY_MARGINS)
 
 
-def _usable_collateral_for(margin_total: float, m: dict) -> float:
+def _usable_collateral_for(margin_total: float, collateral_total: float, collateral_used: float) -> float:
     """How much of a real order's own margin an exchange lets non-cash collateral fund: the
     account's unused collateral capacity (total collateral minus what's already backing other
     open positions), capped at config.COLLATERAL_UTILISATION_CAP of *this order's* margin — never
     a blanket cash+collateral sum (see the a15bedd fix this replaces)."""
-    remaining = m.get("collateral_margin", 0.0) - (m.get("collateral_liquid_used", 0.0) + m.get("collateral_equity_used", 0.0))
+    remaining = collateral_total - collateral_used
     return min(max(remaining, 0.0), margin_total * config.COLLATERAL_UTILISATION_CAP)
 
 
 def account_summary(user_id: int) -> dict:
     """Unified real-or-approx shape for every place that shows margin figures for real trading:
     the broker account page, the broker connect banner, and the order ticket's real-order side.
-    Real figures when an active, unexpired connection exists; otherwise the virtual account's own
-    numbers stand in as an approximation, clearly flagged via `source`."""
-    row = _active_connection(user_id)
-    active = row and not (row["token_expires_at"] and datetime.now(timezone.utc) >= _parse_ist(row["token_expires_at"]))
-    if active:
+    Real figures when an active, unexpired connection exists (reusing _require_active, so an
+    expired connection is flipped to 'expired' here the same as everywhere else that checks it);
+    otherwise the virtual account's own numbers stand in as an approximation, clearly flagged via
+    `source`. Both branches feed the same margin-shaped dict `m` into one return statement instead
+    of duplicating the 10-key result."""
+    try:
+        row = _require_active(user_id)
         snap = cache.get_json(f"broker_snap:{user_id}") or {}
-        m = snap.get("margins", {})
-        positions = snap.get("positions", [])
-        return {
-            "source": "broker", "broker": row["broker"], "status": "active",
-            "available_margin_total": round(m.get("cash_margin", 0.0) + m.get("collateral_margin", 0.0), 2),
-            "available_cash": m.get("cash_margin", 0.0),
-            "used_margin": m.get("used_margin", 0.0),
-            "span": m.get("span", 0.0), "exposure": m.get("exposure", 0.0),
-            "total_collateral": m.get("collateral_margin", 0.0),
-            "collateral_liquid_used": m.get("collateral_liquid_used", 0.0),
-            "collateral_equity_used": m.get("collateral_equity_used", 0.0),
-            "open_positions": sum(1 for p in positions if p.get("quantity")),
-            "synced_at": row.get("last_synced_at"),
+        m = snap.get("margins", _EMPTY_MARGINS)
+        source, broker, conn_status = "broker", row["broker"], "active"
+        open_positions = sum(1 for p in snap.get("positions", []) if p.get("quantity"))
+        synced_at = row.get("last_synced_at")
+    except ValueError:
+        conn = status(user_id)
+        pos = virtual.get_positions(user_id)
+        acct = pos["account"]
+        m = {
+            "cash_margin": acct["available_margin"], "used_margin": acct["used_margin"],
+            "collateral_margin": 0.0, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
+            "span": round(sum(g["margin"]["span"] for g in pos["groups"] if g["margin"]), 2),
+            "exposure": round(sum(g["margin"]["exposure"] for g in pos["groups"] if g["margin"]), 2),
         }
-    conn = status(user_id)
-    acct = virtual.get_account(user_id)
+        source, broker, conn_status = "approx", conn.get("broker"), conn.get("status", "disconnected")
+        open_positions, synced_at = acct["open_positions"], None
     return {
-        "source": "approx", "broker": conn.get("broker"), "status": conn.get("status", "disconnected"),
-        "available_margin_total": acct["available_margin"],
-        "available_cash": acct["available_margin"],
-        "used_margin": acct["used_margin"],
-        "span": acct.get("span_used", 0.0), "exposure": acct.get("exposure_used", 0.0),
-        "total_collateral": 0.0, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
-        "open_positions": acct["open_positions"],
-        "synced_at": None,
+        "source": source, "broker": broker, "status": conn_status,
+        "available_margin_total": round(m.get("cash_margin", 0.0) + m.get("collateral_margin", 0.0), 2),
+        "available_cash": m.get("cash_margin", 0.0),
+        "used_margin": m.get("used_margin", 0.0),
+        "span": m.get("span", 0.0), "exposure": m.get("exposure", 0.0),
+        "total_collateral": m.get("collateral_margin", 0.0),
+        "collateral_liquid_used": m.get("collateral_liquid_used", 0.0),
+        "collateral_equity_used": m.get("collateral_equity_used", 0.0),
+        "open_positions": open_positions,
+        "synced_at": synced_at,
     }
 
 
@@ -216,7 +222,9 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
     margin = virtual.group_margin(symbol, expiry, signed, spot)
     m = get_margins(user_id)
     cash = m["available_margin"]
-    usable_collateral = _usable_collateral_for(margin["total"], m)
+    usable_collateral = _usable_collateral_for(
+        margin["total"], m.get("collateral_margin", 0.0),
+        m.get("collateral_liquid_used", 0.0) + m.get("collateral_equity_used", 0.0))
     available = cash + usable_collateral
     if margin["total"] > available:
         raise ValueError(f"Insufficient broker margin: needs ~₹{margin['total']:,.0f}, "

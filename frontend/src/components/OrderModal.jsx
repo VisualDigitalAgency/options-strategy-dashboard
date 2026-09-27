@@ -37,11 +37,13 @@ export default function OrderModal({ d, lots, onClose }) {
   const [realError, setRealError] = useState(null)
   const [realBusy, setRealBusy] = useState(false)
   useEffect(() => {
-    rpc('broker_status').then((s) => {
-      const active = s.status === 'active'
-      setBrokerConnected(active)
-      if (active) rpc('broker_account_summary').then(setRealSummary).catch(() => {})
-    }).catch(() => {})
+    (async () => {
+      try {
+        const s = await rpc('broker_account_summary')
+        setBrokerConnected(s.status === 'active')
+        if (s.status === 'active') setRealSummary(s)
+      } catch { /* treated the same as "no broker connected" */ }
+    })()
   }, [])
 
   async function previewReal() {

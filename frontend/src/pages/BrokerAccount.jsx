@@ -6,8 +6,7 @@ import { num, rupee, signedRupee } from '../format'
 import { pnlClass } from './Portfolio'
 import StatCard from '../components/StatCard'
 import UpdatedTag from '../components/UpdatedTag'
-
-const Fund = StatCard
+import EquityBar from '../components/EquityBar'
 
 /** Real Zerodha account: funds/margin and open positions exactly as the broker reports them —
  *  unlike the virtual account, this is not simulated, so figures come straight from the worker's
@@ -59,16 +58,7 @@ export default function BrokerAccount() {
           )}
         </div>
         {summary && (
-          <div className="equity" aria-label={`Margin in use ${rupee(summary.used_margin)}, available cash ${rupee(summary.available_cash)}`}>
-            <div className="equity-bar" aria-hidden>
-              <span className="eq-used" style={{ flexGrow: Math.max(summary.used_margin, 0) || 0.0001 }} />
-              <span className="eq-free" style={{ flexGrow: Math.max(summary.available_cash, 0) || 0.0001 }} />
-            </div>
-            <div className="equity-legend">
-              <span><i className="eq-used" aria-hidden /> Used margin <b className="num">{rupee(summary.used_margin)}</b></span>
-              <span><i className="eq-free" aria-hidden /> Available cash <b className="num">{rupee(summary.available_cash)}</b></span>
-            </div>
-          </div>
+          <EquityBar used={summary.used_margin} free={summary.available_cash} usedLabel="Used margin" freeLabel="Available cash" />
         )}
       </section>
 
@@ -87,12 +77,12 @@ export default function BrokerAccount() {
       <section className="ledger" aria-label="Real broker margin detail">
         {summary ? (
           <>
-            <Fund label="Span" value={rupee(summary.span)} sub="SPAN risk margin on open positions" />
-            <Fund label="Exposure" value={rupee(summary.exposure)} sub="additional exchange exposure margin" />
-            <Fund label="Total collateral" value={rupee(summary.total_collateral)} sub="pledged stock/MF, before use" />
-            <Fund label="Collateral (liquid funds)" value={rupee(summary.collateral_liquid_used)} sub="of your used margin, funded by liquid MF/ETF collateral" />
-            <Fund label="Collateral (equity)" value={rupee(summary.collateral_equity_used)} sub="of your used margin, funded by pledged stock" />
-            <Fund label="Open positions" value={summary.open_positions} sub={isReal ? 'at your broker, right now' : 'in your virtual account'} />
+            <StatCard label="Span" value={rupee(summary.span)} sub="SPAN risk margin on open positions" />
+            <StatCard label="Exposure" value={rupee(summary.exposure)} sub="additional exchange exposure margin" />
+            <StatCard label="Total collateral" value={rupee(summary.total_collateral)} sub="pledged stock/MF, before use" />
+            <StatCard label="Collateral (liquid funds)" value={rupee(summary.collateral_liquid_used)} sub="of your used margin, funded by liquid MF/ETF collateral" />
+            <StatCard label="Collateral (equity)" value={rupee(summary.collateral_equity_used)} sub="of your used margin, funded by pledged stock" />
+            <StatCard label="Open positions" value={summary.open_positions} sub={isReal ? 'at your broker, right now' : 'in your virtual account'} />
           </>
         ) : (
           Array.from({ length: 6 }, (_, i) => (
