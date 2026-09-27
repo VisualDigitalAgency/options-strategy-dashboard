@@ -2,30 +2,28 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Plug } from 'lucide-react'
 import { rpc } from '../rpc'
-import { useAuth } from '../auth'
 import { BROKERS } from '../brokers'
 import BrokerCard from '../components/BrokerCard'
 import { ConfirmDialog } from '../components/Modal'
 import { rupee } from '../format'
 
 export default function Broker() {
-  const { user } = useAuth() ?? {}
-  const isAdmin = user?.role === 'admin'
   const [summary, setSummary] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
 
   const load = useCallback(async () => {
-    if (!isAdmin) return // phase 1: connecting is admin-only; other accounts never have a real connection
     try {
       setSummary(await rpc('broker_account_summary'))
     } catch (e) {
       setError(e.message)
     }
-  }, [isAdmin])
+  }, [])
 
   useEffect(() => { document.title = 'Broker · Theta Desk'; load() }, [load])
+
+  const connectable = summary?.connectable ?? []
 
   async function connect() {
     setBusy(true)
@@ -60,7 +58,7 @@ export default function Broker() {
         <div>
           <h1 className="display">Connect a broker</h1>
           <p className="lede">
-            {isAdmin
+            {connectable.length
               ? 'Zerodha is connectable now, real money and all — every order still needs your explicit confirmation. Other brokers are previews for now.'
               : "Broker execution is being rolled out to admin accounts first. This is a preview of the brokers Theta Desk will support for placing real orders."}
           </p>
@@ -69,7 +67,7 @@ export default function Broker() {
 
       {error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
 
-      {isAdmin && summary?.status === 'active' && (
+      {summary?.status === 'active' && (
         <p className="broker-linked-banner">
           <Plug size={14} aria-hidden /> Connected to Zerodha.
           {' '}Available cash <b className="mono">{rupee(summary.available_cash)}</b>.
@@ -82,7 +80,7 @@ export default function Broker() {
           <BrokerCard
             key={b.id}
             b={b}
-            connectable={isAdmin && b.id === 'zerodha'}
+            connectable={connectable.includes(b.id)}
             connection={summary}
             busy={busy}
             onConnect={connect}
@@ -91,7 +89,7 @@ export default function Broker() {
         ))}
       </div>
       <p className="muted small broker-note">
-        <Plug size={14} aria-hidden /> {isAdmin
+        <Plug size={14} aria-hidden /> {connectable.length
           ? 'Every real order needs a fresh, explicit confirmation before it reaches Zerodha — nothing here is automated.'
           : 'Nothing you do in the screener, portfolio or virtual account sends orders to a real broker.'}
       </p>

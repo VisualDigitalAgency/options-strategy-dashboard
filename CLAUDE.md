@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Theta Desk: a Nifty 50 options-selling screener (30+ DTE setups) with paper trading on a virtual account. Python 3.12 / Flask JSON-RPC backend, React 19 (Vite) frontend, PostgreSQL 16 + Redis 7. Broker execution is not wired; all trading is virtual. Proprietary (LICENSE); contributor rules are in CONTRIBUTING.md and SECURITY.md, and README.md documents features and trading rules.
+Theta Desk: a Nifty 50 options-selling screener (30+ DTE setups) with paper trading on a virtual account. Python 3.12 / Flask JSON-RPC backend, React 19 (Vite) frontend, PostgreSQL 16 + Redis 7. Real broker execution (Zerodha, phase 1) is wired but soft-launched to admin accounts only, manual-confirm-only — everyone else, and every automated flow (auto-trade), stays on the virtual account. Proprietary (LICENSE); contributor rules are in CONTRIBUTING.md and SECURITY.md, and README.md documents features and trading rules.
 
 ## Commands
 
@@ -23,7 +23,7 @@ make test                               # backend integration tests in throwaway
 
 Backend tests are plain scripts in `tests/test_*.py`. Each prints PASS/FAIL lines and exits non-zero on failure. `tests/run.py` gives every file a fresh, migrated database and flushes Redis. It needs `DB_HOST`, `OWNER_DB_PASSWORD`, `DB_APP_PASSWORD` and `REDIS_URL`. To run a single file: `python tests/run.py test_pivots.py`. Market data is stubbed in `tests/support.py`. `LIVE_DATA=1` adds a real yfinance check.
 
-CI/CD is `.github/workflows/ci.yml`: lint, tests, image builds, then a Coolify API deploy of `main` (held during market hours). Setup and behaviour are in deploy/COOLIFY.md.
+CI/CD is `.github/workflows/ci.yml`: lint, tests, image builds, then a Coolify API deploy of `main` (held during market hours). Setup and behaviour are in deploy/COOLIFY.md. A separate `deploy-preview` job deploys a feature branch to an isolated preview Coolify app (own DB/Redis/domain, no market-hours hold, no Kite credentials) on every push to its open PR — see deploy/PREVIEW.md.
 
 Docker (self-hosted): `make secrets && make up`, `make migrate`, `make admin EMAIL=...`, `make logs`.
 
@@ -67,6 +67,7 @@ Migrations `GRANT` to `theta_app` only if the role already exists. The role must
 - `virtual.py`: fills, margin, and the SL monitor. Booking runs under `_lock` + `_lock_account` (row lock) and re-checks margin and state inside it. `place_order` refuses a second order on a stock/expiry with one still waiting unless `confirm_waiting` is set; auto-trade instead skips such pairs.
 - `pivots.py`: floor pivots (P, R1–R4, S1–S4) from the last completed day/week/month, for the Portfolio price chart.
 - `autotrade.py`, `auth.py`, `users.py`.
+- `broker.py` / `brokers/`: real-broker RPC logic (phase 1: Zerodha only, admin-gated, manual-confirm-only — see `doc/2026-09-26-broker-integration-phase1-zerodha.md`). `brokers/base.py` defines the adapter interface, `brokers/zerodha.py` implements it via `pykiteconnect`, `brokers/registry.py` maps broker name → adapter, `brokers/poller.py` (run by the worker) is read-only reconciliation of positions/margins into the `broker_snap:{user_id}` Redis cache — it never places orders. `account_summary(user_id)` is the single place that decides real vs. approximate (virtual-account-derived) figures and which brokers a user may connect (`connectable`), consumed by the broker pages, the connect banner and the order ticket. Access tokens are encrypted at rest via `broker_crypto.py` (Fernet, `BROKER_ENC_KEY`). Real-order margin gating checks cash plus a capped share of unused collateral (`config.COLLATERAL_UTILISATION_CAP`), never a blanket cash+collateral sum.
 
 Screening thresholds live in `engine/config.py`. README.md documents the trading rules and metric formulas.
 

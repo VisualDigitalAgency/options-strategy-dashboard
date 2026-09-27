@@ -5,18 +5,15 @@ import Modal from './Modal'
 import BrokerCard from './BrokerCard'
 import { BROKERS } from '../brokers'
 import { rpc } from '../rpc'
-import { useAuth } from '../auth'
 
 // Login sets this right after a successful sign-in (not on page refresh), so the popup
 // shows once per login rather than on every route change or reload.
 export const SHOW_KEY = 'td_show_broker_popup'
 
 export default function BrokerOnboarding() {
-  const { user } = useAuth() ?? {}
-  const isAdmin = user?.role === 'admin'
   const nav = useNavigate()
   const [open, setOpen] = useState(false)
-  const [connection, setConnection] = useState(null)
+  const [summary, setSummary] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -30,9 +27,9 @@ export default function BrokerOnboarding() {
   }, [])
 
   useEffect(() => {
-    if (!open || !isAdmin) return
-    rpc('broker_status').then(setConnection).catch((e) => setError(e.message))
-  }, [open, isAdmin])
+    if (!open) return
+    rpc('broker_account_summary').then(setSummary).catch((e) => setError(e.message))
+  }, [open])
 
   const connect = useCallback(async () => {
     setBusy(true)
@@ -47,11 +44,13 @@ export default function BrokerOnboarding() {
     }
   }, [])
 
+  const connectable = summary?.connectable ?? []
+
   if (!open) return null
   return (
     <Modal title="Connect your broker" onClose={() => setOpen(false)} width={640}>
       <p className="confirm-body">
-        {isAdmin
+        {connectable.length
           ? 'Zerodha is connectable now, real money and all — every order still needs your explicit confirmation. Other brokers are previews for now.'
           : "Theta Desk is virtual-only for now. Once broker execution is wired up, you'll connect one of these accounts to place real orders — no setup needed today."}
       </p>
@@ -61,8 +60,8 @@ export default function BrokerOnboarding() {
           <BrokerCard
             key={b.id}
             b={b}
-            connectable={isAdmin && b.id === 'zerodha'}
-            connection={connection}
+            connectable={connectable.includes(b.id)}
+            connection={summary}
             busy={busy}
             onConnect={connect}
             onDisconnect={() => { setOpen(false); nav('/broker') }}
