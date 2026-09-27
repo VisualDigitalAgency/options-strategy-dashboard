@@ -9,11 +9,9 @@ import kotakneo from './assets/brokers/kotakneo.webp'
 import fivepaisa from './assets/brokers/5paisa.webp'
 // Flattrade/mStocks/Dhan (issue #38) have no backend adapter yet, so there's no live connection to
 // preview against — just the "Coming soon" card, same as the other unconnected brokers above.
-// Their marks are placeholder monograms, not the official logo; swap these for the real ones
-// (matching the .webp treatment of the brokers above) once branded assets are on hand.
-import flattrade from './assets/brokers/flattrade.svg'
-import mstocks from './assets/brokers/mstocks.svg'
-import dhan from './assets/brokers/dhan.svg'
+import flattrade from './assets/brokers/flattrade.webp'
+import mstocks from './assets/brokers/mstocks.webp'
+import dhan from './assets/brokers/dhan.webp'
 
 export const BROKERS = [
   { id: 'zerodha', name: 'Zerodha', logo: zerodha },
