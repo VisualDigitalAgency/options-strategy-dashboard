@@ -1,6 +1,6 @@
 # Theta Desk: options selling screener
 
-Screens every Nifty 50 stock for 30+ DTE option-selling setups and trades them on a virtual (paper) account with live NSE prices. Broker execution is not wired, so the "Place live order" button stays disabled. Nothing here touches real money.
+Screens every Nifty 50 stock for 30+ DTE option-selling setups and trades them on a virtual (paper) account with live NSE prices. Real broker execution (Zerodha) exists but is soft-launched to admin accounts only, manual-confirm-only — for everyone else the "Place live order" button stays disabled and nothing touches real money.
 
 Live: https://theta.connectbiomedical.com (sign-in required; new users are approved by the admin).
 
@@ -73,6 +73,8 @@ DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://lo
 | **Stock detail** (`/stock/SYMBOL`) | Payoff chart, S/R zones, open interest by strike, strategy lab, order ticket |
 | **Portfolio** (`/portfolio`) | Open positions by stock and expiry: live P&L, margin, Greeks, stop-loss mode per leg, payoff, price & pivot chart, exit leg / exit all, open limit orders |
 | **Virtual account** (`/virtual`) | Order history, closed trades, auto-trade settings and runs, account reset |
+| **Broker** (`/broker`) | Connect a real broker (Zerodha; others are previews). Admin-only for now — everyone else sees the same page as a preview |
+| **Real account** (`/broker/account`) | Real (or, until connected, approximate virtual-derived) available margin, cash, collateral, span, exposure and open positions |
 | **Admin** (`/admin`, admin only) | Approve, reject or disable users, issue temporary passwords, sign-in activity log with client IPs |
 
 Accounts: every page needs a sign-in. New users request access on `/register` and start as pending with ₹10,00,000 of virtual capital.
@@ -147,7 +149,7 @@ On the Portfolio page, **Price & pivot levels** on a position opens a 6-month da
 ## Layout
 
 - `server.py` — JSON-RPC 2.0 endpoint `POST /rpc`, auth, CSRF (Origin) check, error handling; `rpc_guard.py` validates every call's params against the handler's signature
-- `engine/` — `data_fetch.py` (NSE option chain v3, lot sizes, yfinance), `span.py` (SPAN risk files), `filters.py` / `risk_rules.py` / `greeks_sr.py` (rules, Black-Scholes, S/R), `batch.py` (batched screening), `virtual.py` (orders, fills, margin, monitor), `pivots.py`, `autotrade.py`, `auth.py`, `users.py`, `worker.py`, `db.py`, `cache.py`, `settings.py`
+- `engine/` — `data_fetch.py` (NSE option chain v3, lot sizes, yfinance), `span.py` (SPAN risk files), `filters.py` / `risk_rules.py` / `greeks_sr.py` (rules, Black-Scholes, S/R), `batch.py` (batched screening), `virtual.py` (orders, fills, margin, monitor), `pivots.py`, `autotrade.py`, `auth.py`, `users.py`, `worker.py`, `db.py`, `cache.py`, `settings.py`, `broker.py` / `brokers/` / `broker_crypto.py` (real broker: Zerodha, phase 1, admin-only)
 - `migrations/` — Alembic; every user-owned table has row-level security
 - `frontend/` — React (Vite): pages in `src/pages/`, charts in `src/components/` (Recharts). Responsive from 320 px: wide tables become stacked cards below 1024 px
 - `tests/`, `frontend/tests/` — backend integration and UI tests
@@ -176,7 +178,8 @@ Point the domain's DNS A record at the server first: Caddy fetches the certifica
 - Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator.
 - Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
 - Market hours are fixed at 09:15–15:30 IST on weekdays; NSE holidays are not in the calendar.
-- This is a paper-trading and research tool, not investment advice.
+- Real broker execution (Zerodha) is admin-only for now, manual-confirm-only, and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account.
+- This is primarily a paper-trading and research tool, not investment advice.
 
 ## Contributing, security, licence
 

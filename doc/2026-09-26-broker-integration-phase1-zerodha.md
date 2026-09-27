@@ -118,3 +118,35 @@ In `engine/worker.py`'s `main()`, alongside `virtual.start_monitor()`/`autotrade
 - Autonomous real-money auto-trade (today's `autotrade.py` stays virtual-only).
 - Encryption key rotation tooling.
 - Wider (non-admin) rollout, once phase 1 is proven stable.
+
+## Status update (2026-09-27)
+
+Shipped as planned above, plus a few things this plan didn't anticipate:
+
+- **`broker_get_margins`/`broker_snap` gained `span`, `exposure`, `collateral_liquid_used` and
+  `collateral_equity_used`** (Kite's `utilised.span`/`utilised.exposure`/`utilised.liquid_collateral`/
+  `utilised.stock_collateral`), not just cash/collateral/used totals.
+- **`broker_preview_order`'s margin check is no longer cash-only.** Unused collateral capacity can
+  now fund part of a real order too, capped at `config.COLLATERAL_UTILISATION_CAP` (50%) of *that
+  order's own* margin — never a blanket cash+collateral sum. See `engine/broker.py`'s
+  `_usable_collateral_for`.
+- **New RPC `broker_account_summary(user_id)`** (`USER_METHODS`), not in the original plan. It's
+  the single unified shape for every place that shows margin figures for real trading: the real
+  account page, the `/broker` connected banner, and the order ticket's real-order helper line.
+  When there's no active connection, it returns the *virtual* account's own numbers as a clearly
+  flagged approximation (`source: "approx"` vs `"broker"`) instead of an empty/blank state. It also
+  returns `connectable: string[]` — which brokers *this* user may connect right now (phase 1:
+  `["zerodha"]` for admins, `[]` otherwise) — the backend-owned source of truth the frontend reads
+  instead of each component re-deriving `role === 'admin' && broker === 'zerodha'` locally.
+- **`_active_connection`/`status`/`_require_active` share one query** (`_latest_connection_row`):
+  since a connection row is only ever inserted fresh and only one row per user can be
+  `status='active'`, the active row (when one exists) is always the newest row, so there's no need
+  for two different query shapes.
+- **Frontend**: `frontend/src/pages/BrokerAccount.jsx` mirrors `VirtualAccount.jsx`'s
+  statement/equity-bar/ledger layout (via the shared `components/EquityBar.jsx` and
+  `components/StatCard.jsx`) rather than a bespoke stat grid. `components/BrokerOnboarding.jsx`
+  (the post-login popup, predates this phase) also reads `connectable` the same way.
+- **Test file names differ from this plan's original naming**: the actual files are
+  `tests/test_broker.py` (not `test_broker_connections.py`/`test_broker_rpc.py`) and
+  `frontend/tests/broker-page.test.jsx` / `broker-card-states.test.jsx` / `broker-account.test.jsx`
+  (not a single `broker.test.jsx`).
