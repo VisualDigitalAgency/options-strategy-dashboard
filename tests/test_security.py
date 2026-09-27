@@ -73,5 +73,18 @@ try:
 except IntegrityError as e:
     check("DB error text hides bound parameters", secret_value not in str(e), str(e)[:200])
 
+# 5. user_sess:{id} (#67): expired sessions are pruned at the next sign-in, and the set has a TTL.
+from engine import cache  # noqa: E402
+
+t1 = auth.new_session(uid, "10.0.0.3", "ua")
+cache.delete(f"sess:{auth._hash(t1)}")  # as if it had expired
+t2 = auth.new_session(uid, "10.0.0.3", "ua")
+members = cache._call(lambda r: r.smembers(f"user_sess:{uid}"), set())
+check("an expired session's hash is pruned at the next sign-in",
+      auth._hash(t1) not in members and auth._hash(t2) in members, members)
+ttl = cache._call(lambda r: r.ttl(f"user_sess:{uid}"))
+check("user_sess set expires with the session cap", 0 < ttl <= auth.SESSION_CAP_DAYS * 86400, ttl)
+check("end_all_sessions still ends the live one", auth.end_all_sessions(uid) >= 1 and auth.session_user(t2) is None)
+
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)
