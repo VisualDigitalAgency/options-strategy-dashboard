@@ -4,9 +4,12 @@
 # worker's SL monitor for up to a minute. A push to main during the session is tested but held;
 # the 15:45 IST scheduled run deploys it. "Run workflow" by hand can override the hold.
 #
-# Repository secrets: COOLIFY_TOKEN, a Coolify API token with the "deploy" and "read" abilities
-# (Coolify → Keys & Tokens → API tokens), and ORIGIN_IP, the server's IP. Cloudflare challenges
-# GitHub's runners, so the deploy connects to the origin directly. See deploy/COOLIFY.md.
+# Secrets live in the `production` GitHub Environment, not the repository (issue #65), and that
+# environment only accepts runs from main, so PR workflows can't read them: COOLIFY_TOKEN, a
+# Coolify API token with the "deploy" and "read" abilities (Coolify → Keys & Tokens → API tokens),
+# and ORIGIN_IP, the server's IP. Cloudflare challenges GitHub's runners, so the deploy connects
+# to the origin directly. The preview job reads its own copies from the `preview` environment.
+# See deploy/COOLIFY.md.
 #
 # A separate, isolated preview environment (own DB/Redis/domain, no market-hours hold since it
 # never touches real trading) deploys from the branch named in deploy-preview's `if:` below on
@@ -51,6 +54,9 @@ jobs:
     name: Plan
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Only the after-market run needs the Coolify token (to ask what's live); it runs on main, so
+    # it can use the production environment. Pushes and PRs get no environment and no secrets.
+    environment: ${{ github.event_name == 'schedule' && 'production' || '' }}
     outputs:
       run: ${{ steps.p.outputs.run }}
     steps:
@@ -192,7 +198,7 @@ jobs:
         run: |
           for s in COOLIFY_TOKEN ORIGIN_IP; do
             if [[ -z "${!s}" ]]; then
-              echo "::error::Repository secret $s is not set (see deploy/COOLIFY.md)."
+              echo "::error::Secret $s is not set in the production environment (see deploy/COOLIFY.md)."
               exit 1
             fi
           done
@@ -222,7 +228,7 @@ jobs:
         run: |
           for s in COOLIFY_TOKEN ORIGIN_IP COOLIFY_APP_UUID PUBLIC_URL; do
             if [[ -z "${!s}" ]]; then
-              echo "::error::Repository secret $s is not set (see deploy/PREVIEW.md)."
+              echo "::error::Secret $s is not set in the preview environment (see deploy/PREVIEW.md)."
               exit 1
             fi
           done
