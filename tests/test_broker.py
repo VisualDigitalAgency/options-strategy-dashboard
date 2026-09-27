@@ -123,11 +123,13 @@ r = j.get("result", {})
 check("connected admin gets real figures", r.get("source") == "broker" and r.get("available_margin_total") == 620000.0
       and r.get("span") == 250000.0 and r.get("exposure") == 40000.0 and r.get("total_collateral") == 120000.0, r)
 check("connected admin's open_positions only counts non-zero-qty legs", r.get("open_positions") == 1, r)
+check("admin's connectable list includes zerodha", r.get("connectable") == ["zerodha"], r)
 
 j = call("broker_account_summary", {}, plain_c)
 r = j.get("result", {})
 check("a user with no connection gets an approximation from the virtual account", r.get("source") == "approx" and r.get("status") == "disconnected", r)
 check("approx has no real collateral", r.get("total_collateral") == 0.0, r)
+check("a non-admin's connectable list is empty (phase 1: admin-only)", r.get("connectable") == [], r)
 
 # ---------- preview + margin check ----------
 

@@ -35,15 +35,34 @@ class AlreadyConnected(ValueError):
     pass
 
 
+class _Inactive(ValueError):
+    """Raised by _require_active; carries the row it found (or None) so a caller that needs the
+    connection's last-known state (account_summary's approx fallback) doesn't have to fetch it
+    again — every other caller just lets this propagate as a plain ValueError message."""
+
+    def __init__(self, message: str, row: dict | None):
+        super().__init__(message)
+        self.row = row
+
+
 def _row_to_session(row: dict) -> BrokerSession:
     return BrokerSession(access_token=broker_crypto.decrypt(row["access_token_enc"]),
                           broker_user_id=row["broker_user_id"],
                           public_token=broker_crypto.decrypt(row["public_token_enc"]) if row["public_token_enc"] else None)
 
 
-def _active_connection(user_id: int) -> dict | None:
+def _latest_connection_row(user_id: int) -> dict | None:
+    """The newest broker_connections row for this user, any status. A new connection is always a
+    fresh INSERT (status transitions UPDATE the existing row, never re-activate an old one) and
+    only one row per user can be status='active' (partial unique index), so whenever an active row
+    exists it is always this one — the same row a `WHERE status='active'` query would find."""
     with db.tx(user_id) as c:
-        return c.one("SELECT * FROM broker_connections WHERE user_id=:u AND status='active'", u=user_id)
+        return c.one("SELECT * FROM broker_connections WHERE user_id=:u ORDER BY id DESC LIMIT 1", u=user_id)
+
+
+def _active_connection(user_id: int) -> dict | None:
+    row = _latest_connection_row(user_id)
+    return row if row and row["status"] == "active" else None
 
 
 OAUTH_STATE_TTL = 600  # seconds a connect attempt's CSRF state stays valid
@@ -94,12 +113,14 @@ def exchange_token(admin_user_id: int, request_token: str, state: str, broker: s
     return {"status": "active", "broker": broker}
 
 
+_STATUS_FIELDS = ("broker", "status", "broker_user_id", "connected_at", "token_expires_at", "last_synced_at")
+
+
 def status(user_id: int) -> dict:
-    row = None
-    with db.tx(user_id) as c:
-        row = c.one("SELECT broker, status, broker_user_id, connected_at, token_expires_at, last_synced_at "
-                     "FROM broker_connections WHERE user_id=:u ORDER BY id DESC LIMIT 1", u=user_id)
-    return row or {"broker": None, "status": "disconnected"}
+    row = _latest_connection_row(user_id)
+    if not row:
+        return {"broker": None, "status": "disconnected"}
+    return {k: row[k] for k in _STATUS_FIELDS}  # never the raw row: access_token_enc/public_token_enc/id must not leave this module
 
 
 def disconnect(user_id: int) -> dict:
@@ -119,13 +140,13 @@ def disconnect(user_id: int) -> dict:
 
 
 def _require_active(user_id: int) -> dict:
-    row = _active_connection(user_id)
-    if not row:
-        raise ValueError("No broker is connected")
+    row = _latest_connection_row(user_id)
+    if not row or row["status"] != "active":
+        raise _Inactive("No broker is connected", row)
     if row["token_expires_at"] and datetime.now(timezone.utc) >= _parse_ist(row["token_expires_at"]):
         with db.tx(user_id) as c:
             c.run("UPDATE broker_connections SET status='expired' WHERE id=:id", id=row["id"])
-        raise ValueError("Your broker connection has expired; please reconnect")
+        raise _Inactive("Your broker connection has expired; please reconnect", {**row, "status": "expired"})
     return row
 
 
@@ -152,6 +173,14 @@ def _usable_collateral_for(margin_total: float, collateral_total: float, collate
     return min(max(remaining, 0.0), margin_total * config.COLLATERAL_UTILISATION_CAP)
 
 
+def connectable_brokers(user_id: int) -> list[str]:
+    """Which brokers this specific user may connect right now (phase 1: admins only). The single
+    source of truth for "can this user connect broker X" — frontend components read this instead
+    of each re-deriving role-and-broker checks locally."""
+    user = auth.active_user(user_id)
+    return sorted(registry.CONNECTABLE) if user and user["role"] == "admin" else []
+
+
 def account_summary(user_id: int) -> dict:
     """Unified real-or-approx shape for every place that shows margin figures for real trading:
     the broker account page, the broker connect banner, and the order ticket's real-order side.
@@ -159,7 +188,8 @@ def account_summary(user_id: int) -> dict:
     expired connection is flipped to 'expired' here the same as everywhere else that checks it);
     otherwise the virtual account's own numbers stand in as an approximation, clearly flagged via
     `source`. Both branches feed the same margin-shaped dict `m` into one return statement instead
-    of duplicating the 10-key result."""
+    of duplicating the 10-key result. The fallback reads the connection row off the _Inactive
+    exception rather than querying it again via status()."""
     try:
         row = _require_active(user_id)
         snap = cache.get_json(f"broker_snap:{user_id}") or {}
@@ -167,8 +197,8 @@ def account_summary(user_id: int) -> dict:
         source, broker, conn_status = "broker", row["broker"], "active"
         open_positions = sum(1 for p in snap.get("positions", []) if p.get("quantity"))
         synced_at = row.get("last_synced_at")
-    except ValueError:
-        conn = status(user_id)
+    except _Inactive as e:
+        row = e.row
         pos = virtual.get_positions(user_id)
         acct = pos["account"]
         m = {
@@ -177,10 +207,12 @@ def account_summary(user_id: int) -> dict:
             "span": round(sum(g["margin"]["span"] for g in pos["groups"] if g["margin"]), 2),
             "exposure": round(sum(g["margin"]["exposure"] for g in pos["groups"] if g["margin"]), 2),
         }
-        source, broker, conn_status = "approx", conn.get("broker"), conn.get("status", "disconnected")
+        source = "approx"
+        broker, conn_status = (row["broker"], row["status"]) if row else (None, "disconnected")
         open_positions, synced_at = acct["open_positions"], None
     return {
         "source": source, "broker": broker, "status": conn_status,
+        "connectable": connectable_brokers(user_id),
         "available_margin_total": round(m.get("cash_margin", 0.0) + m.get("collateral_margin", 0.0), 2),
         "available_cash": m.get("cash_margin", 0.0),
         "used_margin": m.get("used_margin", 0.0),
