@@ -15,7 +15,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from kiteconnect import KiteConnect
-from kiteconnect.exceptions import KiteException
+from kiteconnect.exceptions import DataException, KiteException, NetworkException
 
 from .. import settings
 from .base import BrokerAdapter, BrokerOrderResult, BrokerSession
@@ -114,6 +114,10 @@ class ZerodhaAdapter(BrokerAdapter):
                 variety=kite.VARIETY_REGULAR, exchange=kite.EXCHANGE_NFO, tradingsymbol=tradingsymbol,
                 transaction_type=kite.TRANSACTION_TYPE_SELL, quantity=qty, order_type=kite.ORDER_TYPE_LIMIT,
                 price=round(limit_price, 2), product=kite.PRODUCT_NRML, validity=kite.VALIDITY_DAY)
+        except (NetworkException, DataException):
+            # The OMS didn't give a usable answer (gateway timeout, garbled reply): the order may
+            # still have been accepted, so this is not a rejection. The caller records it as unknown.
+            raise
         except KiteException as e:
             return BrokerOrderResult(broker_order_id="", status="rejected", reject_reason=str(e))
         except ValueError as e:  # contract not found

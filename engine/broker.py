@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 
 from . import auth, broker_crypto, cache, config, data_fetch, db, virtual
 from .brokers import registry
-from .brokers.base import BrokerSession
+from .brokers.base import BrokerOrderResult, BrokerSession
 
 log = logging.getLogger("theta.broker")
 CONFIRM_TTL = 60  # seconds a previewed order stays valid for confirmation
@@ -87,9 +87,9 @@ def exchange_token(admin_user_id: int, request_token: str, state: str, broker: s
     per-user access token, and stores it encrypted. Enforces one active connection per user."""
     if broker not in registry.CONNECTABLE:
         raise ValueError(f"{broker} isn't connectable yet")
-    pending = cache.get_json(f"broker_oauth_state:{admin_user_id}")
-    cache.delete(f"broker_oauth_state:{admin_user_id}")  # one-time use, whether or not it matches
-    if not pending or pending.get("broker") != broker or not _secrets.compare_digest(pending.get("state", ""), state):
+    pending = cache.pop_json(f"broker_oauth_state:{admin_user_id}")  # one-time use, whether or not it matches
+    if not pending or pending.get("broker") != broker or not _secrets.compare_digest(
+            pending.get("state", "").encode(), state.encode()):
         raise ValueError("This connect attempt has expired or is invalid; start connecting again")
     if _active_connection(admin_user_id):
         raise AlreadyConnected("You're already connected to another broker. Disconnect it first to connect this one.")
@@ -261,18 +261,28 @@ def place_order(user_id: int, confirm_token: str) -> dict:
     SELL LIMIT order sequentially. Kite Connect has no atomic multi-leg order: if a leg fails
     after an earlier one already placed, this stops immediately and does not roll anything back —
     an automatic square-off would itself be a new, unconfirmed real-money order."""
-    payload = cache.get_json(f"broker_confirm:{confirm_token}")
-    cache.delete(f"broker_confirm:{confirm_token}")  # one-time use, whether or not it existed
+    # Read-and-delete in one step: two concurrent confirms with the same token (a double click, a
+    # retried request) must not both get the payload, or every leg would be sent twice.
+    payload = cache.pop_json(f"broker_confirm:{confirm_token}")
     if not payload or payload["user_id"] != user_id:
         raise ValueError("This order preview has expired; preview it again before confirming")
     row = _require_active(user_id)
     adapter = registry.adapter(row["broker"])
     session = _row_to_session(row)
-    placed, failed = [], None
+    placed, failed, unknown = [], None, None
     for i, leg in enumerate(payload["legs"]):
-        result = adapter.place_sell_limit_order(
-            session, symbol=payload["symbol"], expiry=payload["expiry"], side=leg["side"],
-            strike=leg["strike"], qty=leg["qty"], limit_price=leg["limit_price"])
+        try:
+            result = adapter.place_sell_limit_order(
+                session, symbol=payload["symbol"], expiry=payload["expiry"], side=leg["side"],
+                strike=leg["strike"], qty=leg["qty"], limit_price=leg["limit_price"])
+        except Exception:
+            # No answer (timeout, dropped connection, a 5xx from the broker): the order may or may
+            # not exist at the broker. Record it as unknown and stop. Never retry here, and never
+            # let this surface as a generic error that invites the user to place it again.
+            log.warning("broker place_order leg %s had no clear answer for user %s", i, user_id, exc_info=True)
+            result = BrokerOrderResult(broker_order_id="", status="pending",
+                                       reject_reason="No clear answer from the broker; check whether it was placed")
+            unknown = i
         with db.tx(user_id) as c:
             new_id = c.value(
                 "INSERT INTO broker_orders (user_id, broker, kite_order_id, symbol, expiry, side, "
@@ -282,6 +292,10 @@ def place_order(user_id: int, confirm_token: str) -> dict:
                 u=user_id, b=row["broker"], koid=result.broker_order_id or None, sym=payload["symbol"],
                 exp=payload["expiry"], side=leg["side"], strike=leg["strike"], qty=leg["qty"],
                 px=leg["limit_price"], i=i, status=result.status, reason=result.reject_reason)
+        if unknown is not None:
+            auth.audit("broker_order_unknown", actor_id=user_id, target_user_id=user_id,
+                       broker=row["broker"], leg_index=i)
+            break
         if result.status == "rejected":
             failed = {"leg_index": i, "reason": result.reject_reason}
             auth.audit("broker_order_failed", actor_id=user_id, target_user_id=user_id,
@@ -290,6 +304,12 @@ def place_order(user_id: int, confirm_token: str) -> dict:
         placed.append({"id": new_id, "leg_index": i, "broker_order_id": result.broker_order_id})
         auth.audit("broker_order_placed", actor_id=user_id, target_user_id=user_id,
                    broker=row["broker"], leg_index=i, broker_order_id=result.broker_order_id)
+    if unknown is not None:
+        raise ValueError(
+            f"The broker didn't answer for leg {unknown + 1} of {len(payload['legs'])}, so it may or may not "
+            f"have been placed. Check your Zerodha order book before trying again"
+            + (f"; {len(placed)} earlier leg(s) were placed and are live." if placed else ".")
+            + " Nothing further was sent.")
     if failed:
         raise ValueError(
             f"Leg {failed['leg_index'] + 1} of {len(payload['legs'])} failed to place "

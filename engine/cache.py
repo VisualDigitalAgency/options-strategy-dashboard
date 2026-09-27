@@ -55,6 +55,13 @@ def set_json(key: str, value, ttl: float | None = None) -> bool:
     return bool(_call(lambda r: r.set(key, raw, px=int(ttl * 1000) if ttl else None), False))
 
 
+def pop_json(key: str):
+    """Reads and deletes in one step (GETDEL), so a one-time token can be redeemed only once even
+    when two requests race for it."""
+    raw = _call(lambda r: r.getdel(key))
+    return json.loads(raw) if raw else None
+
+
 def delete(key: str) -> None:
     _call(lambda r: r.delete(key))
 

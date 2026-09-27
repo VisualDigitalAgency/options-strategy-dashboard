@@ -20,6 +20,8 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 MAX_LEGS = 4
 MAX_LOTS = 500
+# No RPC takes a long string (tokens are ~40 chars, a name 80, a password at most 256).
+MAX_STR = 1000
 # Supplied by the server from the session; a client can never set these.
 SERVER_ONLY = {"user_id"}
 
@@ -112,6 +114,8 @@ def validate(fn, params, universe: typing.Callable[[], list[str]] | None = None)
     for name, value in params.items():
         if not _type_ok(value, _base_types(allowed[name].annotation)):
             raise InvalidParams(f"{name} has the wrong type")
+        if isinstance(value, str) and len(value) > MAX_STR:
+            raise InvalidParams(f"{name} is too long")
 
     if "symbol" in params:
         if not SYMBOL_RE.match(params["symbol"]):
