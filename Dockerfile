@@ -17,7 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_
     HOME=/tmp TZ=Asia/Kolkata
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --require-hashes -r requirements.txt
 COPY server.py rpc_guard.py alembic.ini ./
 COPY engine/ engine/
 COPY migrations/ migrations/

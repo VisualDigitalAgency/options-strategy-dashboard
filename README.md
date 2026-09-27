@@ -80,7 +80,7 @@ docker exec -i theta-pg psql -q -U theta -d theta < scripts/dev_db_roles.sql   #
 Then install and migrate:
 
 ```bash
-python -m pip install -r requirements.txt
+python -m pip install --require-hashes -r requirements.txt
 python -m alembic upgrade head
 python scripts/set_admin.py you@example.com    # asks for the admin password (hidden)
 ```

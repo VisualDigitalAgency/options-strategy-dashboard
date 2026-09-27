@@ -25,7 +25,7 @@ Severity is about impact on this deployment. Items marked **Fixed** are fixed in
 | 3 | Medium | Login limits checked the counter first and counted only failures afterwards. Parallel requests all passed the check, so a burst could try many more than 5 passwords per email+IP (up to the request slots, per window). | `engine/auth.py` `login` | **Fixed**: each attempt is counted before the password is verified. A correct password gives it back. Test: `test_security.py` 12 parallel guesses. |
 | 4 | Medium | SQLAlchemy puts bound values into exception messages, and `server.py` logs full tracebacks, so a DB error could write password hashes or encrypted broker tokens to the container logs. | `engine/db.py` | **Fixed**: `hide_parameters=True`. Test: `test_security.py` DB error text. |
 | 5 | Low | String params had no length cap beyond the 64 KB body limit. Long values reached argon2, Redis keys and `compare_digest`. A non-ASCII `state` made `compare_digest` raise, which returned a generic 500. | `rpc_guard.py`, `engine/broker.py` | **Fixed**: 1000-char cap in `validate`. The state is compared as bytes. Test: `test_security.py` oversized string. |
-| 6 | Medium | Python dependencies are floor-pinned only (`>=`), so each image build can pull different versions. The base images and actions are pinned, but the pip set is not reproducible. | `requirements.txt` | Open, follow-up: lock with `pip-compile --generate-hashes` and install with `--require-hashes`. |
+| 6 | Medium | Python dependencies are floor-pinned only (`>=`), so each image build can pull different versions. The base images and actions are pinned, but the pip set is not reproducible. | `requirements.txt` | **Fixed** in #63: `requirements.in` lists the direct deps, and `requirements.txt` is the hashed lock (`make lock`), installed with `--require-hashes`. |
 | 7 | Low | `kiteconnect` 5.2.2 (the latest) pins `autobahn==19.11.2`, which has 2 advisories (PYSEC-2020-25, CVE-2026-77528). autobahn is only used by KiteTicker (websockets), which this app never imports. | dependency | Accepted. Revisit when kiteconnect releases a new version. |
 | 8 | Low | The real-order ticket sends typed limit prices, but `broker.preview_order` always uses the current bid. The confirm dialog shows the price actually used, so nothing is hidden, but a typed price is silently ignored. | `engine/broker.py`, `OrderModal.jsx` | Open, product decision: honour the typed limit, or disable the field for real orders. |
 | 9 | Low | `COOLIFY_TOKEN` is a repo secret that PR workflows can read. It's fine while only trusted collaborators can push, but the token can redeploy every app on the Coolify host. | `.github/workflows/ci.yml` | Open: move deploy secrets into a GitHub Environment limited to `main`, and give the token only the permissions deploys need. |
@@ -55,7 +55,7 @@ Severity is about impact on this deployment. Items marked **Fixed** are fixed in
 
 ## Residual risk and follow-up
 
-1. Lock the Python dependencies with hashes (finding 6).
+1. ~~Lock the Python dependencies with hashes (finding 6).~~ Done in #63.
 2. Decide on the real-order limit price (finding 8) before the broker rollout (#9/#10).
 3. Scope the deploy secrets and token (finding 9).
 4. The per-IP limits still rely on Traefik replacing the client-sent `X-Forwarded-For` (documented in `deploy/Caddyfile.coolify`). Re-check this if the proxy chain changes.
