@@ -96,6 +96,7 @@ services:
       ALLOWED_ORIGINS: ${PUBLIC_URL:-https://${DOMAIN}}
       TZ: Asia/Kolkata
       BROKER_ENC_KEY: ${BROKER_ENC_KEY}
+      BROKER_ENC_KEY_PREVIOUS: ${BROKER_ENC_KEY_PREVIOUS:-}
       KITE_API_KEY: ${KITE_API_KEY:-}
       KITE_API_SECRET: ${KITE_API_SECRET:-}
       KITE_REDIRECT_URL: ${KITE_REDIRECT_URL:-}
@@ -120,6 +121,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
       TZ: Asia/Kolkata
       BROKER_ENC_KEY: ${BROKER_ENC_KEY}
+      BROKER_ENC_KEY_PREVIOUS: ${BROKER_ENC_KEY_PREVIOUS:-}
       KITE_API_KEY: ${KITE_API_KEY:-}
       KITE_API_SECRET: ${KITE_API_SECRET:-}
     depends_on:

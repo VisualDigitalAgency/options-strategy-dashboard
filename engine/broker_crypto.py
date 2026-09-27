@@ -7,16 +7,21 @@ must be decrypted and reused to call the broker, so it needs real symmetric encr
 The key comes from settings.secret("BROKER_ENC_KEY"), the same *_FILE-or-env-var mechanism
 already used for the DB and Redis passwords: a Docker secret file in production, a plain env
 var in dev. Generate one with `Fernet.generate_key()` and never commit it.
+
+Rotation window: set BROKER_ENC_KEY to the new key and BROKER_ENC_KEY_PREVIOUS to the old one.
+New tokens are encrypted with the new key only; stored ones decrypt with either, so nobody has
+to reconnect while scripts/rotate_broker_key.py re-encrypts the rows. Unset the previous key
+once the script reports nothing left on it.
 """
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
 from . import settings
 
-_fernet: Fernet | None = None
+_fernet: MultiFernet | None = None
 
 
-def _get() -> Fernet:
+def _get() -> MultiFernet:
     global _fernet
     if _fernet is None:
         key = settings.secret("BROKER_ENC_KEY")
@@ -24,7 +29,10 @@ def _get() -> Fernet:
             raise RuntimeError(
                 "BROKER_ENC_KEY (or BROKER_ENC_KEY_FILE) is not set; broker credentials can't be "
                 "encrypted. Generate one with Fernet.generate_key() and keep it out of git.")
-        _fernet = Fernet(key.encode() if isinstance(key, str) else key)
+        previous = settings.secret("BROKER_ENC_KEY_PREVIOUS")
+        keys = [key, previous] if previous else [key]
+        # MultiFernet encrypts with the first key and tries each in order to decrypt.
+        _fernet = MultiFernet([Fernet(k.encode() if isinstance(k, str) else k) for k in keys])
     return _fernet
 
 

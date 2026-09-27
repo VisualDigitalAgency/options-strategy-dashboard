@@ -11,8 +11,9 @@ A row neither key can open is reported by id and left untouched; that user has t
 The exit code is non-zero if any such row exists, so a deploy step can stop before the old
 key is thrown away.
 
-Order: stop api and worker (or accept that they log decrypt errors until restarted), run this
-with both keys set, then start everything with only the new BROKER_ENC_KEY.
+Order, with no downtime: deploy api and worker with the new BROKER_ENC_KEY and the old key as
+BROKER_ENC_KEY_PREVIOUS (engine/broker_crypto.py reads with either), run this, then redeploy
+without BROKER_ENC_KEY_PREVIOUS.
 """
 
 import argparse
