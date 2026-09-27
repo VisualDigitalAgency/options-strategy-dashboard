@@ -126,10 +126,11 @@ Shipped as planned above, plus a few things this plan didn't anticipate:
 - **`broker_get_margins`/`broker_snap` gained `span`, `exposure`, `collateral_liquid_used` and
   `collateral_equity_used`** (Kite's `utilised.span`/`utilised.exposure`/`utilised.liquid_collateral`/
   `utilised.stock_collateral`), not just cash/collateral/used totals.
-- **`broker_preview_order`'s margin check is no longer cash-only.** Unused collateral capacity can
-  now fund part of a real order too, capped at `config.COLLATERAL_UTILISATION_CAP` (50%) of *that
-  order's own* margin — never a blanket cash+collateral sum. See `engine/broker.py`'s
-  `_usable_collateral_for`.
+- **`broker_preview_order`'s margin check is no longer cash-only.** It gates on Kite's own
+  `margins().net` (cash + pay-in + collateral − utilised), the figure Kite's RMS checks orders
+  against. An earlier version rebuilt this from `available.collateral` minus
+  `utilised.liquid_collateral`/`stock_collateral` with a 50% cap; that read collateral as zero and
+  blocked orders that had enough margin (issue #40), so it was replaced.
 - **New RPC `broker_account_summary(user_id)`** (`USER_METHODS`), not in the original plan. It's
   the single unified shape for every place that shows margin figures for real trading: the real
   account page, the `/broker` connected banner, and the order ticket's real-order helper line.

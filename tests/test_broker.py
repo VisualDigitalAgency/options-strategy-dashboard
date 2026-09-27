@@ -115,12 +115,12 @@ check("a user with no connection sees disconnected", j["result"]["status"] == "d
 
 cache.set_json(f"broker_snap:{admin_uid}", {
     "positions": [{"tradingsymbol": "X", "quantity": -50}, {"tradingsymbol": "Y", "quantity": 0}],
-    "margins": {"cash_margin": 500000.0, "collateral_margin": 120000.0, "used_margin": 300000.0,
+    "margins": {"available_margin": 320000.0, "cash_margin": 500000.0, "collateral_margin": 120000.0, "used_margin": 300000.0,
                 "span": 250000.0, "exposure": 40000.0},
 }, ttl=60)
 j = call("broker_account_summary", {}, admin_c)
 r = j.get("result", {})
-check("connected admin gets real figures", r.get("source") == "broker" and r.get("available_margin_total") == 620000.0
+check("connected admin gets real figures", r.get("source") == "broker" and r.get("available_margin_total") == 320000.0
       and r.get("span") == 250000.0 and r.get("exposure") == 40000.0 and r.get("total_collateral") == 120000.0, r)
 check("connected admin's open_positions only counts non-zero-qty legs", r.get("open_positions") == 1, r)
 check("admin's connectable list includes zerodha", r.get("connectable") == ["zerodha"], r)
@@ -144,26 +144,20 @@ check("sufficient margin returns a confirm_token", "confirm_token" in j.get("res
 token = j["result"]["confirm_token"]
 need = j["result"]["margin"]["total"]
 
-# ---------- collateral can fund part of an order, capped, never a blanket cash+collateral sum ----------
+# ---------- issue #40: gating uses the broker's net figure, so collateral counts in full ----------
 
 cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
-    "available_margin": 0.0, "collateral_margin": need, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
+    "available_margin": need, "cash_margin": 0.0, "collateral_margin": need,
+    "collateral_liquid_used": need, "collateral_equity_used": 0.0,
 }}, ttl=60)
 j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
-check("zero cash but ample unused collateral still isn't enough alone: only half the order's margin is usable from collateral",
-      j.get("error", {}).get("code") == -32000 and "Insufficient" in j["error"]["message"], j.get("error"))
+check("zero cash but enough net margin from liquid collateral is allowed (#40)", "confirm_token" in j.get("result", {}), j.get("error") or j.get("result"))
 
 cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
-    "available_margin": need * 0.5, "collateral_margin": need, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
+    "available_margin": need - 1, "cash_margin": 0.0, "collateral_margin": need * 3,
 }}, ttl=60)
 j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
-check("half cash plus the capped half from unused collateral is exactly enough", "confirm_token" in j.get("result", {}), j.get("error") or j.get("result"))
-
-cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {
-    "available_margin": 0.0, "collateral_margin": need, "collateral_liquid_used": need, "collateral_equity_used": 0.0,
-}}, ttl=60)
-j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
-check("collateral already fully consumed by other positions falls back to cash-only and is refused",
+check("net margin just below the requirement is refused, however large gross collateral is",
       j.get("error", {}).get("code") == -32000 and "Insufficient" in j["error"]["message"], j.get("error"))
 
 cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {"available_margin": 10_000_000.0}}, ttl=60)

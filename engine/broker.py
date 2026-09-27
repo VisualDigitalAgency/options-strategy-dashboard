@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
-from . import auth, broker_crypto, cache, config, data_fetch, db, virtual
+from . import auth, broker_crypto, cache, data_fetch, db, virtual
 from .brokers import registry
 from .brokers.base import BrokerSession
 
@@ -164,15 +164,6 @@ def get_margins(user_id: int) -> dict:
     return (cache.get_json(f"broker_snap:{user_id}") or {}).get("margins", _EMPTY_MARGINS)
 
 
-def _usable_collateral_for(margin_total: float, collateral_total: float, collateral_used: float) -> float:
-    """How much of a real order's own margin an exchange lets non-cash collateral fund: the
-    account's unused collateral capacity (total collateral minus what's already backing other
-    open positions), capped at config.COLLATERAL_UTILISATION_CAP of *this order's* margin — never
-    a blanket cash+collateral sum (see the a15bedd fix this replaces)."""
-    remaining = collateral_total - collateral_used
-    return min(max(remaining, 0.0), margin_total * config.COLLATERAL_UTILISATION_CAP)
-
-
 def connectable_brokers(user_id: int) -> list[str]:
     """Which brokers this specific user may connect right now (phase 1: admins only). The single
     source of truth for "can this user connect broker X" — frontend components read this instead
@@ -202,6 +193,7 @@ def account_summary(user_id: int) -> dict:
         pos = virtual.get_positions(user_id)
         acct = pos["account"]
         m = {
+            "available_margin": acct["available_margin"],
             "cash_margin": acct["available_margin"], "used_margin": acct["used_margin"],
             "collateral_margin": 0.0, "collateral_liquid_used": 0.0, "collateral_equity_used": 0.0,
             "span": round(sum(g["margin"]["span"] for g in pos["groups"] if g["margin"]), 2),
@@ -213,7 +205,7 @@ def account_summary(user_id: int) -> dict:
     return {
         "source": source, "broker": broker, "status": conn_status,
         "connectable": connectable_brokers(user_id),
-        "available_margin_total": round(m.get("cash_margin", 0.0) + m.get("collateral_margin", 0.0), 2),
+        "available_margin_total": round(m.get("available_margin", 0.0), 2),
         "available_cash": m.get("cash_margin", 0.0),
         "used_margin": m.get("used_margin", 0.0),
         "span": m.get("span", 0.0), "exposure": m.get("exposure", 0.0),
@@ -253,14 +245,11 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         signed.append({"side": leg["side"], "strike": float(leg["strike"]), "qty": -qty})
     margin = virtual.group_margin(symbol, expiry, signed, spot)
     m = get_margins(user_id)
-    cash = m["available_margin"]
-    usable_collateral = _usable_collateral_for(
-        margin["total"], m.get("collateral_margin", 0.0),
-        m.get("collateral_liquid_used", 0.0) + m.get("collateral_equity_used", 0.0))
-    available = cash + usable_collateral
+    available = m["available_margin"]  # the broker's own net figure: cash + collateral - used
     if margin["total"] > available:
         raise ValueError(f"Insufficient broker margin: needs ~₹{margin['total']:,.0f}, "
-                          f"₹{available:,.0f} available (₹{cash:,.0f} cash + ₹{usable_collateral:,.0f} collateral)")
+                          f"₹{available:,.0f} available (₹{m.get('cash_margin', 0.0):,.0f} cash, "
+                          f"₹{m.get('collateral_margin', 0.0):,.0f} collateral)")
     token = _secrets.token_urlsafe(24)
     payload = {"user_id": user_id, "symbol": symbol, "expiry": expiry, "legs": priced}
     cache.set_json(f"broker_confirm:{token}", payload, ttl=CONFIRM_TTL)

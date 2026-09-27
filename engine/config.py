@@ -36,10 +36,6 @@ SENTIMENT_OI_BIAS = 0.2
 EXPOSURE_MIN_PCT = 3.5
 EXPOSURE_SIGMA_MULT = 1.5
 
-# Real-broker order gating (engine/broker.py:preview_order): exchanges cap how much of a single
-# order's own margin requirement non-cash collateral can fund; the rest must come from cash.
-COLLATERAL_UTILISATION_CAP = 0.5
-
 # Batch screening: stocks per batch, parallel NSE workers inside a batch, pause between batches.
 # Keep workers low; NSE blocks sessions that burst requests.
 SCREEN_BATCH_SIZE = 10
