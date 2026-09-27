@@ -29,7 +29,7 @@ Severity is about impact on this deployment. Items marked **Fixed** are fixed in
 | 7 | Low | `kiteconnect` 5.2.2 (the latest) pins `autobahn==19.11.2`, which has 2 advisories (PYSEC-2020-25, CVE-2026-77528). autobahn is only used by KiteTicker (websockets), which this app never imports. | dependency | Accepted. Revisit when kiteconnect releases a new version. |
 | 8 | Low | The real-order ticket sends typed limit prices, but `broker.preview_order` always uses the current bid. The confirm dialog shows the price actually used, so nothing is hidden, but a typed price is silently ignored. | `engine/broker.py`, `OrderModal.jsx` | Open, product decision: honour the typed limit, or disable the field for real orders. |
 | 9 | Low | `COOLIFY_TOKEN` is a repo secret that PR workflows can read. It's fine while only trusted collaborators can push, but the token can redeploy every app on the Coolify host. | `.github/workflows/ci.yml` | Open: move deploy secrets into a GitHub Environment limited to `main`, and give the token only the permissions deploys need. |
-| 10 | Low | Actions are pinned by tag (`@v4`), not by commit SHA. | CI | Open, low priority. |
+| 10 | Low | Actions are pinned by tag (`@v4`), not by commit SHA. | CI | **Fixed** in #66: every action is pinned to a commit SHA, and Dependabot keeps the pins current. |
 | 11 | Info | The `user_sess:{id}` Redis sets never expire, so ended sessions' hashes pile up until the next "end all sessions". This is a slow memory leak, not a security risk. | `engine/auth.py` | Open, housekeeping. |
 
 ## Controls checked and found adequate
