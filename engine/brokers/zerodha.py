@@ -137,15 +137,14 @@ class ZerodhaAdapter(BrokerAdapter):
         exposure = float(utilised.get("exposure") or 0.0)
         collateral_liquid_used = float(utilised.get("liquid_collateral") or 0.0)
         collateral_equity_used = float(utilised.get("stock_collateral") or 0.0)
-        # cash + collateral is NOT real usable margin: exchanges cap how much of a margin
-        # requirement can be met from non-cash collateral, so collateral isn't simply additive to
-        # cash the way an earlier version of this function assumed — that overstated available
-        # margin and would have let a real order through that the account couldn't actually fund.
-        # available_margin (the cash-only figure) stays as-is; engine.broker.preview_order applies
-        # the collateral-utilisation cap itself using collateral_margin minus the *_used fields
-        # below (how much of your currently-used margin is already funded by each collateral type
-        # — Kite's margins() API documents these two, but not an "available, by type" split).
-        return {"available_margin": cash, "cash_margin": cash,
+        # `net` is Kite's own "available margin": cash + pay-in + collateral, minus what open
+        # positions already use. It is the figure the broker's RMS checks orders against, so real
+        # orders are gated on it directly. Rebuilding it from the parts undercounted (issue #40):
+        # utilised.liquid_collateral/stock_collateral describe the pledged collateral itself, so
+        # subtracting them from available.collateral left zero, and a flat cap on collateral
+        # ignored that liquid funds count as cash-equivalent.
+        net = float(margins.get("net") or 0.0)
+        return {"available_margin": net, "cash_margin": cash,
                 "collateral_margin": collateral, "used_margin": used,
                 "span": span, "exposure": exposure,
                 "collateral_liquid_used": collateral_liquid_used,
