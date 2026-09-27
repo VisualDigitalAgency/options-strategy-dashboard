@@ -316,6 +316,12 @@ def _short_qty(positions: list[dict], tradingsymbol: str) -> int:
     return max(-net, 0)
 
 
+def _ist_ts(v) -> str:
+    """A timestamp for a TIMESTAMPTZ column with its IST offset spelled out: Kite's timestamps and
+    ours are IST wall-clock, and a bare string would be read in the database session's zone."""
+    return str(v)[:19] + "+05:30"
+
+
 def _set_order(user_id: int, oid: int, **cols) -> None:
     sets = ", ".join(f"{k}=:{k}" for k in cols)
     with db.tx(user_id) as c:
@@ -347,7 +353,7 @@ def sync_stop_alerts(user_id: int, broker_name: str, session: BrokerSession, pos
                     _set_order(user_id, r["id"], status=status, sl_alert_status="skipped")
                     continue
                 avg = float(h.get("average_price") or 0) or float(r["limit_price"])
-                filled = str(h.get("exchange_timestamp") or h.get("order_timestamp") or now.strftime("%Y-%m-%d %H:%M:%S"))
+                filled = _ist_ts(h.get("exchange_timestamp") or h.get("order_timestamp") or now.strftime("%Y-%m-%d %H:%M:%S"))
                 _set_order(user_id, r["id"], status="complete", average_price=avg, filled_at=filled,
                            sl_price=virtual.tick(avg))
                 r.update(status="complete", average_price=avg, filled_at=filled, sl_price=virtual.tick(avg))
@@ -394,13 +400,13 @@ def sync_stop_alerts(user_id: int, broker_name: str, session: BrokerSession, pos
                 uuid = adapter.create_stop_alert(session, tradingsymbol=tsym, qty=int(r["qty"]),
                                                  trigger_price=stop, limit_price=limit)
             except Exception as e:
-                _set_order(user_id, r["id"], sl_alert_error=str(e)[:500], sl_alert_tried_at=now.strftime("%Y-%m-%d %H:%M:%S"))
+                _set_order(user_id, r["id"], sl_alert_error=str(e)[:500], sl_alert_tried_at=_ist_ts(now.strftime("%Y-%m-%d %H:%M:%S")))
                 auth.audit("broker_sl_alert_failed", actor_id=user_id, target_user_id=user_id,
                            broker=broker_name, broker_order_id=r["kite_order_id"], reason=str(e)[:200])
                 done["failed"] += 1
                 continue
             _set_order(user_id, r["id"], sl_alert_uuid=uuid, sl_alert_status="enabled", sl_alert_error=None,
-                       sl_price=stop, sl_alert_tried_at=now.strftime("%Y-%m-%d %H:%M:%S"))
+                       sl_price=stop, sl_alert_tried_at=_ist_ts(now.strftime("%Y-%m-%d %H:%M:%S")))
             auth.audit("broker_sl_alert_installed", actor_id=user_id, target_user_id=user_id, broker=broker_name,
                        broker_order_id=r["kite_order_id"], alert=uuid, trigger=stop, limit=limit)
             done["installed"] += 1
