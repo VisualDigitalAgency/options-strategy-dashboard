@@ -27,7 +27,7 @@ Severity is about impact on this deployment. Items marked **Fixed** are fixed in
 | 5 | Low | String params had no length cap beyond the 64 KB body limit. Long values reached argon2, Redis keys and `compare_digest`. A non-ASCII `state` made `compare_digest` raise, which returned a generic 500. | `rpc_guard.py`, `engine/broker.py` | **Fixed**: 1000-char cap in `validate`. The state is compared as bytes. Test: `test_security.py` oversized string. |
 | 6 | Medium | Python dependencies are floor-pinned only (`>=`), so each image build can pull different versions. The base images and actions are pinned, but the pip set is not reproducible. | `requirements.txt` | **Fixed** in #63: `requirements.in` lists the direct deps, and `requirements.txt` is the hashed lock (`make lock`), installed with `--require-hashes`. |
 | 7 | Low | `kiteconnect` 5.2.2 (the latest) pins `autobahn==19.11.2`, which has 2 advisories (PYSEC-2020-25, CVE-2026-77528). autobahn is only used by KiteTicker (websockets), which this app never imports. | dependency | Accepted. Revisit when kiteconnect releases a new version. |
-| 8 | Low | The real-order ticket sends typed limit prices, but `broker.preview_order` always uses the current bid. The confirm dialog shows the price actually used, so nothing is hidden, but a typed price is silently ignored. | `engine/broker.py`, `OrderModal.jsx` | Open, product decision: honour the typed limit, or disable the field for real orders. |
+| 8 | Low | The real-order ticket sends typed limit prices, but `broker.preview_order` always uses the current bid. The confirm dialog shows the price actually used, so nothing is hidden, but a typed price is silently ignored. | `engine/broker.py`, `OrderModal.jsx` | **Fixed** in #64: the typed limit is honoured (tick-rounded) and must be within `BROKER_LIMIT_BAND_PCT` (20%) of the bid; the confirm dialog marks a typed limit next to the bid. |
 | 9 | Low | `COOLIFY_TOKEN` is a repo secret that PR workflows can read. It's fine while only trusted collaborators can push, but the token can redeploy every app on the Coolify host. | `.github/workflows/ci.yml` | **Fixed** in #65: deploy secrets live in the `production` environment, which only accepts `main`; the plan job asks for it only on the scheduled run. The token has only deploy + read. |
 | 10 | Low | Actions are pinned by tag (`@v4`), not by commit SHA. | CI | **Fixed** in #66: every action is pinned to a commit SHA, and Dependabot keeps the pins current. |
 | 11 | Info | The `user_sess:{id}` Redis sets never expire, so ended sessions' hashes pile up until the next "end all sessions". This is a slow memory leak, not a security risk. | `engine/auth.py` | **Fixed** in #67: expired hashes are pruned at each sign-in, and the set expires with the 30-day cap. |
@@ -56,7 +56,7 @@ Severity is about impact on this deployment. Items marked **Fixed** are fixed in
 ## Residual risk and follow-up
 
 1. ~~Lock the Python dependencies with hashes (finding 6).~~ Done in #63.
-2. Decide on the real-order limit price (finding 8) before the broker rollout (#9/#10).
+2. ~~Decide on the real-order limit price (finding 8) before the broker rollout (#9/#10).~~ Done in #64.
 3. ~~Scope the deploy secrets and token (finding 9).~~ Done in #65.
 4. The per-IP limits still rely on Traefik replacing the client-sent `X-Forwarded-For` (documented in `deploy/Caddyfile.coolify`). Re-check this if the proxy chain changes.
 5. Real-money auto-trade (#12–#14) will need its own review. Nothing here covers it.

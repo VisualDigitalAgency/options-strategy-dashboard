@@ -187,6 +187,22 @@ cache.set_json(f"broker_snap:{admin_uid}", {"positions": [], "margins": {"availa
 j = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, admin_c)
 token = j["result"]["confirm_token"]
 
+# ---------- issue #64: a typed limit is honoured, within a band around the bid ----------
+
+bid = j["result"]["legs"][0]["market_price"]
+check("with no typed price the limit is the bid", j["result"]["legs"][0]["limit_price"] == bid, j["result"]["legs"])
+typed = round(bid * 1.1 / 0.05) * 0.05
+j2 = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": [{**LEGS[0], "price": typed + 0.01}]}, admin_c)
+leg = (j2.get("result") or {}).get("legs", [{}])[0]
+check("a typed limit is used, rounded to the tick", abs(leg.get("limit_price", 0) - round(typed, 2)) < 1e-9, j2.get("error") or leg)
+payload = cache.get_json(f"broker_confirm:{j2['result']['confirm_token']}") if "result" in j2 else {}
+check("the confirm token carries the typed limit to the broker", payload and payload["legs"][0]["limit_price"] == leg.get("limit_price"), payload)
+for bad, why in ((bid / 10, "a slipped digit far below the bid"), (bid * 2, "far above the bid")):
+    j2 = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": [{**LEGS[0], "price": bad}]}, admin_c)
+    check(f"refused: {why}", j2.get("error", {}).get("code") == -32000 and "away from the current price" in j2["error"]["message"], j2.get("error"))
+j2 = call("broker_preview_order", {"symbol": SYM, "expiry": EXP, "legs": [{**LEGS[0], "price": -5}]}, admin_c)
+check("a non-positive price is refused at the trust boundary", j2.get("error", {}).get("code") == -32602, j2.get("error"))
+
 j = call("broker_place_order", {"confirm_token": "not-a-real-token"}, admin_c)
 check("an unknown confirm_token is refused", j.get("error", {}).get("code") == -32000, j.get("error"))
 
