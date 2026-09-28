@@ -8,9 +8,6 @@ import pandas as pd
 
 from . import config, data_fetch, filters, greeks_sr, span
 
-LIQUIDITY_MIN_OI = 500
-LIQUIDITY_MAX_SPREAD_PCT = 10
-
 
 def _check(checks: list, rule: str, status: str, detail: str):
     checks.append({"rule": rule, "status": status, "detail": detail})
@@ -168,9 +165,11 @@ def evaluate_symbol(symbol: str, yf_symbol: str, today: pd.Timestamp | None = No
             continue
         _check(checks, f"{side} S/R", "pass", f"{leg['strike']:.0f} is clear of all S/R zones")
         spread_pct = (leg["ask"] - leg["bid"]) / leg["premium"] * 100 if leg["premium"] else 0
-        if leg["oi"] < LIQUIDITY_MIN_OI or spread_pct > LIQUIDITY_MAX_SPREAD_PCT:
-            _check(checks, f"{side} liquidity", "warn",
-                   f"OI {leg['oi']:,}, bid-ask spread {spread_pct:.0f}% of premium; fills may slip")
+        if leg["oi"] < config.LIQUIDITY_MIN_OI or spread_pct > config.LIQUIDITY_MAX_SPREAD_PCT:
+            _check(checks, f"{side} liquidity", "fail",
+                   f"OI {leg['oi']:,}, bid-ask spread {spread_pct:.0f}% of premium; too illiquid to trade, leg dropped")
+            continue
+        _check(checks, f"{side} liquidity", "pass", f"OI {leg['oi']:,}, spread {spread_pct:.0f}% of premium")
         leg["max_pain_distance_pct"] = round((leg["strike"] - max_pain) / max_pain * 100, 2)
         legs.append(leg)
 
