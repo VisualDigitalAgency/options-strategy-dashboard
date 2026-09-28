@@ -46,6 +46,7 @@ def universe() -> list[str]:
         _universe_cache.update(at=time.time(), symbols=risk_rules.get_universe())
     return _universe_cache["symbols"]
 
+
 HEAVY_FIELDS = ("history", "chain", "sr_zones")
 screen = ScreenReader()
 
@@ -166,7 +167,6 @@ def va_autotrade_run_now(user_id: int):
     return result
 
 
-
 # ---------- request context and auth methods ----------
 
 COOKIE = os.environ.get("SESSION_COOKIE", "__Host-theta")
@@ -251,6 +251,7 @@ def admin_audit_log(_ctx: Ctx, limit: int = 100):
 # ---------- real broker (phase 1: Zerodha, admin-only soft launch) ----------
 # Only Zerodha is connectable right now, so the broker name isn't a client-supplied param yet;
 # a second broker later adds it back once there's a real choice to make.
+
 
 def broker_connect_url(_ctx: Ctx):
     return broker.connect_url(_ctx.user_id)
@@ -461,7 +462,27 @@ def rpc():
     return resp
 
 
+def wait_for_postgres(timeout: float = 30.0, poll: float = 1.0) -> bool:
+    """Server startup can race with the dev containers coming up. Retry briefly and keep the API
+    process alive so local developers can start it before the database is ready."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with db.tx() as c:
+                c.value("SELECT 1")
+            return True
+        except Exception:
+            time.sleep(poll)
+    return False
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    users.bootstrap_local_user()
+    if not wait_for_postgres(timeout=float(os.environ.get("DB_STARTUP_TIMEOUT", "30"))):
+        log.warning("Postgres is still unavailable; continuing in degraded mode until it comes online")
+    try:
+        users.bootstrap_local_user()
+    except Exception:
+        log.warning("bootstrap_local_user() failed; app will keep running in degraded mode until Postgres is reachable",
+                    exc_info=True)
     app.run(host="127.0.0.1", port=8000, debug=False, threaded=True)
