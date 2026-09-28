@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Hourglass, MailCheck } from 'lucide-react'
 import { useAuth } from '../auth'
 import { rpc, UNVERIFIED } from '../rpc'
@@ -148,9 +148,88 @@ export function Login() {
         <Field label="Email" id="email" type="email" autoComplete="username" inputMode="email" required
           value={email} onChange={(e) => setEmail(e.target.value)} />
         <PasswordField label="Password" id="password" autoComplete="current-password" value={password} onChange={setPassword} />
+        <Link to="/forgot-password" className="link-btn auth-forgot">Forgot password?</Link>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn primary lg auth-submit" disabled={busy || !email || !password}>
           {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </Shell>
+  )
+}
+
+export function ForgotPassword() {
+  const [email, setEmail] = useState('')
+  const [done, setDone] = useState(null)
+  const { busy, error, submit } = useSubmit(async () => {
+    setDone((await rpc('auth_forgot_password', { email })).message)
+  })
+  if (done) {
+    return (
+      <Shell title="Check your email" foot={<Link to="/login">Back to sign in</Link>}>
+        <div className="auth-done">
+          <MailCheck size={20} aria-hidden />
+          <p>{done}</p>
+        </div>
+      </Shell>
+    )
+  }
+  return (
+    <Shell title="Reset your password" lede="Enter your account's email and we'll send a link to reset it."
+      foot={<Link to="/login">Back to sign in</Link>}>
+      <form className="auth-form" onSubmit={submit} noValidate>
+        <Field label="Email" id="email" type="email" autoComplete="username" inputMode="email" required
+          value={email} onChange={(e) => setEmail(e.target.value)} />
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="btn primary lg auth-submit" disabled={busy || !email}>
+          {busy ? 'Sending…' : 'Send reset link'}
+        </button>
+      </form>
+    </Shell>
+  )
+}
+
+export function ResetPassword() {
+  const [params] = useSearchParams()
+  const token = params.get('token') || ''
+  const nav = useNavigate()
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [done, setDone] = useState(null)
+  const mismatch = again && next !== again
+  const { busy, error, submit } = useSubmit(async () => {
+    if (next !== again) throw new Error('The new passwords differ')
+    const r = await rpc('auth_reset_password', { token, new_password: next })
+    setDone(r.message)
+  })
+  if (!token) {
+    return (
+      <Shell title="Reset link invalid" foot={<Link to="/forgot-password">Request a new link</Link>}>
+        <p className="form-error" role="alert">This reset link is missing its token. Request a new one.</p>
+      </Shell>
+    )
+  }
+  if (done) {
+    return (
+      <Shell title="Password changed" foot={<button type="button" className="link-btn" onClick={() => nav('/login', { replace: true })}>Sign in</button>}>
+        <div className="auth-done">
+          <MailCheck size={20} aria-hidden />
+          <p>{done}</p>
+        </div>
+      </Shell>
+    )
+  }
+  return (
+    <Shell title="Set a new password" foot={<Link to="/login">Back to sign in</Link>}>
+      <form className="auth-form" onSubmit={submit} noValidate>
+        <PasswordField label="New password" id="new-password" autoComplete="new-password" value={next}
+          onChange={setNext} hint={`At least ${MIN} characters. Leave out your name and email.`} />
+        <PasswordField label="New password again" id="confirm-password" autoComplete="new-password" value={again}
+          onChange={setAgain} />
+        {mismatch && <p className="form-error" role="alert">The new passwords differ</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="btn primary lg auth-submit" disabled={busy || next.length < MIN || next !== again}>
+          {busy ? 'Saving…' : 'Set new password'}
         </button>
       </form>
     </Shell>
