@@ -119,18 +119,21 @@ export default function Overview() {
     [data, perTrade],
   )
 
+  const [minDte, setMinDte] = useState(null)
+
   const rows = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sort.key)
     return candidates
       .filter((c) => matches(c, filter))
       .filter((c) => mood === 'all' || c.sentiment?.label === mood)
+      .filter((c) => minDte == null || c.dte == null || c.dte >= minDte)
       .filter((c) => c.symbol.toLowerCase().includes(query.trim().toLowerCase()))
       .sort((a, b) => {
         const x = col.get(a), y = col.get(b)
         const cmp = typeof x === 'string' ? x.localeCompare(y) : x - y
         return sort.dir === 'asc' ? cmp : -cmp
       })
-  }, [candidates, filter, mood, query, sort])
+  }, [candidates, filter, mood, query, sort, minDte])
 
   const actionable = candidates.filter((c) => c.legs.length > 0)
   const avgPop = actionable.length ? actionable.reduce((s, c) => s + (c.strategy?.pop ?? 0), 0) / actionable.length : null
@@ -141,6 +144,8 @@ export default function Overview() {
   const clock = useMarketClock()
   const [cfg, setCfg] = useState(null)
   useEffect(() => { rpc('get_config').then(setCfg).catch(() => {}) }, [])
+  useEffect(() => { if (cfg && minDte == null) setMinDte(cfg.min_dte ?? 30) }, [cfg]) // eslint-disable-line react-hooks/exhaustive-deps
+  const baseDte = cfg?.min_dte ?? 30
   const grace = cfg?.sl_grace_days ?? 15
   const slIso = addDaysIso(today, grace)
   const scanned = data?.generated_at
@@ -164,8 +169,23 @@ export default function Overview() {
           <UpdatedTag ts={data?.generated_at} refreshing={refreshing} />
         </div>
         <ul className="rules" aria-label="Screening rules">
+          <li className="rule-slider" title="Only show stocks whose expiry is at least this many days out">
+            <CalendarClock size={14} strokeWidth={2} aria-hidden />
+            <span className="rule-label">Expiry</span>
+            <input
+              type="range"
+              className="v-slider"
+              min={20}
+              max={90}
+              step={1}
+              value={minDte ?? baseDte}
+              onChange={(e) => setMinDte(Number(e.target.value))}
+              aria-label="Minimum days to expiry"
+              orient="vertical"
+            />
+            <b className="num">{'≥'} {minDte ?? baseDte} days</b>
+          </li>
           {[
-            [CalendarClock, 'Expiry', `≥ ${cfg?.min_dte ?? 30} days`, 'Monthly contract at least this many days out'],
             [Triangle, 'Delta', `< ${cfg?.delta_max_abs ?? 0.15}`, 'Strike must have |delta| below this'],
             [Scale, 'PCR', cfg ? `${cfg.pcr_range[0]}–${cfg.pcr_range[1]}` : '0.4–0.7', 'Put-call OI ratio range for the stock'],
             [ChevronsUpDown, 'S/R zone', `±${cfg?.sr_zone_width_pct ?? 1.5}%`, 'A strike inside a swing S/R zone drops that leg'],
