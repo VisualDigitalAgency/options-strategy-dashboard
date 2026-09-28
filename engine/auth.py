@@ -19,6 +19,7 @@
 
 import hashlib
 import json
+import os
 import re
 import secrets
 import time
@@ -48,6 +49,9 @@ CODES_PER_DAY = 5  # code sends per account per 24 hours, sign-up code included
 CONFIRM_DAYS = 14  # an account not confirmed by then is blocked (kept for reference)
 VERIFY_PER_IP = 30  # code checks per 15 minutes
 WRONG = "Email or password is wrong"
+RESET_TTL = 24 * 3600  # password reset link lifetime (#79)
+RESET_GAP = 60  # seconds between reset emails for one account
+RESET_PER_IP = 10  # reset requests per hour, per IP
 
 
 class AuthError(ValueError):
@@ -418,6 +422,82 @@ def verify_email(email: str, code: str, ip: str | None = None) -> dict:
               "email_code_expires_at=NULL WHERE id=:u AND status='unverified'", u=uid)
     audit("email_verified", target_user_id=uid, ip=ip)
     return {"message": "Email confirmed. Your request is waiting for approval. Sign in once an admin has approved it."}
+
+
+# ---------- forgot password (#79) ----------
+# A random, one-time token emailed as a link, valid RESET_TTL. Only its hash is stored,
+# mirroring the sign-up code above. request_password_reset always answers the same way whether
+# or not the email has an account, so the page can't be used to test which emails are registered.
+
+RESET_BAD = "That reset link is wrong or has expired. Request a new one"
+
+
+def _reset_token_hash(token: str) -> str:
+    return hashlib.sha256(f"reset:{token}".encode()).hexdigest()
+
+
+def _reset_base_url() -> str:
+    url = os.environ.get("PUBLIC_URL") or os.environ.get("ALLOWED_ORIGINS", "").split(",")[0]
+    return (url or "http://localhost:5173").rstrip("/")
+
+
+def request_password_reset(email: str, ip: str | None = None) -> dict:
+    email = (email or "").strip().lower()
+    message = {"message": "If that email has an active account, we've sent a link to reset the password. "
+                          "It expires in 24 hours."}
+    if not EMAIL_RE.match(email):
+        return message
+    key = f"rl:resetip:{ip or '-'}"
+    if _count(key) >= RESET_PER_IP:
+        return message
+    token = secrets.token_urlsafe(32)
+    with db.tx() as c:
+        # The gap and status checks live in the WHERE clause, so a second request inside RESET_GAP
+        # updates nothing rather than racing the first request's email.
+        u = c.one(
+            "UPDATE users SET password_reset_token_hash=:h, password_reset_sent_at=now(), "
+            "password_reset_expires_at=now() + make_interval(secs => :ttl) "
+            "WHERE email=:e AND status='active' AND (password_reset_sent_at IS NULL OR "
+            "password_reset_sent_at < now() - make_interval(secs => :gap)) RETURNING id",
+            h=_reset_token_hash(token), ttl=RESET_TTL, e=email, gap=RESET_GAP)
+    if not u:
+        return message
+    cache._call(lambda r: (r.incr(key), r.expire(key, 3600, nx=True)))
+    link = f"{_reset_base_url()}/reset-password?token={token}"
+    try:
+        mail.send(email, "Reset your Theta Desk password",
+                  f"Someone asked to reset the password on this account.\n\n"
+                  f"Reset it here (valid 24 hours): {link}\n\n"
+                  f"If this wasn't you, ignore this email; your password stays unchanged.\n")
+    except mail.MailError as e:
+        audit("mail_failed", target_user_id=u["id"], ip=ip, kind="password_reset", error=str(e)[:300])
+    else:
+        audit("password_reset_requested", target_user_id=u["id"], ip=ip)
+    return message
+
+
+def confirm_password_reset(token: str, new_password: str, ip: str | None = None) -> dict:
+    token = (token or "").strip()
+    if not token:
+        raise AuthError(RESET_BAD)
+    with db.tx() as c:
+        u = c.one("SELECT id, email, name FROM users WHERE password_reset_token_hash=:h "
+                  "AND password_reset_expires_at > now()", h=_reset_token_hash(token))
+    if not u:
+        raise AuthError(RESET_BAD)
+    check_password(new_password, u["email"], u["name"])
+    with db.tx() as c:
+        # The token is consumed in the same UPDATE that checks it, so a second use of the same
+        # link (a race, or a stale tab) can't reset the password twice.
+        n = c.run("UPDATE users SET password_hash=:h, must_change_password=false, "
+                  "password_reset_token_hash=NULL, password_reset_expires_at=NULL WHERE id=:u "
+                  "AND password_reset_token_hash=:th", h=hash_password(new_password), u=u["id"],
+                  th=_reset_token_hash(token))
+    if not n:
+        raise AuthError(RESET_BAD)
+    ended = end_all_sessions(u["id"])
+    audit("password_reset_self", actor_id=u["id"], target_user_id=u["id"], ip=ip, sessions_ended=ended)
+    return {"message": "Password changed. Sign in with your new password."}
 
 
 def me(user_id: int) -> dict:

@@ -217,6 +217,14 @@ def auth_resend_code(_ctx: Ctx, email: str):
     return auth.resend_code(email, ip=_ctx.ip)
 
 
+def auth_forgot_password(_ctx: Ctx, email: str):
+    return auth.request_password_reset(email, ip=_ctx.ip)
+
+
+def auth_reset_password(_ctx: Ctx, token: str, new_password: str):
+    return auth.confirm_password_reset(token, new_password, ip=_ctx.ip)
+
+
 def auth_me(_ctx: Ctx):
     return auth.me(_ctx.user_id) if _ctx.user else None
 
@@ -286,7 +294,8 @@ def broker_exchange_token(_ctx: Ctx, request_token: str, state: str):
 #   ADMIN    signed in with the admin role; context
 
 PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me,
-                  "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code}
+                  "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code,
+                  "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password}
 
 ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set}
 
