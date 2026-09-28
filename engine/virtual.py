@@ -82,7 +82,7 @@ def quote(symbol: str, expiry: str, side: str, strike: float) -> dict:
         raise ValueError(f"{symbol} {expiry} {strike:g} {side} not in the option chain")
     r = df.loc[strike]
     return {"spot": spot, "ltp": float(r[f"{side}_LTP"]), "bid": float(r[f"{side}_BID"]),
-            "ask": float(r[f"{side}_ASK"]), "iv": float(r[f"{side}_IV"])}
+            "ask": float(r[f"{side}_ASK"]), "iv": float(r[f"{side}_IV"]), "oi": int(r[f"{side}_OI"])}
 
 
 def tick(price: float) -> float:
@@ -340,10 +340,25 @@ def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, l
           rp=round(realized, 2), n=note, lim=limit if limit is not None else price)
 
 
+def _check_liquidity(l: dict, q: dict) -> None:
+    """A market order (no limit typed) fills at the ask, so on an illiquid strike that ask is the
+    price the trade books at. Refuse it there instead of letting a wide, thin quote book as the
+    entry premium and show up as a false unbooked loss the moment it fills (#80)."""
+    ask = q["ask"]
+    if ask <= 0:
+        raise ValueError(f"{l['strike']:g} {l['side']} has no live ask price; place a limit order instead")
+    spread_pct = (ask - q["bid"]) / ask * 100 if q["bid"] > 0 else 100.0
+    if q["oi"] < config.LIQUIDITY_MIN_OI or spread_pct > config.LIQUIDITY_MAX_SPREAD_PCT:
+        raise ValueError(f"{l['strike']:g} {l['side']} is too illiquid for a market order "
+                         f"(OI {q['oi']:,}, spread {spread_pct:.0f}% of ask ₹{ask:.2f}); "
+                         f"place a limit order instead")
+
+
 def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> dict:
     """legs: [{side, strike, action: 'BUY'|'SELL', lots, price?}]. `price` is the limit; without it
-    the limit is the bid for a sell and the ask for a buy. Returns each leg's limit, whether it
-    fills now, and the margin impact."""
+    it's a market order and the limit defaults to the touch price (the bid for a sell, the ask for
+    a buy) — gated by _check_liquidity so a thin quote can't book a bad fill. Returns each leg's
+    limit, whether it fills now, and the margin impact."""
     lot = data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry))
     if not lot:
         raise ValueError(f"Lot size for {symbol} {expiry} not found")
@@ -352,6 +367,8 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         if l["action"] not in ("BUY", "SELL") or int(l["lots"]) < 1:
             raise ValueError("Each leg needs action BUY/SELL and at least 1 lot")
         q = quote(symbol, expiry, l["side"], float(l["strike"]))
+        if not l.get("price"):
+            _check_liquidity(l, q)
         limit = tick(l["price"]) if l.get("price") else _default_limit(q, l["action"])
         if limit <= 0:
             raise ValueError("Limit price must be above zero")

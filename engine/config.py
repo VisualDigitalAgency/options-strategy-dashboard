@@ -20,6 +20,12 @@ MIN_DTE = 30
 
 DELTA_MAX_ABS = 0.15  # strike must have |delta| below this on both CE and PE
 
+# Illiquid-strike gate (#80): a leg failing either check is dropped from the screener and refused
+# at order entry, so the virtual account never opens a position whose bid-ask spread alone would
+# show as an unrealized loss the moment it fills.
+LIQUIDITY_MIN_OI = 500
+LIQUIDITY_MAX_SPREAD_PCT = 10
+
 RISK_FREE_RATE = 0.065  # approx India 10Y-adjacent short rate, update periodically
 
 # Swing S/R detection
