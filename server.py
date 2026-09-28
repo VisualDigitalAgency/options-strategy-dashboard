@@ -7,6 +7,7 @@ This process only answers requests, so any number of copies can run side by side
 
 import functools
 import logging
+import math
 import os
 import secrets
 import time
@@ -395,6 +396,18 @@ def healthz():
     return jsonify(checks), (200 if checks["postgres"] else 503)
 
 
+def _finite(v):
+    """Python's JSON writes NaN/Infinity, which browsers refuse to parse: the whole reply then fails
+    with a bare 200. Live chains have gaps (no IV, no bid), so turn those into null."""
+    if isinstance(v, float):
+        return v if math.isfinite(v) else None
+    if isinstance(v, dict):
+        return {k: _finite(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_finite(x) for x in v]
+    return v
+
+
 @app.post("/rpc")
 def rpc():
     # CSRF: browsers always send Origin on a cross-site POST; only our own page may call.
@@ -449,7 +462,7 @@ def rpc():
     except Exception:
         return _internal(req_id, f"rpc {name}")
 
-    resp = jsonify({"jsonrpc": "2.0", "id": req_id, "result": result})
+    resp = jsonify({"jsonrpc": "2.0", "id": req_id, "result": _finite(result)})
     secure = COOKIE.startswith("__Host-") or os.environ.get("COOKIE_SECURE", "1") == "1"
     if ctx.set_cookie:
         resp.set_cookie(COOKIE, ctx.set_cookie, max_age=auth.SESSION_CAP_DAYS * 86400, path="/",
