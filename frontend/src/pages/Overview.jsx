@@ -169,13 +169,13 @@ export default function Overview() {
           <UpdatedTag ts={data?.generated_at} refreshing={refreshing} />
         </div>
         <ul className="rules" aria-label="Screening rules">
-          <li className="rule-slider" title="Only show stocks whose expiry is at least this many days out. The backend only ever screens one expiry cycle per stock (the nearest one at least this many days out), so this can only narrow the current cycle, not reach an earlier one that was never fetched.">
+          <li className="rule-slider" title="Only show stocks whose expiry is at least this many days out. The backend only screens one expiry cycle per stock (the nearest one at least the default minimum out), so values below that default just show every screened stock rather than reaching an earlier cycle that was never fetched.">
             <CalendarClock size={14} strokeWidth={2} aria-hidden />
             <span className="rule-label">Expiry</span>
             <input
               type="range"
               className="v-slider"
-              min={baseDte}
+              min={baseDte - 10}
               max={90}
               step={1}
               value={minDte ?? baseDte}
