@@ -27,6 +27,13 @@ x-app: &app
     REDIS_HOST: redis
     REDIS_PASSWORD: ${REDIS_PASSWORD}
     ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+    MAIL_BACKEND: ${MAIL_BACKEND:-log}
+    MAIL_FROM: ${MAIL_FROM:-}
+    RESEND_API_KEY: ${RESEND_API_KEY:-}
+    SMTP_HOST: ${SMTP_HOST:-}
+    SMTP_PORT: ${SMTP_PORT:-587}
+    SMTP_USER: ${SMTP_USER:-}
+    SMTP_PASS: ${SMTP_PASS:-}
     TZ: Asia/Kolkata
   volumes:
     - app_cache:/app/engine/cache

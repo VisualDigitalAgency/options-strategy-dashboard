@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, Hourglass } from 'lucide-react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Eye, EyeOff, Hourglass, MailCheck } from 'lucide-react'
 import { useAuth } from '../auth'
-import { rpc } from '../rpc'
+import { rpc, UNVERIFIED } from '../rpc'
 import DialMark from '../components/DialMark'
 import { SHOW_KEY as BROKER_POPUP_KEY } from '../components/BrokerOnboarding'
 
@@ -71,17 +71,76 @@ function useSubmit(fn) {
   return { busy, error, submit }
 }
 
+// Sign-up email check (#45): shown after sign-up, and when an unverified account signs in.
+function VerifyEmail({ email, intro }) {
+  const [code, setCode] = useState('')
+  const [done, setDone] = useState(null)
+  const [note, setNote] = useState(intro)
+  const [sending, setSending] = useState(false)
+  const { busy, error, submit } = useSubmit(async () => {
+    const r = await rpc('auth_verify_email', { email, code: code.replace(/\s/g, '') })
+    setDone(r.message)
+  })
+  const resend = async () => {
+    setSending(true)
+    try {
+      setNote((await rpc('auth_resend_code', { email })).message)
+    } catch (err) {
+      setNote(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
+  if (done) {
+    return (
+      <Shell title="Email confirmed" foot={<Link to="/login">Back to sign in</Link>}>
+        <div className="auth-done">
+          <Hourglass size={20} aria-hidden />
+          <p>{done}</p>
+        </div>
+      </Shell>
+    )
+  }
+  return (
+    <Shell title="Check your email" foot={<Link to="/login">Back to sign in</Link>}>
+      <div className="auth-done">
+        <MailCheck size={20} aria-hidden />
+        <p role="status">{note}</p>
+      </div>
+      <form className="auth-form" onSubmit={submit} noValidate>
+        <Field label="6-digit code" id="code" autoComplete="one-time-code" inputMode="numeric" maxLength={7} required
+          value={code} onChange={(e) => setCode(e.target.value)} hint={`Sent to ${email}. It expires in 10 minutes.`} />
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="btn primary lg auth-submit" disabled={busy || code.replace(/\s/g, '').length !== 6}>
+          {busy ? 'Checking…' : 'Confirm email'}
+        </button>
+        <button type="button" className="link-btn" onClick={resend} disabled={sending}>
+          {sending ? 'Sending…' : 'Send a new code'}
+        </button>
+      </form>
+    </Shell>
+  )
+}
+
 export function Login() {
   const { login } = useAuth()
   const nav = useNavigate()
   const next = new URLSearchParams(useLocation().search).get('next')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [verify, setVerify] = useState(null)
   const { busy, error, submit } = useSubmit(async () => {
-    await login(email, password)
+    try {
+      await login(email, password)
+    } catch (err) {
+      if (err.code !== UNVERIFIED) throw err
+      setVerify(err.message)
+      return
+    }
     try { sessionStorage.setItem(BROKER_POPUP_KEY, '1') } catch { /* storage blocked: popup just won't show */ }
     nav(next && next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true })
   })
+  if (verify) return <VerifyEmail email={email.trim().toLowerCase()} intro={verify} />
   return (
     <Shell title="Sign in" lede="Your virtual account, screener and auto-trade settings."
       foot={<>No account yet? <Link to="/register">Request access</Link></>}>
@@ -89,9 +148,88 @@ export function Login() {
         <Field label="Email" id="email" type="email" autoComplete="username" inputMode="email" required
           value={email} onChange={(e) => setEmail(e.target.value)} />
         <PasswordField label="Password" id="password" autoComplete="current-password" value={password} onChange={setPassword} />
+        <Link to="/forgot-password" className="link-btn auth-forgot">Forgot password?</Link>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn primary lg auth-submit" disabled={busy || !email || !password}>
           {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </Shell>
+  )
+}
+
+export function ForgotPassword() {
+  const [email, setEmail] = useState('')
+  const [done, setDone] = useState(null)
+  const { busy, error, submit } = useSubmit(async () => {
+    setDone((await rpc('auth_forgot_password', { email })).message)
+  })
+  if (done) {
+    return (
+      <Shell title="Check your email" foot={<Link to="/login">Back to sign in</Link>}>
+        <div className="auth-done">
+          <MailCheck size={20} aria-hidden />
+          <p>{done}</p>
+        </div>
+      </Shell>
+    )
+  }
+  return (
+    <Shell title="Reset your password" lede="Enter your account's email and we'll send a link to reset it."
+      foot={<Link to="/login">Back to sign in</Link>}>
+      <form className="auth-form" onSubmit={submit} noValidate>
+        <Field label="Email" id="email" type="email" autoComplete="username" inputMode="email" required
+          value={email} onChange={(e) => setEmail(e.target.value)} />
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="btn primary lg auth-submit" disabled={busy || !email}>
+          {busy ? 'Sending…' : 'Send reset link'}
+        </button>
+      </form>
+    </Shell>
+  )
+}
+
+export function ResetPassword() {
+  const [params] = useSearchParams()
+  const token = params.get('token') || ''
+  const nav = useNavigate()
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [done, setDone] = useState(null)
+  const mismatch = again && next !== again
+  const { busy, error, submit } = useSubmit(async () => {
+    if (next !== again) throw new Error('The new passwords differ')
+    const r = await rpc('auth_reset_password', { token, new_password: next })
+    setDone(r.message)
+  })
+  if (!token) {
+    return (
+      <Shell title="Reset link invalid" foot={<Link to="/forgot-password">Request a new link</Link>}>
+        <p className="form-error" role="alert">This reset link is missing its token. Request a new one.</p>
+      </Shell>
+    )
+  }
+  if (done) {
+    return (
+      <Shell title="Password changed" foot={<button type="button" className="link-btn" onClick={() => nav('/login', { replace: true })}>Sign in</button>}>
+        <div className="auth-done">
+          <MailCheck size={20} aria-hidden />
+          <p>{done}</p>
+        </div>
+      </Shell>
+    )
+  }
+  return (
+    <Shell title="Set a new password" foot={<Link to="/login">Back to sign in</Link>}>
+      <form className="auth-form" onSubmit={submit} noValidate>
+        <PasswordField label="New password" id="new-password" autoComplete="new-password" value={next}
+          onChange={setNext} hint={`At least ${MIN} characters. Leave out your name and email.`} />
+        <PasswordField label="New password again" id="confirm-password" autoComplete="new-password" value={again}
+          onChange={setAgain} />
+        {mismatch && <p className="form-error" role="alert">The new passwords differ</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="btn primary lg auth-submit" disabled={busy || next.length < MIN || next !== again}>
+          {busy ? 'Saving…' : 'Set new password'}
         </button>
       </form>
     </Shell>
@@ -105,20 +243,21 @@ export function Register() {
   const [done, setDone] = useState(null)
   const { busy, error, submit } = useSubmit(async () => {
     const r = await rpc('auth_register', { name, email, password })
-    setDone(r.message)
+    setDone(r)
   })
+  if (done?.verify) return <VerifyEmail email={done.email} intro={done.message} />
   if (done) {
     return (
       <Shell title="Request sent" foot={<Link to="/login">Back to sign in</Link>}>
         <div className="auth-done">
           <Hourglass size={20} aria-hidden />
-          <p>{done}</p>
+          <p>{done.message}</p>
         </div>
       </Shell>
     )
   }
   return (
-    <Shell title="Request access" lede="An admin approves each new account. You start with ₹10,00,000 of virtual capital."
+    <Shell title="Request access" lede="Confirm your email, then an admin approves the account. You start with ₹10,00,000 of virtual capital."
       foot={<>Already approved? <Link to="/login">Sign in</Link></>}>
       <form className="auth-form" onSubmit={submit} noValidate>
         <Field label="Name" id="name" autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} />

@@ -13,7 +13,7 @@
 
 Screens every Nifty 50 stock for 30+ DTE option-selling setups and trades them on a virtual (paper) account with live NSE prices. Real broker execution (Zerodha) exists but is soft-launched to admi[...]
 
-Live: https://theta.connectbiomedical.com (sign-in required; new users are approved by the admin).
+Live: https://theta.connectbiomedical.com (sign-in required; new users confirm their email, then the admin approves them).
 
 **Stack:** Python 3.12 / Flask JSON-RPC API, a background worker, PostgreSQL 16, Redis 7, React 19 (Vite) frontend, Caddy in front.
 

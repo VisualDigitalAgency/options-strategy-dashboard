@@ -114,6 +114,17 @@ If anything looks wrong before step 7, the rollback is to put the old key back a
 
 **Self-hosted (`docker-compose.yml`)**: the current key is the `./secrets/broker_enc_key` file. Put the old key in `.env` as `BROKER_ENC_KEY_PREVIOUS=...`, write the new key to `./secrets/broker_enc_key`, then `docker compose up -d api worker`. Run steps 5–6 with `docker compose exec api python scripts/rotate_broker_key.py`, then remove the line from `.env` and `docker compose up -d api worker` again.
 
+## Sign-up emails (issue #45)
+
+New sign-ups confirm their email with a 6-digit code before they appear for approval. Set in Coolify's environment variables:
+
+- `MAIL_BACKEND`: `resend` or `smtp`. Left unset it is `log`: nothing is sent and codes only appear in the api logs, so nobody new can confirm their email.
+- `MAIL_FROM`: the sender, e.g. `Theta Desk <no-reply@your-domain>`. The domain must be verified with the provider.
+- Resend: `RESEND_API_KEY`.
+- SMTP: `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS, 465 TLS), `SMTP_USER`, `SMTP_PASS`.
+
+The admin page lists only confirmed requests. Each account gets at most 5 codes a day, after which "Send a new code" says the daily limit is reached. An account not confirmed within 14 days is blocked but kept for reference, and its email can't sign up again. A failed send is retried 3 times, then logged and recorded as `mail_failed` in the audit log.
+
 ## Known residual risks
 
 - Coolify injects every UI variable into every service (`env_file: .env`), so `DB_OWNER_PASSWORD` is readable inside api, worker and web. The app only uses it in `migrate`. The code can't remove this; it goes away only if you keep the owner password out of Coolify and run migrations by hand.

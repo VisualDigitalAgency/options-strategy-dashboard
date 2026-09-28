@@ -11,7 +11,7 @@ import DetailSkeleton from './components/DetailSkeleton'
 import Overview from './pages/Overview'
 import DialMark from './components/DialMark'
 import { AuthProvider, useAuth } from './auth'
-import { ChangePassword, Login, Register } from './pages/AuthPages'
+import { ChangePassword, ForgotPassword, Login, Register, ResetPassword } from './pages/AuthPages'
 import BrokerOnboarding from './components/BrokerOnboarding'
 
 const StockDetail = lazy(() => import('./pages/StockDetail'))
@@ -216,6 +216,8 @@ function SignedIn() {
             {user.role === 'admin' && <Route path="/admin" element={lazyPage(Admin)} />}
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/register" element={<Navigate to="/" replace />} />
+            <Route path="/forgot-password" element={<Navigate to="/" replace />} />
+            <Route path="/reset-password" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -231,6 +233,8 @@ function SignedOut() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="*" element={<Navigate to={here === '/' ? '/login' : `/login?next=${encodeURIComponent(here)}`} replace />} />
     </Routes>
   )

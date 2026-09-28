@@ -5,6 +5,7 @@ let nextId = 1
 
 export const NOT_SIGNED_IN = -32001
 export const MUST_CHANGE = -32004
+export const UNVERIFIED = -32005 // right password, email not confirmed yet: show the code form
 
 export class RpcError extends Error {
   constructor(message, code) {

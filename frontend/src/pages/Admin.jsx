@@ -12,6 +12,8 @@ const ACTION = {
   login_failed: 'Wrong password', login_blocked: 'Sign-in blocked (not active)', logout: 'Signed out',
   user_active: 'Approved or re-enabled', user_rejected: 'Rejected', user_disabled: 'Disabled',
   password_changed: 'Changed password', password_change_failed: 'Wrong current password',
+  email_code_sent: 'Sign-up code emailed', email_verified: 'Confirmed email', email_verify_failed: 'Wrong sign-up code',
+  mail_failed: 'Email failed to send', signup_unblocked: 'Unblocked sign-up',
   password_reset: 'Temporary password issued', admin_password_set: 'Admin password set', sqlite_import: 'Data imported',
 }
 
@@ -101,12 +103,16 @@ export default function Admin() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [temp, setTemp] = useState(null)
+  const [blocked, setBlocked] = useState(null)
+  const [note, setNote] = useState(null)
 
   const load = useCallback(async () => {
     try {
-      const [u, l] = await Promise.all([rpc('admin_list_users'), rpc('admin_audit_log', { limit: 100 })])
+      const [u, l, b] = await Promise.all([rpc('admin_list_users'), rpc('admin_audit_log', { limit: 100 }),
+        rpc('admin_list_blocked')])
       setUsers(u)
       setLog(l)
+      setBlocked(b)
     } catch (e) {
       setError(e.message)
     }
@@ -136,6 +142,22 @@ export default function Admin() {
     }
   }
 
+  const unblock = async (b) => {
+    setBusy(true)
+    setError(null)
+    setNote(null)
+    try {
+      const r = await rpc('admin_unblock_signup', { target_id: b.id })
+      setNote(r.sent ? `Unblocked ${b.email}. A new code is on its way; they have 14 days to confirm.`
+        : `Unblocked ${b.email}, but the code email failed. They can use "Send a new code" once mail works.`)
+      await load()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const waiting = users?.filter((u) => u.status === 'pending').length ?? 0
   return (
     <div className="detail">
@@ -151,6 +173,9 @@ export default function Admin() {
         <button role="tab" aria-selected={tab === 'users'} className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>
           Users {users && <span className="muted">{users.length}</span>}
         </button>
+        <button role="tab" aria-selected={tab === 'blocked'} className={tab === 'blocked' ? 'active' : ''} onClick={() => setTab('blocked')}>
+          Blocked sign-ups {blocked?.length > 0 && <span className="muted">{blocked.length}</span>}
+        </button>
         <button role="tab" aria-selected={tab === 'log'} className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>Activity</button>
       </div>
 
@@ -161,6 +186,32 @@ export default function Admin() {
             <tbody>{users?.map((u) => <UserRow key={u.id} u={u} me={me} onAct={act} />)}</tbody>
           </table>
         </div>
+      )}
+      {tab === 'blocked' && (
+        <>
+          <p className="muted small">Sign-ups that didn&apos;t confirm their email within 14 days. Unblock someone support has
+            checked: they get a new code and 14 more days, then confirm and wait for approval as usual.</p>
+          {note && <p className="form-ok" role="status">{note}</p>}
+          <div className="card table-scroll">
+            <table className="admin-table">
+              <thead><tr><th>User</th><th>Signed up</th><th /></tr></thead>
+              <tbody>
+                {blocked?.length === 0 && <tr><td colSpan={3} className="muted small">No blocked sign-ups.</td></tr>}
+                {blocked?.map((b) => (
+                  <tr key={b.id}>
+                    <td><b>{b.name}</b><span className="muted small block">{b.email}</span></td>
+                    <td className="mono small">{dateTime(b.created_at)}</td>
+                    <td><div className="admin-actions">
+                      <button className="btn small ghost" disabled={busy} onClick={() => unblock(b)}>
+                        <UserCheck size={15} aria-hidden /> Unblock and resend code
+                      </button>
+                    </div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
       {tab === 'log' && (
         <div className="card table-scroll">

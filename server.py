@@ -210,6 +210,22 @@ def auth_login(_ctx: Ctx, email: str, password: str):
     return user
 
 
+def auth_verify_email(_ctx: Ctx, email: str, code: str):
+    return auth.verify_email(email, code, ip=_ctx.ip)
+
+
+def auth_resend_code(_ctx: Ctx, email: str):
+    return auth.resend_code(email, ip=_ctx.ip)
+
+
+def auth_forgot_password(_ctx: Ctx, email: str):
+    return auth.request_password_reset(email, ip=_ctx.ip)
+
+
+def auth_reset_password(_ctx: Ctx, token: str, new_password: str):
+    return auth.confirm_password_reset(token, new_password, ip=_ctx.ip)
+
+
 def auth_me(_ctx: Ctx):
     return auth.me(_ctx.user_id) if _ctx.user else None
 
@@ -236,6 +252,14 @@ def admin_list_users(_ctx: Ctx):
 
 def admin_set_status(_ctx: Ctx, target_id: int, status: str):
     return auth.set_status(_ctx.user_id, target_id, status, ip=_ctx.ip)
+
+
+def admin_list_blocked(_ctx: Ctx):
+    return auth.list_blocked()
+
+
+def admin_unblock_signup(_ctx: Ctx, target_id: int):
+    return auth.unblock_signup(_ctx.user_id, target_id, ip=_ctx.ip)
 
 
 def admin_reset_password(_ctx: Ctx, target_id: int):
@@ -271,7 +295,9 @@ def broker_exchange_token(_ctx: Ctx, request_token: str, state: str):
 #            rpc_guard refuses a client-sent `user_id`, so no request can act for someone else.
 #   ADMIN    signed in with the admin role; context
 
-PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me}
+PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me,
+                  "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code,
+                  "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password}
 
 ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set}
 
@@ -322,6 +348,8 @@ ADMIN_METHODS = {
     "admin_set_status": admin_set_status,
     "admin_reset_password": admin_reset_password,
     "admin_audit_log": admin_audit_log,
+    "admin_list_blocked": admin_list_blocked,
+    "admin_unblock_signup": admin_unblock_signup,
     # Real-money connection, soft-launched to admins only; see doc/2026-09-26-broker-integration-phase1-zerodha.md
     "broker_connect_url": broker_connect_url,
     "broker_exchange_token": broker_exchange_token,
@@ -338,7 +366,7 @@ TABLES = [(PUBLIC_METHODS, "public"), (ACCOUNT_METHODS, "account"), (METHODS, "s
 _names = [n for t, _ in TABLES for n in t]
 assert len(_names) == len(set(_names)), "an RPC name appears in two tables"
 
-NOT_SIGNED_IN, FORBIDDEN, MUST_CHANGE = -32001, -32003, -32004
+NOT_SIGNED_IN, FORBIDDEN, MUST_CHANGE, UNVERIFIED = -32001, -32003, -32004, -32005
 
 
 def _error(req_id, code, message, status=200):
@@ -457,6 +485,8 @@ def rpc():
     except UPSTREAM_ERRORS:  # before USER_ERRORS: requests' JSON decode error is a ValueError
         log.warning("rpc %s: upstream data failed", name, exc_info=True)
         return _error(req_id, -32000, UPSTREAM_MESSAGE)
+    except auth.EmailUnverified as e:  # the client swaps to the code form
+        return _error(req_id, UNVERIFIED, str(e))
     except USER_ERRORS as e:
         return _error(req_id, -32000, str(e))
     except Exception:
