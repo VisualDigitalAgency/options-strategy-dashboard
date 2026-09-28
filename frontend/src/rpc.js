@@ -13,18 +13,33 @@ export class RpcError extends Error {
   }
 }
 
+// A 503 never comes from the API itself: it is the proxy saying no backend is up (a redeploy or
+// restart in progress), so the call never ran and resending it is safe, even for orders.
+const RETRY_DELAYS_MS = [1000, 2000, 4000]
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export async function rpc(method, params = {}) {
-  const res = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params }),
-  })
+  const payload = JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params })
+  let res
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: payload,
+    })
+    if (res.status !== 503 || attempt >= RETRY_DELAYS_MS.length) break
+    await sleep(RETRY_DELAYS_MS[attempt])
+  }
   let body
   try {
     body = await res.json()
   } catch {
-    throw new RpcError(`The server answered ${res.status}; try again in a moment`, res.status)
+    const why = res.status === 503 || res.status === 502
+      ? 'The server is restarting or not running'
+      : `The server answered ${res.status}`
+    throw new RpcError(`${why}; try again in a moment`, res.status)
   }
   if (body.error) {
     const { code, message } = body.error
