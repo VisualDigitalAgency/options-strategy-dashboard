@@ -16,7 +16,14 @@ NIFTY50_FALLBACK = [
 PCR_MIN = 0.4
 PCR_MAX = 0.7
 
-MIN_DTE = 30
+MIN_DTE = 30  # the strategy's entry floor: auto-trade only opens cycles at least this far out, and
+              # the Screener's Expiry slider starts here
+
+# Expiry cycles screened per stock: every monthly expiry between these bounds (the Expiry
+# slider's range), nearest first, capped so a data anomaly can't multiply NSE calls.
+SCREEN_DTE_FLOOR = 20
+SCREEN_DTE_CEIL = 90
+SCREEN_MAX_EXPIRY_CYCLES = 4
 
 DELTA_MAX_ABS = 0.15  # strike must have |delta| below this on both CE and PE
 

@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import cache, db, users, virtual
+from . import cache, config, db, users, virtual
 
 log = logging.getLogger("theta.autotrade")
 
@@ -113,7 +113,17 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
     free = acct["available_margin"]
 
     placed, skipped = [], []
-    ready = [c for c in candidates if c.get("legs") and (c.get("strategy") or {}).get("margin")]
+    # The screen carries several expiry cycles per stock. Auto-trade stays at one position per stock
+    # per run: only cycles at least MIN_DTE out (a nearer one would hit the time exit before its stop
+    # ever arms), and of those the best-scoring one, nearer expiry on a tie.
+    best: dict[str, dict] = {}
+    for c in candidates:
+        if not (c.get("legs") and (c.get("strategy") or {}).get("margin")) or (c.get("dte") or 0) < config.MIN_DTE:
+            continue
+        cur = best.get(c["symbol"])
+        if cur is None or (score(c), -c["dte"]) > (score(cur), -cur["dte"]):
+            best[c["symbol"]] = c
+    ready = list(best.values())
     scores = {c["symbol"]: score(c) for c in ready}  # kept local: candidates are the shared screen cache
     ready.sort(key=lambda c: scores[c["symbol"]], reverse=True)
 

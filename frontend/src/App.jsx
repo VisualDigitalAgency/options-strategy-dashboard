@@ -38,7 +38,7 @@ function TickerItem({ c, hidden }) {
   const tone = chg > 0 ? 'pos' : chg < 0 ? 'neg' : 'muted'
   return (
     <li aria-hidden={hidden || undefined}>
-      <Link to={`/stock/${encodeURIComponent(c.symbol)}`} className="ticker-item" tabIndex={hidden ? -1 : undefined}>
+      <Link to={`/stock/${encodeURIComponent(c.symbol)}?expiry=${c.expiry}`} className="ticker-item" tabIndex={hidden ? -1 : undefined}>
         <span className="ticker-sym">{c.symbol}</span>
         <span className="num ticker-spot">{num(c.spot)}</span>
         <span className={`ticker-chg num ${tone}`}>
@@ -53,9 +53,11 @@ function TickerItem({ c, hidden }) {
 function TickerBar() {
   const { data } = useScreen()
   const { account } = useBudget()
-  const items = (data?.candidates ?? [])
+  const sorted = (data?.candidates ?? [])
     .filter((c) => c.legs?.length && c.strategy)
     .sort((a, b) => (b.strategy.pop ?? 0) - (a.strategy.pop ?? 0))
+  // Several expiry cycles per stock: show each stock once, at its highest-POP cycle.
+  const items = sorted.filter((c, i) => sorted.findIndex((o) => o.symbol === c.symbol) === i)
   const pnl = account?.unrealized_pnl ?? 0
   const booked = account?.realized_pnl ?? 0
   // Roughly constant speed whatever the item count: ~3.5s per item.

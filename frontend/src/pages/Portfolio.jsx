@@ -104,7 +104,7 @@ function Group({ g, onAction }) {
     <section className="card pos-group">
       <header className="pos-head">
         <div className="pos-title">
-          <Link to={`/stock/${encodeURIComponent(g.symbol)}`} className="sym-lg">{g.symbol}</Link>
+          <Link to={`/stock/${encodeURIComponent(g.symbol)}${g.expiry ? `?expiry=${g.expiry}` : ''}`} className="sym-lg">{g.symbol}</Link>
           <span className="chip action-strangle">{g.strategy}</span>
           <span className="muted small">
             Expires {shortDate(g.expiry)}, {g.dte} days left. Time exit <b>{shortDate(g.time_exit_on)}</b>. Profit exit at <b>90%</b> decay. Spot <span className="num">{num(g.spot)}</span>

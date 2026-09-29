@@ -96,15 +96,17 @@ def get_screened_candidates(force_refresh: bool = False):
     }
 
 
-def get_trade_detail(symbol: str):
-    found = screen.get(symbol)
+def get_trade_detail(symbol: str, expiry: str | None = None):
+    """One stock's full screen row for `expiry` (YYYY-MM-DD). Without it, or once that cycle has
+    rolled off the screen, the nearest cycle at least MIN_DTE days out."""
+    found = screen.get(symbol, expiry)
     if found:
         return found
     # Not screened yet (first screen still in flight): evaluate this one stock on demand, rate-limited.
     if not throttle.allow(f"detail:{symbol}", DETAIL_EVAL_EVERY):
         raise ValueError(f"{symbol} is still being screened; try again in a few seconds")
     span.load(universe())
-    return risk_rules.safe_evaluate(symbol)
+    return risk_rules.pick_cycle(risk_rules.safe_evaluate_cycles(symbol), expiry)
 
 
 def va_refresh_positions(user_id: int):
@@ -118,6 +120,7 @@ def get_config():
     return {
         "pcr_range": [config.PCR_MIN, config.PCR_MAX],
         "min_dte": config.MIN_DTE,
+        "screen_dte_range": [config.SCREEN_DTE_FLOOR, config.SCREEN_DTE_CEIL],
         "delta_max_abs": config.DELTA_MAX_ABS,
         "sl_grace_days": config.SL_GRACE_DAYS,
         "time_exit_dte": config.TIME_EXIT_DTE,
