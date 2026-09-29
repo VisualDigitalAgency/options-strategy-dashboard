@@ -1,9 +1,9 @@
 import EventBadge from '../components/EventBadge'
-import { EVENT_LABEL } from '../events'
+import EventTable from '../components/EventTable'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, ArrowLeft, Calculator, ChartCandlestick, ChartNoAxesColumn, ChartSpline, ClipboardCheck, Minus, Plus,
+  AlertCircle, ArrowLeft, Calculator, CalendarClock, ChartCandlestick, ChartNoAxesColumn, ChartSpline, ClipboardCheck, Minus, Plus,
   ShieldAlert, ShieldCheck, Sigma, SlidersHorizontal,
 } from 'lucide-react'
 import { rpc } from '../rpc'
@@ -38,6 +38,7 @@ const CARD_ICON = {
   'Screening log': ClipboardCheck,
   'Open interest by strike': ChartNoAxesColumn,
   'Stop-loss plan': ShieldAlert,
+  'Events before expiry': CalendarClock,
 }
 
 function Card({ title, sub, children, className = '' }) {
@@ -150,19 +151,9 @@ export default function StockDetail() {
             <div className="hero-tags">
               <ActionBadge action={d.action} />
               <SentimentBadge sentiment={d.sentiment} />
-              <EventBadge events={d.events} />
+              <EventBadge events={d.events} expiry={d.expiry} />
             </div>
           </div>
-          {d.events?.length > 0 && (
-            <ul className="ev-list" aria-label="Corporate events before expiry">
-              {d.events.map((e) => (
-                <li key={`${e.type}-${e.date}`} className={e.risky ? 'risky' : ''}>
-                  <b>{EVENT_LABEL[e.type] ?? e.type}</b> <span className="num">{shortDate(e.date)}</span>{' '}
-                  <span className="muted">({e.days_away}d, before this expiry)</span> {e.purpose}
-                </li>
-              ))}
-            </ul>
-          )}
           <dl className="facts-inline">
             <div>
               <dt>Expiry</dt>
@@ -215,6 +206,12 @@ export default function StockDetail() {
           </button>
         )}
       </section>
+
+      {d.events?.length > 0 && (
+        <Card title="Events before expiry" sub={`Corporate events up to the ${shortDate(d.expiry)} expiry`} className="ev-card">
+          <EventTable events={d.events} showStock={false} label="Corporate events before expiry" />
+        </Card>
+      )}
 
       {!actionable && (
         <div className="alert neutral" role="status">

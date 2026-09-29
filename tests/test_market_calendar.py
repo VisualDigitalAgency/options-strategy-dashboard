@@ -76,6 +76,7 @@ check("detail carries events", [e["type"] for e in detail["events"]] == ["result
 check("screen cache not mutated", "events" not in job.results["SBIN"][0], None)
 cal = server.get_market_calendar()
 check("calendar RPC", cal["holidays"][0]["date"] == "2026-10-02" and len(cal["events"]) == 4 and cal["today"] == "2026-09-29", cal)
+check("calendar RPC lists the screened expiries", cal["expiries"] == ["2026-10-27", "2026-12-29"], cal["expiries"])
 
 # ---- holidays skipped by the screen schedule (2026-10-02 is a Friday holiday)
 IST = virtual.IST
