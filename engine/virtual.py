@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from . import cache, config, data_fetch, db, greeks_sr, pivots, risk_rules, span, users
+from . import cache, config, data_fetch, db, greeks_sr, pivots, pricing, risk_rules, span, users
 
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: Windows Python has no tz database
 SL_MODES = ("auto", "alert", "off")
@@ -89,13 +89,37 @@ def tick(price: float) -> float:
     return round(round(float(price) / TICK) * TICK, 2)
 
 
+MARK_TTL = 5 * 86400  # an in-session mark stands in until the next session, weekends included
+
+
+def mark(symbol: str, expiry: str, side: str, strike: float, q: dict) -> tuple[float | None, str]:
+    """Fair value of an open leg (engine/pricing.mark): the bid/ask mid. In session each mid is kept
+    in Redis; out of session NSE often clears or freezes the book, so that last in-session mid is
+    used ("close") instead of a stale LTP."""
+    key = f"mark:{symbol}:{expiry}:{side}:{float(strike):g}"
+    if market_open() and pricing.has_book(q["bid"], q["ask"]):
+        px = pricing.mid(q["bid"], q["ask"])
+        cache.set_json(key, {"px": px}, ttl=MARK_TTL)
+        return px, "mid"
+    if not market_open():
+        kept = cache.get_json(key)
+        if kept:
+            return float(kept["px"]), "close"
+    return pricing.mark(q["bid"], q["ask"], q["ltp"])
+
+
 def _touch(q: dict, action: str) -> float:
     """The price a marketable limit fills at: the bid for a sell, the ask for a buy (0 if none)."""
     return q["bid"] if action == "SELL" else q["ask"]
 
 
 def _default_limit(q: dict, action: str) -> float:
-    """Ticket default: the touch price, or the last traded price when there is no bid/ask."""
+    """Ticket default: the touch price on a tight book; the mid when the spread is wider than
+    TICKET_MID_SPREAD_PCT (it may rest instead of filling, but doesn't give the spread away);
+    the last traded price when there is no bid/ask."""
+    sp = pricing.spread_pct(q["bid"], q["ask"])
+    if sp is not None and sp > config.TICKET_MID_SPREAD_PCT:
+        return tick(pricing.mid(q["bid"], q["ask"]))
     px = _touch(q, action) or q["ltp"]
     if px <= 0:
         raise ValueError("No price available for this contract")
@@ -208,7 +232,7 @@ def get_positions(user_id: int) -> dict:
     with db.tx(user_id) as c:
         rows = _open_rows(c, user_id)
     today = _today()
-    groups, totals = [], {"pnl": 0.0, "margin": 0.0, "delta": 0.0, "theta": 0.0, "vega": 0.0, "gamma": 0.0}
+    groups, totals = [], {"pnl": 0.0, "pnl_exit": 0.0, "margin": 0.0, "delta": 0.0, "theta": 0.0, "vega": 0.0, "gamma": 0.0}
     for (symbol, expiry), legs in _groups(rows).items():
         dte = max((pd.Timestamp(expiry) - today).days, 0)
         spot, out_legs, err = None, [], None
@@ -221,29 +245,38 @@ def get_positions(user_id: int) -> dict:
                 q = quote(symbol, expiry, r["side"], r["strike"])
                 spot = q["spot"]
                 g = greeks_sr.bs_greeks(spot, r["strike"], max(dte, 1), q["iv"], r["side"]) if q["iv"] > 0 else {}
-                leg.update(ltp=q["ltp"], bid=q["bid"], ask=q["ask"], iv=q["iv"],
-                           pnl=round((q["ltp"] - r["avg_price"]) * r["qty"], 2),
+                px, src = mark(symbol, expiry, r["side"], r["strike"], q)
+                # Closing touch: a short buys back at the ask, a long sells at the bid.
+                close_px = q["ask"] if r["qty"] < 0 else q["bid"]
+                leg.update(ltp=q["ltp"], bid=q["bid"], ask=q["ask"], iv=q["iv"], mark=px, mark_src=src,
+                           ltp_gap_pct=pricing.ltp_gap_pct(q["bid"], q["ask"], q["ltp"]),
+                           pnl=round((px - r["avg_price"]) * r["qty"], 2) if px is not None else 0.0,
+                           pnl_exit=round((close_px - r["avg_price"]) * r["qty"], 2) if close_px > 0 else None,
                            **{k: round(v * r["qty"], 4) for k, v in g.items()})
             except Exception as e:
                 err = str(e)
-                leg.update(ltp=None, pnl=0.0)
+                leg.update(ltp=None, mark=None, mark_src="none", pnl=0.0, pnl_exit=None)
             out_legs.append(leg)
         try:
             m = group_margin(symbol, expiry, legs, spot) if spot else None
         except Exception as e:
             m, err = None, str(e)
         pnl = round(sum(l["pnl"] for l in out_legs), 2)
+        exits = [l["pnl_exit"] for l in out_legs]
+        pnl_exit = round(sum(exits), 2) if exits and None not in exits else None
         greeks = {k: round(sum(l.get(k, 0) for l in out_legs), 3) for k in ("delta", "theta", "vega", "gamma")}
         premium = round(sum(-l["qty"] * l["avg_price"] for l in out_legs), 2)
         groups.append({"symbol": symbol, "expiry": expiry, "dte": dte, "spot": spot, "legs": out_legs,
                        "time_exit_on": time_exit_date(expiry),
-                       "strategy": _strategy_label(legs), "pnl": pnl, "net_premium": premium,
+                       "strategy": _strategy_label(legs), "pnl": pnl, "pnl_exit": pnl_exit, "net_premium": premium,
                        "margin": m, "greeks": greeks, "error": err})
         totals["pnl"] += pnl
+        if totals.get("pnl_exit", 0) is not None:
+            totals["pnl_exit"] = None if pnl_exit is None else totals.get("pnl_exit", 0.0) + pnl_exit
         totals["margin"] += m["total"] if m else 0
         for k in greeks:
             totals[k] += greeks[k]
-    return {"groups": groups, "totals": {k: round(v, 2) for k, v in totals.items()},
+    return {"groups": groups, "totals": {k: (round(v, 2) if v is not None else None) for k, v in totals.items()},
             "market_open": market_open(), "account": get_account(user_id, _positions=groups)}
 
 
@@ -362,13 +395,17 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
     lot = data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry))
     if not lot:
         raise ValueError(f"Lot size for {symbol} {expiry} not found")
-    fills, notes = [], set()
+    fills, notes, illiquid = [], set(), []
     for l in legs:
         if l["action"] not in ("BUY", "SELL") or int(l["lots"]) < 1:
             raise ValueError("Each leg needs action BUY/SELL and at least 1 lot")
         q = quote(symbol, expiry, l["side"], float(l["strike"]))
         if not l.get("price"):
             _check_liquidity(l, q)
+        liq = pricing.liquidity(q["bid"], q["ask"], q["ltp"], q["oi"], market_open())
+        if liq["ok"] is False:
+            illiquid.append({"side": l["side"], "strike": float(l["strike"]), "reason": liq["reason"],
+                             "spread_pct": liq["spread_pct"], "bid": q["bid"], "ask": q["ask"], "ltp": q["ltp"]})
         limit = tick(l["price"]) if l.get("price") else _default_limit(q, l["action"])
         if limit <= 0:
             raise ValueError("Limit price must be above zero")
@@ -391,7 +428,7 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         "symbol": symbol, "expiry": expiry, "lot_size": lot, "fills": fills,
         "premium": round(premium, 2), **_margin_impact(user_id, symbol, expiry, existing, fills),
         "sl_mode_default": default_sl, "notes": sorted(notes), "market_open": market_open(),
-        "waiting": waiting,
+        "waiting": waiting, "illiquid": illiquid,
     }
 
 
@@ -426,12 +463,16 @@ def _insufficient(m: dict) -> ValueError:
 
 
 def place_order(user_id: int, symbol: str, expiry: str, legs: list[dict], sl_mode: str | None = None,
-                confirm_waiting: bool = False) -> dict:
+                confirm_waiting: bool = False, confirm_illiquid: bool = False) -> dict:
     """Public entry point (RPC). Always prices fills itself from live quotes. While an earlier order
     on the same stock and expiry is still waiting, it refuses unless `confirm_waiting` is set, so a
-    second click never doubles the trade by accident."""
-    return execute_order(user_id, preview_order(user_id, symbol, expiry, legs), sl_mode, reason="manual",
-                         allow_waiting=confirm_waiting)
+    second click never doubles the trade by accident. A leg on an illiquid strike (wide spread, thin
+    OI, stale last trade) needs `confirm_illiquid`: the ticket shows why before asking."""
+    p = preview_order(user_id, symbol, expiry, legs)
+    if p["illiquid"] and not confirm_illiquid:
+        bad = "; ".join(f"{i['strike']:g} {i['side']}: {i['reason']}" for i in p["illiquid"])
+        raise ValueError(f"Illiquid strike ({bad}). Confirm to place anyway")
+    return execute_order(user_id, p, sl_mode, reason="manual", allow_waiting=confirm_waiting)
 
 
 def execute_order(user_id: int, p: dict, sl_mode: str | None = None, reason: str = "manual",
@@ -772,12 +813,16 @@ def run_checks(user_id: int) -> dict:
                 q = quote(symbol, expiry, r["side"], r["strike"])
             except Exception:
                 continue
-            if q["ask"] <= 0:
-                continue  # exits are limit orders at the ask; with no ask, retry on the next pass
-            buyback = q["ask"]
-            if buyback < r["sl_price"]:
+            if not pricing.has_book(q["bid"], q["ask"]):
+                continue  # no two-sided book: no fair price to judge the stop by; retry next pass
+            # The stop judges the mid, not the ask: on a wide book the ask alone sits above the
+            # entry (a sell fills at the bid) and would fire the stop with no move at all.
+            fair = pricing.mid(q["bid"], q["ask"])
+            if fair < r["sl_price"]:
                 continue
-            trigger = f"{r['strike']:g} {r['side']} at {buyback:.2f} (stop {r['sl_price']:.2f})"
+            buyback = q["ask"]  # the exit itself is a limit at the ask, which fills at once
+            trigger = (f"{r['strike']:g} {r['side']} mid {fair:.2f} (bid {q['bid']:.2f} / ask {buyback:.2f}, "
+                       f"stop {r['sl_price']:.2f})")
             if r["sl_mode"] == "auto":
                 try:
                     exited += _exit_group_rows(user_id, symbol, expiry, "sl_auto",

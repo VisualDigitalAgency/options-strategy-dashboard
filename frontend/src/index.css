@@ -1506,3 +1506,7 @@ td.out { color: var(--down-text); }
   .cal-list li { grid-template-columns: 70px 1fr auto; }
   .cal-list li .cal-purpose { grid-column: 2 / -1; }
 }
+
+/* Portfolio: a leg whose last trade sits far outside the bid/ask (stale LTP) */
+.stale-ltp { color: var(--warn); margin-left: 4px; vertical-align: -2px; }
+.pos-legs td .sub { display: block; font-size: 11px; color: var(--text-muted); }

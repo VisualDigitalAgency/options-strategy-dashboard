@@ -156,6 +156,10 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
             if lots < 1:
                 skipped.append({**tag, "reason": "Live margin for one lot breaks a limit"})
                 continue
+            if p["illiquid"]:
+                bad = "; ".join(f"{i['strike']:g} {i['side']}: {i['reason']}" for i in p["illiquid"])
+                skipped.append({**tag, "reason": f"Illiquid strike ({bad})"})
+                continue
             note = f"Auto: POP {st['pop']:.1f}%, ROI {st['roi_pct']:.2f}%, score {scores[sym]:.2f}"
             r = virtual.execute_order(user_id, p, reason="auto", extra_note=note)
             free -= p["margin_change"]
