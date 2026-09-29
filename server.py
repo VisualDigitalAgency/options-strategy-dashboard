@@ -124,15 +124,18 @@ def get_trade_detail(symbol: str, expiry: str | None = None):
 
 
 def get_market_calendar():
-    """NSE trading holidays and Nifty 50 corporate events, from the worker's daily copy."""
+    """NSE trading holidays and Nifty 50 corporate events, from the worker's daily copy, plus the
+    expiry dates the last screen covered (the calendar groups events by expiry cycle)."""
     data = market_calendar.load()
     today = _ist_today()
+    expiries = sorted({c["expiry"] for c in screen.snapshot() if c.get("expiry") and c["expiry"] >= today})
     return {
         "holidays": data["holidays"],
         "events": [{**e, "days_away": (pd.Timestamp(e["date"]) - pd.Timestamp(today)).days,
                     "risky": e["type"] in market_calendar.RISKY} for e in data["events"] if e["date"] >= today],
         "fetched_at": data["fetched_at"],
         "errors": data["errors"],
+        "expiries": expiries,
         "today": today,
     }
 
