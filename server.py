@@ -56,11 +56,25 @@ def _ist_today() -> str:
     return (pd.Timestamp.now("UTC").tz_localize(None) + pd.Timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
 
 
-def _with_events(c: dict, events: list[dict], today: str) -> dict:
-    """Adds the stock's corporate events from today through this row's expiry (the screener badge)."""
+def _with_events(c: dict, events: list[dict], today: str, after: str | None = None) -> dict:
+    """Adds the stock's corporate events from today (or after `after`) through this row's expiry."""
     if c.get("symbol"):
-        c["events"] = market_calendar.events_until(events, c["symbol"], today, c.get("expiry"))
+        c["events"] = market_calendar.events_until(events, c["symbol"], today, c.get("expiry"), after)
     return c
+
+
+def _prev_expiries(rows: list[dict]) -> dict[tuple[str, str], str | None]:
+    """(symbol, expiry) -> that stock's previous screened expiry. The screener badges each event only
+    on the cycle it falls in: results on 9 Oct show on the Oct row, not again on Nov and Dec."""
+    by_symbol: dict[str, list[str]] = {}
+    for c in rows:
+        if c.get("symbol") and c.get("expiry"):
+            by_symbol.setdefault(c["symbol"], []).append(c["expiry"])
+    out = {}
+    for sym, exps in by_symbol.items():
+        exps = sorted(set(exps))
+        out.update({(sym, x): (exps[i - 1] if i else None) for i, x in enumerate(exps)})
+    return out
 
 
 def _light(c: dict) -> dict:
@@ -97,8 +111,11 @@ def get_screened_candidates(force_refresh: bool = False):
             throttled = throttle.wait_left("force_screen", FORCE_SCREEN_EVERY)
     finished = state["finished_at"]
     events, today = market_calendar.load()["events"], _ist_today()
+    rows = screen.snapshot()
+    prev = _prev_expiries(rows)
     return {
-        "candidates": [_with_events(_light(c), events, today) for c in screen.snapshot()],
+        "candidates": [_with_events(_light(c), events, today, prev.get((c.get("symbol"), c.get("expiry"))))
+                       for c in rows],
         "generated_at": finished,
         "refreshing": state["running"],
         "next_refresh_at": next_screen_at(finished) if finished else None,
