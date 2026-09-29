@@ -186,14 +186,13 @@ export default function Overview() {
             <span className="rule-label">Expiry</span>
             <input
               type="range"
-              className="v-slider"
+              className="dte-slider"
               min={dteFloor}
               max={dteCeil}
               step={1}
               value={minDte ?? baseDte}
               onChange={(e) => setMinDte(Number(e.target.value))}
               aria-label="Minimum days to expiry"
-              orient="vertical"
             />
             <b className="num">{'≥'} {minDte ?? baseDte} days</b>
           </li>
