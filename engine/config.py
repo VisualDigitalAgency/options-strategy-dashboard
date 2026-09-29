@@ -83,7 +83,14 @@ BROKER_LIMIT_BAND_PCT = 20
 
 # Background refresh: the backend fetches on these timers and the dashboard only reads the cache.
 SCREEN_REFRESH_MARKET_SECONDS = 600     # option chains every 10 min while NSE is open (NSE rate-limits harder polling)
-SCREEN_REFRESH_OFF_SECONDS = 3600       # hourly outside market hours; prices barely move
+SCREEN_REFRESH_OFF_SECONDS = 3600       # freshness TTL auto-trade asks for outside market hours
+# Scheduled screens run only in this weekday IST window (pre-open to a little after the close), plus one
+# catch-up after it. NSE chains are frozen overnight and on weekends, so refetching them is wasted calls.
+SCREEN_WINDOW_OPEN = (9, 0)
+SCREEN_WINDOW_CLOSE = (15, 45)
+# Market calendar (holidays + corporate events): refreshed once a day outside the window above.
+CALENDAR_REFRESH_SECONDS = 20 * 3600
+CALENDAR_DAYS_AHEAD = 120   # corporate actions fetched this far ahead (covers the 90-day screen ceiling)
 POSITIONS_REFRESH_MARKET_SECONDS = 60   # open positions re-priced every minute while NSE is open
 POSITIONS_REFRESH_OFF_SECONDS = 900     # every 15 min outside market hours
 

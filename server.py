@@ -18,9 +18,9 @@ import requests
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from engine import auth, autotrade, broker, cache, config, data_fetch, db, risk_rules, span, users, virtual
+from engine import auth, autotrade, broker, cache, config, data_fetch, db, market_calendar, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
-from engine.worker import HEARTBEAT, screen_interval
+from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
 
 app = Flask(__name__)
@@ -52,13 +52,24 @@ HEAVY_FIELDS = ("history", "chain", "sr_zones")
 screen = ScreenReader()
 
 
+def _ist_today() -> str:
+    return (pd.Timestamp.now("UTC").tz_localize(None) + pd.Timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+
+
+def _with_events(c: dict, events: list[dict], today: str) -> dict:
+    """Adds the stock's corporate events from today through this row's expiry (the screener badge)."""
+    if c.get("symbol"):
+        c["events"] = market_calendar.events_until(events, c["symbol"], today, c.get("expiry"))
+    return c
+
+
 def _light(c: dict) -> dict:
     """List-view row: drops the heavy fields but keeps the few numbers the screener row draws."""
     out = {k: v for k, v in c.items() if k not in HEAVY_FIELDS}
     spot, hist = c.get("spot"), c.get("history") or []
     if spot and hist:
         # yfinance includes today's candle after the close; the previous session is the one before it.
-        today = (pd.Timestamp.now("UTC").tz_localize(None) + pd.Timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+        today = _ist_today()
         prev = hist[-2] if len(hist) > 1 and hist[-1]["date"] == today else hist[-1]
         out["prev_close"] = prev["close"]
     chain = c.get("chain") or []
@@ -85,11 +96,12 @@ def get_screened_candidates(force_refresh: bool = False):
         else:
             throttled = throttle.wait_left("force_screen", FORCE_SCREEN_EVERY)
     finished = state["finished_at"]
+    events, today = market_calendar.load()["events"], _ist_today()
     return {
-        "candidates": [_light(c) for c in screen.snapshot()],
+        "candidates": [_with_events(_light(c), events, today) for c in screen.snapshot()],
         "generated_at": finished,
         "refreshing": state["running"],
-        "next_refresh_at": (finished + screen_interval()) if finished else None,
+        "next_refresh_at": next_screen_at(finished) if finished else None,
         "span_source": state["span_source"],
         "progress": {k: state.get(k) for k in ("running", "done", "total", "batch", "batches", "pass", "passes", "error")},
         "refresh_throttled_s": throttled,
@@ -99,14 +111,30 @@ def get_screened_candidates(force_refresh: bool = False):
 def get_trade_detail(symbol: str, expiry: str | None = None):
     """One stock's full screen row for `expiry` (YYYY-MM-DD). Without it, or once that cycle has
     rolled off the screen, the nearest cycle at least MIN_DTE days out."""
+    events, today = market_calendar.load()["events"], _ist_today()
     found = screen.get(symbol, expiry)
     if found:
-        return found
+        return _with_events(dict(found), events, today)
     # Not screened yet (first screen still in flight): evaluate this one stock on demand, rate-limited.
     if not throttle.allow(f"detail:{symbol}", DETAIL_EVAL_EVERY):
         raise ValueError(f"{symbol} is still being screened; try again in a few seconds")
     span.load(universe())
-    return risk_rules.pick_cycle(risk_rules.safe_evaluate_cycles(symbol), expiry)
+    row = risk_rules.pick_cycle(risk_rules.safe_evaluate_cycles(symbol), expiry)
+    return _with_events(dict(row), events, today) if row else row
+
+
+def get_market_calendar():
+    """NSE trading holidays and Nifty 50 corporate events, from the worker's daily copy."""
+    data = market_calendar.load()
+    today = _ist_today()
+    return {
+        "holidays": data["holidays"],
+        "events": [{**e, "days_away": (pd.Timestamp(e["date"]) - pd.Timestamp(today)).days,
+                    "risky": e["type"] in market_calendar.RISKY} for e in data["events"] if e["date"] >= today],
+        "fetched_at": data["fetched_at"],
+        "errors": data["errors"],
+        "today": today,
+    }
 
 
 def va_refresh_positions(user_id: int):
@@ -308,6 +336,7 @@ METHODS = {
     "get_screened_candidates": get_screened_candidates,
     "get_trade_detail": get_trade_detail,
     "get_config": get_config,
+    "get_market_calendar": get_market_calendar,
     "calc_margin": calc_margin,
 }
 

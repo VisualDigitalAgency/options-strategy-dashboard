@@ -80,6 +80,29 @@ def _nse_get(url: str, params: dict) -> dict:
     return resp.json()
 
 
+NSE_HOLIDAYS_URL = f"{NSE_BASE}/api/holiday-master"
+NSE_EVENT_CALENDAR_URL = f"{NSE_BASE}/api/event-calendar"
+NSE_CORP_ACTIONS_URL = f"{NSE_BASE}/api/corporates-corporateActions"
+
+
+def fetch_holidays() -> dict:
+    """NSE trading holidays: {"CM": [...], "FO": [...]}, rows with tradingDate / weekDay / description."""
+    return _nse_get(NSE_HOLIDAYS_URL, {"type": "trading"})
+
+
+def fetch_event_calendar() -> list:
+    """Upcoming board meetings (results etc.) for all equities: rows with symbol / purpose / bm_desc / date."""
+    return _nse_get(NSE_EVENT_CALENDAR_URL, {"index": "equities"})
+
+
+def fetch_corporate_actions(start: pd.Timestamp, end: pd.Timestamp) -> list:
+    """Corporate actions (dividends, splits, bonuses, AGMs) with ex-dates in [start, end]:
+    rows with symbol / subject / exDate."""
+    return _nse_get(NSE_CORP_ACTIONS_URL, {
+        "index": "equities", "from_date": start.strftime("%d-%m-%Y"), "to_date": end.strftime("%d-%m-%Y"),
+    })
+
+
 def fetch_expiries(symbol: str) -> list[pd.Timestamp]:
     raw = _nse_get(NSE_CONTRACT_INFO_URL, {"symbol": symbol})
     return [pd.to_datetime(e, format="%d-%b-%Y") for e in raw.get("expiryDates", [])]

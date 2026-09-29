@@ -17,8 +17,9 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime, timedelta
 
-from . import autotrade, cache, config, users, virtual
+from . import autotrade, cache, config, market_calendar, users, virtual
 from .batch import FORCE, ScreenJob
 from .brokers.poller import start_poller as start_broker_poller
 
@@ -34,6 +35,39 @@ def screen_interval() -> int:
     return config.SCREEN_REFRESH_MARKET_SECONDS if near_market else config.SCREEN_REFRESH_OFF_SECONDS
 
 
+def _session_bounds(day: datetime) -> tuple[datetime, datetime]:
+    """The screen window (pre-open to a little after the close) on `day`, in IST."""
+    at = lambda h, m: day.replace(hour=h, minute=m, second=0, microsecond=0)
+    return at(*config.SCREEN_WINDOW_OPEN), at(*config.SCREEN_WINDOW_CLOSE)
+
+
+def next_screen_at(finished: float | None, now: float | None = None, holidays: set[str] | None = None) -> float:
+    """When the next scheduled screen is due. Inside the trading-day window: every SCREEN_REFRESH_MARKET_SECONDS.
+    Outside it the chains are frozen, so one screen after the close and then nothing until the next
+    pre-open (weekends and NSE holidays skipped). The Refresh button still works any time."""
+    if not finished:
+        return 0.0
+    now = time.time() if now is None else now
+    if holidays is None:
+        holidays = market_calendar.holiday_dates()
+    closed = lambda d: d.weekday() >= 5 or d.strftime("%Y-%m-%d") in holidays
+    today = datetime.fromtimestamp(now, virtual.IST)
+    opens, closes = _session_bounds(today)
+    if not closed(today) and opens <= today < closes:
+        return finished + config.SCREEN_REFRESH_MARKET_SECONDS
+    # Last close at or before now: catch up once if the screen predates it.
+    day = today
+    while closed(day) or _session_bounds(day)[1] > today:
+        day -= timedelta(days=1)
+    last_close = _session_bounds(day)[1].timestamp()
+    if finished < last_close:
+        return last_close
+    day = today if today < opens else today + timedelta(days=1)
+    while closed(day):
+        day += timedelta(days=1)
+    return _session_bounds(day)[0].timestamp()
+
+
 def start_screen_refresher(job: ScreenJob) -> None:
     def loop():
         while True:
@@ -41,14 +75,28 @@ def start_screen_refresher(job: ScreenJob) -> None:
                 if cache.exists(FORCE) and not job.state["running"]:
                     cache.delete(FORCE)
                     job.ensure(force=True, ttl=0, full=True)  # the Refresh button refetches everything
-                finished = job.state["finished_at"]
-                if not job.state["running"] and (not finished or time.time() - finished >= screen_interval()):
+                if not job.state["running"] and time.time() >= next_screen_at(job.state["finished_at"]):
                     job.ensure(force=True, ttl=0)
             except Exception:
                 log.exception("screen refresher pass failed")
             time.sleep(5)
 
     threading.Thread(target=loop, daemon=True, name="screen-refresher").start()
+
+
+def start_calendar_refresher() -> None:
+    """Holidays and corporate events, once a day outside the market window (a few paced NSE calls)."""
+    def loop():
+        while True:
+            try:
+                # Outside the window, or right away when there's no copy at all (e.g. first deploy).
+                if market_calendar.due() and (not virtual.market_window() or not market_calendar.load()["fetched_at"]):
+                    market_calendar.refresh()
+            except Exception:
+                log.exception("market calendar refresh failed")
+            time.sleep(300)
+
+    threading.Thread(target=loop, daemon=True, name="calendar-refresher").start()
 
 
 def fresh_screen(job: ScreenJob, timeout: float = 900) -> list[dict]:
@@ -101,6 +149,7 @@ def main() -> None:
     users.bootstrap_local_user()
     job = ScreenJob()
     start_screen_refresher(job)
+    start_calendar_refresher()
     virtual.start_monitor()
     autotrade.start_scheduler(lambda: fresh_screen(job))
     start_broker_poller()

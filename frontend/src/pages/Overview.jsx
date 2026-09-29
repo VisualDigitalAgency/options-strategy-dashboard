@@ -11,6 +11,7 @@ import { useMarketClock, tradingDays } from '../market'
 import { ActionBadge, SentimentBadge } from '../components/Badges'
 import RangeStrip from '../components/RangeStrip'
 import UpdatedTag from '../components/UpdatedTag'
+import EventBadge from '../components/EventBadge'
 import { addDaysIso, num, pct, rupee, shortDate, signedPct, suggestLots, todayIso } from '../format'
 
 const dayChange = (c) => (c.prev_close && c.spot ? ((c.spot - c.prev_close) / c.prev_close) * 100 : null)
@@ -346,6 +347,7 @@ export default function Overview() {
                     <Link to={detailPath(c)} className="sym" onClick={(e) => e.stopPropagation()}>
                       {c.symbol}
                     </Link>
+                    <EventBadge events={c.events} />
                     <span className="sub num">
                       {num(c.spot)} <span className={chg > 0 ? 'pos' : chg < 0 ? 'neg' : ''}>{signedPct(chg)}</span>
                     </span>
@@ -404,6 +406,7 @@ export default function Overview() {
                 <span className="sym">
                   {c.symbol}
                   {c.expiry && <small className="m-card-exp num"> {shortDate(c.expiry)} · {c.dte}d</small>}
+                  <EventBadge events={c.events} />
                 </span>
                 <ActionBadge action={c.action} />
               </div>

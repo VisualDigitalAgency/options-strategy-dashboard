@@ -1,3 +1,5 @@
+import EventBadge from '../components/EventBadge'
+import { EVENT_LABEL } from '../events'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -148,8 +150,19 @@ export default function StockDetail() {
             <div className="hero-tags">
               <ActionBadge action={d.action} />
               <SentimentBadge sentiment={d.sentiment} />
+              <EventBadge events={d.events} />
             </div>
           </div>
+          {d.events?.length > 0 && (
+            <ul className="ev-list" aria-label="Corporate events before expiry">
+              {d.events.map((e) => (
+                <li key={`${e.type}-${e.date}`} className={e.risky ? 'risky' : ''}>
+                  <b>{EVENT_LABEL[e.type] ?? e.type}</b> <span className="num">{shortDate(e.date)}</span>{' '}
+                  <span className="muted">({e.days_away}d, before this expiry)</span> {e.purpose}
+                </li>
+              ))}
+            </ul>
+          )}
           <dl className="facts-inline">
             <div>
               <dt>Expiry</dt>
