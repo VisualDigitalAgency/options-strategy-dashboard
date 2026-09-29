@@ -17,6 +17,7 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime, timedelta
 
 from . import autotrade, cache, config, users, virtual
 from .batch import FORCE, ScreenJob
@@ -34,6 +35,36 @@ def screen_interval() -> int:
     return config.SCREEN_REFRESH_MARKET_SECONDS if near_market else config.SCREEN_REFRESH_OFF_SECONDS
 
 
+def _session_bounds(day: datetime) -> tuple[datetime, datetime]:
+    """The screen window (pre-open to a little after the close) on `day`, in IST."""
+    at = lambda h, m: day.replace(hour=h, minute=m, second=0, microsecond=0)
+    return at(*config.SCREEN_WINDOW_OPEN), at(*config.SCREEN_WINDOW_CLOSE)
+
+
+def next_screen_at(finished: float | None, now: float | None = None) -> float:
+    """When the next scheduled screen is due. Inside the weekday window: every SCREEN_REFRESH_MARKET_SECONDS.
+    Outside it the chains are frozen, so one screen after the close and then nothing until the next
+    pre-open (weekends included). The Refresh button still works any time."""
+    if not finished:
+        return 0.0
+    now = time.time() if now is None else now
+    today = datetime.fromtimestamp(now, virtual.IST)
+    opens, closes = _session_bounds(today)
+    if today.weekday() < 5 and opens <= today < closes:
+        return finished + config.SCREEN_REFRESH_MARKET_SECONDS
+    # Last close at or before now: catch up once if the screen predates it.
+    day = today
+    while day.weekday() >= 5 or _session_bounds(day)[1] > today:
+        day -= timedelta(days=1)
+    last_close = _session_bounds(day)[1].timestamp()
+    if finished < last_close:
+        return last_close
+    day = today if today < opens else today + timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return _session_bounds(day)[0].timestamp()
+
+
 def start_screen_refresher(job: ScreenJob) -> None:
     def loop():
         while True:
@@ -41,8 +72,7 @@ def start_screen_refresher(job: ScreenJob) -> None:
                 if cache.exists(FORCE) and not job.state["running"]:
                     cache.delete(FORCE)
                     job.ensure(force=True, ttl=0, full=True)  # the Refresh button refetches everything
-                finished = job.state["finished_at"]
-                if not job.state["running"] and (not finished or time.time() - finished >= screen_interval()):
+                if not job.state["running"] and time.time() >= next_screen_at(job.state["finished_at"]):
                     job.ensure(force=True, ttl=0)
             except Exception:
                 log.exception("screen refresher pass failed")

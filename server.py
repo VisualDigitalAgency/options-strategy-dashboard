@@ -20,7 +20,7 @@ from werkzeug.exceptions import HTTPException
 
 from engine import auth, autotrade, broker, cache, config, data_fetch, db, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
-from engine.worker import HEARTBEAT, screen_interval
+from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
 
 app = Flask(__name__)
@@ -89,7 +89,7 @@ def get_screened_candidates(force_refresh: bool = False):
         "candidates": [_light(c) for c in screen.snapshot()],
         "generated_at": finished,
         "refreshing": state["running"],
-        "next_refresh_at": (finished + screen_interval()) if finished else None,
+        "next_refresh_at": next_screen_at(finished) if finished else None,
         "span_source": state["span_source"],
         "progress": {k: state.get(k) for k in ("running", "done", "total", "batch", "batches", "pass", "passes", "error")},
         "refresh_throttled_s": throttled,

@@ -6,3 +6,4 @@ secrets/
 frontend/dist/
 frontend/node_modules/
 .playwright-mcp/
+dump.rdb
