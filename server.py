@@ -91,7 +91,7 @@ def get_screened_candidates(force_refresh: bool = False):
         "refreshing": state["running"],
         "next_refresh_at": (finished + screen_interval()) if finished else None,
         "span_source": state["span_source"],
-        "progress": {k: state[k] for k in ("running", "done", "total", "batch", "batches", "error")},
+        "progress": {k: state.get(k) for k in ("running", "done", "total", "batch", "batches", "pass", "passes", "error")},
         "refresh_throttled_s": throttled,
     }
 

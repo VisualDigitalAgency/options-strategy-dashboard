@@ -5,7 +5,7 @@ import sys
 
 import pandas as pd
 
-from engine import batch, cache, config, data_fetch, filters, risk_rules
+from engine import batch, cache, config, data_fetch, filters, risk_rules, span
 
 fails = []
 
@@ -75,6 +75,53 @@ cache.set_json(batch.META, {**batch._empty_state(), "version": "old"})
 reader = batch.ScreenReader()
 check("old one-dict format still reads", reader.snapshot() == [{"symbol": "SBIN", "dte": 40}]
       and reader.get("SBIN")["dte"] == 40, reader.snapshot())
+
+# ---- a full ScreenJob run: month by month, fresh skips reused, Refresh refetches everything
+config.SCREEN_BATCH_PAUSE_SECONDS = 0
+config.SCREEN_BATCH_SIZE = 2
+risk_rules.get_universe = lambda: ["AAA", "BBB", "CCC"]
+span.load = lambda symbols: {"source": "stub"}
+data_fetch.fetch_price_history_batch = lambda syms, n: {s: hist for s in syms}
+now = pd.Timestamp.today().normalize()
+oct_, nov, dec = (now + pd.Timedelta(days=d) for d in (25, 53, 88))
+data_fetch.fetch_expiries = lambda s: [oct_, nov] if s == "CCC" else [oct_, nov, dec]
+calls = []
+failing = set()
+
+
+def fake_eval2(symbol, expiry, dte, today, price_hist):
+    calls.append((symbol, dte))
+    if (symbol, dte) in failing:
+        raise RuntimeError("nse down")
+    trade = symbol == "AAA"  # AAA is actionable in every cycle, the others skip
+    return {"symbol": symbol, "action": "SELL PE ONLY" if trade else "SKIP", "legs": [{"side": "PE"}] if trade else [],
+            "checks": [], "expiry": expiry.strftime("%Y-%m-%d"), "dte": dte}
+
+
+risk_rules._evaluate_for_expiry = fake_eval2
+job = batch.ScreenJob()
+job._run()
+check("month by month: all Oct, then all Nov, then Dec", [d for _, d in calls] == [25, 25, 25, 53, 53, 53, 88, 88], calls)
+check("rows per stock", [len(job.results[s]) for s in ("AAA", "BBB", "CCC")] == [3, 3, 2], job.results)
+check("rows stamped", all("screened_at" in r for rows in job.results.values() for r in rows), None)
+
+calls.clear()
+failing.add(("AAA", 53))
+job._run()
+check("second run refetches only actionable cycles", sorted(set(calls)) == [("AAA", 25), ("AAA", 53), ("AAA", 88)], calls)
+nov_key = nov.strftime("%Y-%m-%d")
+check("failed refetch keeps the last good row", job.get("AAA", nov_key)["action"] == "SELL PE ONLY", job.get("AAA", nov_key))
+
+calls.clear()
+failing.clear()
+for r in job.results["BBB"]:
+    r["screened_at"] -= config.SCREEN_SKIP_REFRESH_SECONDS + 1
+job._run()
+check("stale skips are refetched", {c for c in calls if c[0] == "BBB"} == {("BBB", 25), ("BBB", 53), ("BBB", 88)}, calls)
+
+calls.clear()
+job._run(full=True)
+check("full run refetches everything", len(calls) == 8, calls)
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)

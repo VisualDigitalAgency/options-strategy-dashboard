@@ -24,6 +24,10 @@ MIN_DTE = 30  # the strategy's entry floor: auto-trade only opens cycles at leas
 SCREEN_DTE_FLOOR = 20
 SCREEN_DTE_CEIL = 90
 SCREEN_MAX_EXPIRY_CYCLES = 4
+# Cycles are screened month by month (every stock's nearest cycle, then the next, ...). A cycle that
+# came back SKIP is reused, not refetched, until it is this old; actionable, errored and new cycles
+# are refetched every run. The Refresh button refetches everything.
+SCREEN_SKIP_REFRESH_SECONDS = 3600
 
 DELTA_MAX_ABS = 0.15  # strike must have |delta| below this on both CE and PE
 
@@ -54,6 +58,13 @@ EXPOSURE_SIGMA_MULT = 1.5
 SCREEN_BATCH_SIZE = 10
 SCREEN_WORKERS = 3
 SCREEN_BATCH_PAUSE_SECONDS = 1.0
+# Pacing for every nseindia.com API call (option chains, expiry lists), shared by all threads in a
+# process: at least NSE_MIN_GAP_SECONDS plus up to NSE_GAP_JITTER_SECONDS of random delay between two
+# requests. A full screen (~50 expiry lists + up to ~150 chains) takes ~3 min at these settings.
+NSE_MIN_GAP_SECONDS = 0.7
+NSE_GAP_JITTER_SECONDS = 0.3
+NSE_TIMEOUT_SECONDS = 10          # per request: a hung connection fails instead of stalling a screen thread
+NSE_RETRY_BACKOFF_SECONDS = 3     # wait before the one retry after a rejected/empty response
 
 # Stop-loss rules
 SL_GRACE_DAYS = 15           # no SL active before this many days into the trade

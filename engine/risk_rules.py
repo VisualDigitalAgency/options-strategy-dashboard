@@ -116,23 +116,38 @@ def evaluate_symbol_cycles(symbol: str, yf_symbol: str, today: pd.Timestamp | No
     """One row per expiry cycle between SCREEN_DTE_FLOOR and SCREEN_DTE_CEIL days out, nearest first.
     A failure in one cycle becomes that cycle's ERROR row; the other cycles still come back."""
     today = today or pd.Timestamp.today().normalize()
-    cycles = filters.eligible_expiries(data_fetch.fetch_expiries(symbol), today, config.SCREEN_DTE_FLOOR,
-                                       config.SCREEN_DTE_CEIL, config.SCREEN_MAX_EXPIRY_CYCLES)
+    cycles = screen_cycles(symbol, today)
     if not cycles:
         return [_no_expiry(symbol)]
     # Swing S/R, sentiment's price trend and exposure don't depend on the expiry: one history for all cycles.
+    price_hist = price_history(yf_symbol, price_hist)
+    return [evaluate_cycle(symbol, expiry, today, price_hist) for expiry in cycles]
+
+
+def screen_cycles(symbol: str, today: pd.Timestamp) -> list[pd.Timestamp]:
+    """The stock's expiries worth screening, nearest first (one cheap NSE call)."""
+    return filters.eligible_expiries(data_fetch.fetch_expiries(symbol), today, config.SCREEN_DTE_FLOOR,
+                                     config.SCREEN_DTE_CEIL, config.SCREEN_MAX_EXPIRY_CYCLES)
+
+
+def price_history(yf_symbol: str, price_hist: pd.DataFrame | None = None) -> pd.DataFrame:
+    """The batch-fetched history when there is one, else a per-stock fetch; flat columns either way."""
     if price_hist is None or price_hist.empty:
         price_hist = data_fetch.fetch_price_history(yf_symbol, config.SR_LOOKBACK_DAYS)
     if isinstance(price_hist.columns, pd.MultiIndex):
         price_hist.columns = price_hist.columns.get_level_values(0)
-    rows = []
-    for expiry in cycles:
-        dte = (expiry - today).days
-        try:
-            rows.append(_evaluate_for_expiry(symbol, expiry, dte, today, price_hist))
-        except Exception as e:
-            rows.append(_error_row(symbol, e, expiry, dte))
-    return rows
+    return price_hist
+
+
+def evaluate_cycle(symbol: str, expiry: pd.Timestamp, today: pd.Timestamp, price_hist: pd.DataFrame) -> dict:
+    """One expiry cycle's row, stamped with when it was screened. Never raises: a failure is an ERROR row."""
+    dte = (expiry - today).days
+    try:
+        row = _evaluate_for_expiry(symbol, expiry, dte, today, price_hist)
+    except Exception as e:
+        row = _error_row(symbol, e, expiry, dte)
+    row["screened_at"] = time.time()
+    return row
 
 
 def _evaluate_for_expiry(symbol: str, expiry: pd.Timestamp, dte: int, today: pd.Timestamp,

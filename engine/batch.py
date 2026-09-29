@@ -13,6 +13,8 @@ import json
 import secrets
 import threading
 import time
+
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -20,11 +22,11 @@ from . import cache, config, data_fetch, risk_rules, span
 
 CACHE_FILE = Path(__file__).parent / "cache" / "screen.json"
 LATEST, META, FORCE = "screen:latest", "screen:meta", "screen:force"
-STATE_KEYS = ("running", "done", "total", "batch", "batches", "started_at", "finished_at", "span_source", "error")
+STATE_KEYS = ("running", "done", "total", "batch", "batches", "pass", "passes", "started_at", "finished_at", "span_source", "error")
 
 
 def _empty_state() -> dict:
-    return {"running": False, "done": 0, "total": 0, "batch": 0, "batches": 0,
+    return {"running": False, "done": 0, "total": 0, "batch": 0, "batches": 0, "pass": 0, "passes": 0,
             "started_at": None, "finished_at": None, "span_source": None, "error": None}
 
 
@@ -39,6 +41,12 @@ def _flatten(order: list[str], results: dict[str, list[dict]]) -> list[dict]:
 
 def _all_error(rows: list[dict]) -> bool:
     return all(r.get("action") == "ERROR" for r in rows)
+
+
+def _reusable(row: dict | None) -> bool:
+    """A SKIP row screened recently enough to reuse; actionable and ERROR rows are always refetched."""
+    return bool(row and row.get("action") == "SKIP" and not row.get("legs")
+                and time.time() - (row.get("screened_at") or 0) < config.SCREEN_SKIP_REFRESH_SECONDS)
 
 
 def _read_file() -> dict | None:
@@ -86,8 +94,9 @@ class ScreenJob:
             cache.set_json(LATEST, {"version": self._version, "order": self.order, "results": self.results})
         cache.set_json(META, {**{k: self.state[k] for k in STATE_KEYS}, "version": self._version})
 
-    def ensure(self, force: bool = False, ttl: float = 600) -> None:
-        """Start a screen unless one is running or the last one is still fresh."""
+    def ensure(self, force: bool = False, ttl: float = 600, full: bool = False) -> None:
+        """Start a screen unless one is running or the last one is still fresh. `full` refetches
+        every cycle, including skips that are still fresh enough to reuse."""
         with self._lock:
             if self.state["running"]:
                 return
@@ -96,44 +105,105 @@ class ScreenJob:
                 return
             self.state.update(running=True, done=0, batch=0, error=None, started_at=time.time())
             self._publish(rows=False)
-            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread = threading.Thread(target=self._run, args=(full,), daemon=True)
             self._thread.start()
 
-    def _run(self) -> None:
+    def _run(self, full: bool = False) -> None:
+        """Step 0 fetches every stock's expiry list (one cheap call each) and price history. Then
+        pass 1 screens every stock's nearest cycle, pass 2 the next one, and so on, so each month is
+        complete for all stocks before the next starts. Fresh SKIP rows are reused (see
+        SCREEN_SKIP_REFRESH_SECONDS); a stock's old rows stay visible until their pass replaces them."""
         try:
             symbols = risk_rules.get_universe()
             size = config.SCREEN_BATCH_SIZE
-            batches = [symbols[i : i + size] for i in range(0, len(symbols), size)]
-            # Keep old rows visible during the refresh; drop only stocks that left the index.
+            today = pd.Timestamp.today().normalize()
             self.order = symbols
             self.results = {s: r for s, r in self.results.items() if s in symbols}
-            self.state.update(total=len(symbols), batches=len(batches))
+            old = {s: {r.get("expiry"): r for r in rows} for s, rows in self.results.items()}
             try:
                 self.state["span_source"] = span.load(symbols)["source"]
             except Exception as e:
                 self.state["span_source"] = f"unavailable: {e}"
 
-            for n, batch in enumerate(batches, start=1):
+            # ---- step 0: expiry lists and price histories
+            histories: dict[str, pd.DataFrame] = {}
+            cycles: dict[str, list] = {}
+            chunks = [symbols[i : i + size] for i in range(0, len(symbols), size)]
+            self.state.update(total=len(symbols), batches=len(chunks), passes=0)
+            for n, chunk in enumerate(chunks, start=1):
                 self.state["batch"] = n
-                yf_syms = [f"{s}.NS" for s in batch]
                 try:
-                    histories = data_fetch.fetch_price_history_batch(yf_syms, config.SR_LOOKBACK_DAYS)
+                    got = data_fetch.fetch_price_history_batch([f"{s}.NS" for s in chunk], config.SR_LOOKBACK_DAYS)
+                    histories.update({s: got[f"{s}.NS"] for s in chunk if f"{s}.NS" in got})
                 except Exception:
-                    histories = {}  # evaluate_symbol falls back to a per-stock fetch
+                    pass  # price_history() falls back to a per-stock fetch
                 with ThreadPoolExecutor(max_workers=config.SCREEN_WORKERS) as pool:
-                    # Each task screens every expiry cycle of one stock in turn, so the burst rate
-                    # to NSE stays at SCREEN_WORKERS; a full screen just takes longer.
-                    futures = {s: pool.submit(risk_rules.safe_evaluate_cycles, s, histories.get(f"{s}.NS"))
-                               for s in batch}
+                    futures = {s: pool.submit(risk_rules.screen_cycles, s, today) for s in chunk}
                     for s, f in futures.items():
-                        rows = f.result()
-                        # A failed fetch keeps the last good result rather than replacing it with an error.
-                        if not _all_error(rows) or s not in self.results or _all_error(self.results[s]):
-                            self.results[s] = rows
+                        try:
+                            cycles[s] = f.result()
+                            if not cycles[s]:
+                                self.results[s] = [risk_rules._no_expiry(s)]
+                        except Exception as e:
+                            # No expiry list: keep the last good rows rather than an error.
+                            if s not in self.results or _all_error(self.results[s]):
+                                self.results[s] = [risk_rules._error_row(s, e)]
                         self.state["done"] += 1
-                self._publish(rows=True)
-                if n < len(batches):
+                if n < len(chunks):
                     time.sleep(config.SCREEN_BATCH_PAUSE_SECONDS)
+
+            fresh: dict[str, dict] = {s: {} for s in cycles}
+
+            def merge(s: str) -> None:
+                """In-range cycles only, nearest first: this run's row where fetched, else the old one."""
+                keys = [e.strftime("%Y-%m-%d") for e in cycles[s]]
+                self.results[s] = [fresh[s].get(k) or old.get(s, {}).get(k) for k in keys
+                                   if fresh[s].get(k) or old.get(s, {}).get(k)]
+
+            for s in cycles:
+                if cycles[s]:
+                    merge(s)
+            self._publish(rows=True)
+
+            def task(s: str, expiry: pd.Timestamp) -> dict:
+                try:
+                    histories[s] = risk_rules.price_history(f"{s}.NS", histories.get(s))
+                except Exception as e:
+                    return risk_rules._error_row(s, e, expiry, (expiry - today).days)
+                return risk_rules.evaluate_cycle(s, expiry, today, histories[s])
+
+            # ---- passes: nearest cycle of every stock, then the next, ...
+            passes = max((len(c) for c in cycles.values()), default=0)
+            plan = [[s for s in symbols if len(cycles.get(s) or []) > k] for k in range(passes)]
+            self.state.update(passes=passes, done=0, total=sum(len(p) for p in plan),
+                              batches=sum(-(-len(p) // size) for p in plan), batch=0)
+            for k, stocks in enumerate(plan):
+                self.state["pass"] = k + 1
+                for chunk in (stocks[i : i + size] for i in range(0, len(stocks), size)):
+                    self.state["batch"] += 1
+                    fetched = False
+                    with ThreadPoolExecutor(max_workers=config.SCREEN_WORKERS) as pool:
+                        futures = {}
+                        for s in chunk:
+                            expiry = cycles[s][k]
+                            key = expiry.strftime("%Y-%m-%d")
+                            prev = old.get(s, {}).get(key)
+                            if not full and _reusable(prev):
+                                fresh[s][key] = prev
+                            else:
+                                futures[s] = (key, prev, pool.submit(task, s, expiry))
+                        for s, (key, prev, f) in futures.items():
+                            row = f.result()
+                            fetched = True
+                            # A failed fetch keeps the last good row rather than replacing it with an error.
+                            keep = row.get("action") == "ERROR" and prev and prev.get("action") != "ERROR"
+                            fresh[s][key] = prev if keep else row
+                    for s in chunk:
+                        merge(s)
+                        self.state["done"] += 1
+                    self._publish(rows=True)
+                    if fetched:
+                        time.sleep(config.SCREEN_BATCH_PAUSE_SECONDS)
         except Exception as e:
             self.state["error"] = str(e)
         finally:

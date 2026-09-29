@@ -135,7 +135,7 @@ Accounts: every page needs a sign-in. New users request access on `/register` an
 |---|---|
 | Universe | Nifty 50, read live from NSE's constituent CSV (falls back to a saved list if unreachable) |
 | PCR (OI) | 0.4 – 0.7 |
-| Expiry | Every monthly expiry 20–90 days out is screened (at most 4 per stock), one Screener row each. The strategy enters at 30+ DTE: the Expiry slider starts there and auto-trade only opens cycles 30+ days out |
+| Expiry | Every monthly expiry 20–90 days out is screened (at most 4 per stock), one Screener row each, month by month (every stock's nearest cycle first, then the next). A skipped cycle is refetched hourly, actionable and failed ones every run; Refresh refetches all. The Expiry slider opens at 20 days; the strategy enters at 30+ DTE, so auto-trade only opens cycles 30+ days out |
 | Strike | Highest-OI OTM strike with \|delta\| < 0.15 (Black-Scholes from NSE IV) |
 | Max Pain | Shown as distance from the strike, used for confirmation only |
 | S/R | 6-month daily swings (5-candle fractal), zones ±1.5%, 2+ touches. A strike inside a zone drops that leg |

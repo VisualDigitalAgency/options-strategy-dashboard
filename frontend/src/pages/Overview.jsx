@@ -155,7 +155,8 @@ export default function Overview() {
   const clock = useMarketClock()
   const [cfg, setCfg] = useState(null)
   useEffect(() => { rpc('get_config').then(setCfg).catch(() => {}) }, [])
-  useEffect(() => { if (cfg && minDte == null) setMinDte(cfg.min_dte ?? 30) }, [cfg]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Opens on every screened cycle, nearest (under the strategy's 30-day entry) included.
+  useEffect(() => { if (cfg && minDte == null) setMinDte(cfg.screen_dte_range?.[0] ?? 20) }, [cfg]) // eslint-disable-line react-hooks/exhaustive-deps
   const baseDte = cfg?.min_dte ?? 30
   const [dteFloor, dteCeil] = cfg?.screen_dte_range ?? [20, 90]
   const grace = cfg?.sl_grace_days ?? 15
@@ -181,7 +182,7 @@ export default function Overview() {
           <UpdatedTag ts={data?.generated_at} refreshing={refreshing} />
         </div>
         <ul className="rules" aria-label="Screening rules">
-          <li className="rule-slider" title={`Only show expiry cycles at least this many days out. Every monthly expiry ${dteFloor}–${dteCeil} days out is screened for each stock, so drag below ${baseDte} to see the nearer cycle too. Auto-trade only opens cycles ${baseDte}+ days out.`}>
+          <li className="rule-slider" title={`Only show expiry cycles at least this many days out. Every monthly expiry ${dteFloor}–${dteCeil} days out is screened for each stock; drag up to hide the nearer cycles. Cycles under ${baseDte} days are shown but outside the strategy's entry rule: auto-trade only opens cycles ${baseDte}+ days out.`}>
             <CalendarClock size={14} strokeWidth={2} aria-hidden />
             <span className="rule-label">Expiry</span>
             <input
@@ -190,11 +191,11 @@ export default function Overview() {
               min={dteFloor}
               max={dteCeil}
               step={1}
-              value={minDte ?? baseDte}
+              value={minDte ?? dteFloor}
               onChange={(e) => setMinDte(Number(e.target.value))}
               aria-label="Minimum days to expiry"
             />
-            <b className="num">{'≥'} {minDte ?? baseDte} days</b>
+            <b className="num">{'≥'} {minDte ?? dteFloor} days</b>
           </li>
           {[
             [Triangle, 'Delta', `< ${cfg?.delta_max_abs ?? 0.15}`, 'Strike must have |delta| below this'],
@@ -268,7 +269,10 @@ export default function Overview() {
           <div className="progress-text">
             <span>
               {progress?.batch
-                ? <>Screening batch <b className="num">{progress.batch}</b> of <b className="num">{progress.batches}</b></>
+                ? <>
+                    {progress.pass ? <>Expiry month <b className="num">{progress.pass}</b> of <b className="num">{progress.passes}</b>, batch</> : 'Screening batch'}{' '}
+                    <b className="num">{progress.batch}</b> of <b className="num">{progress.batches}</b>
+                  </>
                 : 'Loading NSE margin file…'}
             </span>
             <span className="mono">{progress?.done ?? 0} / {progress?.total || 50} stocks</span>
