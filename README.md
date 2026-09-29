@@ -121,6 +121,7 @@ DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://lo
 |---|---|
 | **Screener** (`/`) | Every Nifty 50 stock scored against the rules below. Actionable setups first, with POP, ROI, margin and suggested lots |
 | **Stock detail** (`/stock/SYMBOL`) | Payoff chart, S/R zones, open interest by strike, strategy lab, order ticket |
+| **Market calendar** (`/calendar`) | NSE trading holidays and Nifty 50 corporate events (results, ex-dividend, splits, bonuses, AGMs, buybacks), filterable by stock, type and range. Screener rows and the stock page show an event badge when an event falls on or before that row's expiry; hover or tap it for details. Results and ex-dividend dates are highlighted as risky. Refreshed once a day by the worker |
 | **Portfolio** (`/portfolio`) | Open positions by stock and expiry: live P&L, margin, Greeks, stop-loss mode per leg, payoff, price & pivot chart, exit leg / exit all, open limit orders |
 | **Virtual account** (`/virtual`) | Order history, closed trades, auto-trade settings and runs, account reset |
 | **Broker** (`/broker`) | Connect a real broker (Zerodha; others are previews). Admin-only for now — everyone else sees the same page as a preview |
@@ -227,7 +228,7 @@ Point the domain's DNS A record at the server first: Caddy fetches the certifica
 - Delta is computed locally with a fixed 6.5% risk-free rate and no dividend adjustment.
 - Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator.
 - Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
-- Market hours are fixed at 09:15–15:30 IST on weekdays; NSE holidays are not in the calendar.
+- Market hours are fixed at 09:15–15:30 IST on weekdays. Scheduled screens skip NSE holidays once the worker has fetched the holiday list, but the market clock and SL monitor don't yet. Event badges are informational: auto-trade does not skip stocks with results before expiry.
 - Real broker execution (Zerodha) is admin-only for now, manual-confirm-only for entries (from day 15 a filled real leg gets a Kite alert-triggered buy-back at the premium collected; see the Real account page), and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account[...]
 - This is primarily a paper-trading and research tool, not investment advice.
 

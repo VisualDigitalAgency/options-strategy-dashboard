@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, CalendarDays, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -17,6 +17,7 @@ import BrokerOnboarding from './components/BrokerOnboarding'
 const StockDetail = lazy(() => import('./pages/StockDetail'))
 const Portfolio = lazy(() => import('./pages/Portfolio'))
 const VirtualAccount = lazy(() => import('./pages/VirtualAccount'))
+const MarketCalendar = lazy(() => import('./pages/MarketCalendar'))
 const Admin = lazy(() => import('./pages/Admin'))
 const Broker = lazy(() => import('./pages/Broker'))
 const BrokerAccount = lazy(() => import('./pages/BrokerAccount'))
@@ -25,6 +26,7 @@ const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
 const NAV = [
   { to: '/', label: 'Screener', icon: LayoutGrid, end: true },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
   { to: '/broker', label: 'Broker', icon: Plug },
 ]
@@ -210,6 +212,7 @@ function SignedIn() {
             <Route path="/" element={<Overview />} />
             <Route path="/stock/:symbol" element={lazyPage(StockDetail)} />
             <Route path="/portfolio" element={lazyPage(Portfolio)} />
+            <Route path="/calendar" element={lazyPage(MarketCalendar)} />
             <Route path="/virtual" element={lazyPage(VirtualAccount)} />
             <Route path="/broker" element={lazyPage(Broker)} />
             <Route path="/broker/account" element={lazyPage(BrokerAccount)} />
