@@ -137,10 +137,11 @@ Accounts: every page needs a sign-in. New users request access on `/register` an
 | Universe | Nifty 50, read live from NSE's constituent CSV (falls back to a saved list if unreachable) |
 | PCR (OI) | 0.4 – 0.7 |
 | Expiry | Every monthly expiry 20–90 days out is screened (at most 4 per stock), one Screener row each, month by month (every stock's nearest cycle first, then the next). A skipped cycle is refetched hourly, actionable and failed ones every run; Refresh refetches all. The Expiry slider opens at 20 days; the strategy enters at 30+ DTE, so auto-trade only opens cycles 30+ days out |
-| Strike | Highest-OI OTM strike with \|delta\| < 0.15 (Black-Scholes from NSE IV) |
+| Strike | Highest-OI OTM strike with \|delta\| < 0.15 (Black-Scholes from NSE IV) that is tradable: OI ≥ 500, bid-ask spread ≤ 10% of mid, and last trade within 15% of the book. An illiquid strike is passed over for the next one by OI |
+| Premium | What a sell books: the bid, not the last traded price (which on a thin strike can be hours old). Outside market hours, with no bid/ask, the last trade stands in until the next in-session screen |
 | Max Pain | Shown as distance from the strike, used for confirmation only |
 | S/R | 6-month daily swings (5-candle fractal), zones ±1.5%, 2+ touches. A strike inside a zone drops that leg |
-| Stop loss | None for the first 15 days, then buy back at the original premium collected |
+| Stop loss | None for the first 15 days, then buy back at the original premium collected. It fires when the bid/ask **mid** reaches the stop (the ask alone sits above a fill at the bid); the exit is a limit at the ask |
 | Time exit | Every leg closes once fewer than 7 days remain (stock options settle by physical delivery) |
 | Profit exit | The whole group closes once 90% of the premium collected has decayed |
 | Sentiment | +1/-1 for price vs 20 & 50 DMA trend, +1/-1 for today's PE vs CE OI change. Score ≥1 Bullish, ≤-1 Bearish, else Neutral. Display only; it doesn't filter trades, but flags single-[...]
@@ -156,6 +157,8 @@ Accounts: every page needs a sign-in. New users request access on `/register` an
 | Lot size | NSE `fo_mktlots.csv`, column for the expiry month |
 | SPAN margin | Worst of the 16 SPAN scenarios for the combined short position, from NSE's latest SPAN 4.0 risk file (`nsccl.YYYYMMDD.iN.zip`). Strangles get the real offset between legs |
 | Exposure margin | Per short leg: higher of 3.5% of notional or 1.5 × 6-month daily volatility |
+| Unbooked P&L | Each leg marked at the bid/ask mid (after the close: the last in-session mid). "If closed now" beside it buys shorts back at the ask, so the spread is visible, not hidden. A leg whose LTP sits >15% outside the book is flagged as stale |
+| Order ticket | Default limit: the bid on a tight book, the mid when the spread is over 3% (it may rest instead of filling). An illiquid strike needs "Place anyway"; auto-trade skips it |
 | Lots suggested | floor(min(account value × max % per trade, free funds) ÷ margin per lot) |
 
 ## Strategy lab (stock detail page)

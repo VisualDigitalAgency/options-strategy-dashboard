@@ -22,10 +22,16 @@ const payoff = (legs, S) =>
 /** Max profit and max loss at expiry, and the premium still left to decay.
  *  Payoff is piecewise linear, so its extremes sit at spot 0, a strike, or run off to infinity
  *  when the net call quantity is non-zero (short calls: unlimited loss; long calls: unlimited profit). */
+/** A leg's fair value: the server's bid/ask mid (or last in-session mid after the close), never
+ *  a stale last trade. Falls back to LTP only for snapshots from before marks existed. */
+const legMark = (l) => l.mark ?? l.ltp
+
+const MARK_NOTE = { mid: 'bid/ask mid', close: 'last in-session mid', ltp: 'last trade, held inside bid/ask' }
+
 export function riskFigures(legs) {
   const points = [0, ...legs.map((l) => l.strike)].map((S) => payoff(legs, S))
   const netCalls = legs.filter((l) => l.side === 'CE').reduce((t, l) => t + l.qty, 0)
-  const left = legs.every((l) => l.ltp != null) ? legs.reduce((t, l) => t - l.qty * l.ltp, 0) : null
+  const left = legs.every((l) => legMark(l) != null) ? legs.reduce((t, l) => t - l.qty * legMark(l), 0) : null
   return {
     maxProfit: netCalls > 0 ? Infinity : Math.max(...points),
     maxLoss: netCalls < 0 ? -Infinity : Math.min(...points),
@@ -93,12 +99,12 @@ function Group({ g, onAction }) {
   const [open, setOpen] = useState(false)
   const [levels, setLevels] = useState(false)
   const lotsLabel = (l) => `${Math.abs(l.lots)} lot${Math.abs(l.lots) > 1 ? 's' : ''}`
-  const shorts = g.legs.filter((l) => l.qty < 0 && l.ltp != null)
+  const shorts = g.legs.filter((l) => l.qty < 0 && legMark(l) != null)
   const collected = shorts.reduce((t, l) => t + l.avg_price * -l.qty, 0)
   const theta = {
     start: g.legs.map((l) => l.opened_at?.slice(0, 10)).sort()[0],
     sl: shorts.map((l) => l.sl_activates_on).filter(Boolean).sort()[0],
-    captured: collected ? shorts.reduce((t, l) => t + (l.avg_price - l.ltp) * -l.qty, 0) / collected : null,
+    captured: collected ? shorts.reduce((t, l) => t + (l.avg_price - legMark(l)) * -l.qty, 0) / collected : null,
   }
   return (
     <section className="card pos-group">
@@ -114,6 +120,10 @@ function Group({ g, onAction }) {
           <div>
             <span className="stat-label">Unbooked</span>
             <span className={`mono big ${pnlClass(g.pnl)}`}>{signedRupee(g.pnl)}</span>
+          </div>
+          <div title="Buying every short back at the ask (and selling longs at the bid) right now">
+            <span className="stat-label">If closed now</span>
+            <span className={`mono ${pnlClass(g.pnl_exit)}`}>{g.pnl_exit != null ? signedRupee(g.pnl_exit) : '—'}</span>
           </div>
           <div>
             <span className="stat-label">Margin</span>
@@ -138,7 +148,7 @@ function Group({ g, onAction }) {
         <table className="legs pos-legs">
           <thead>
             <tr>
-              <th>Instrument</th><th className="num">Qty</th><th className="num">Avg</th><th className="num">LTP</th>
+              <th>Instrument</th><th className="num">Qty</th><th className="num">Avg</th><th className="num" title="Fair value: the bid/ask mid">Mark</th>
               <th className="num">P&L</th><th className="num">Delta</th><th>Stop loss</th><th aria-label="Actions" />
             </tr>
           </thead>
@@ -151,7 +161,14 @@ function Group({ g, onAction }) {
                 </td>
                 <td data-label="Qty" className="num mono">{int(l.qty)} <span className="muted">({lotsLabel(l)})</span></td>
                 <td data-label="Avg" className="num mono">{num(l.avg_price)}</td>
-                <td data-label="LTP" className="num mono">{num(l.ltp)}</td>
+                <td data-label="Mark" className="num mono" title={`${MARK_NOTE[l.mark_src] ?? 'last trade'} · Bid ${num(l.bid)} · Ask ${num(l.ask)} · LTP ${num(l.ltp)}`}>
+                  {num(legMark(l))}
+                  {l.ltp_gap_pct > 15 && (
+                    <AlertTriangle size={13} className="stale-ltp" role="img"
+                      aria-label={`Last trade ${num(l.ltp)} is outside the ${num(l.bid)}/${num(l.ask)} bid/ask (stale); valued at the mid`} />
+                  )}
+                  <span className="sub">{l.mark_src === 'close' ? 'at close' : l.mark_src === 'mid' ? 'mid' : l.mark_src === 'ltp' ? 'LTP' : ''}</span>
+                </td>
                 <td data-label="P&L" className={`num mono ${pnlClass(l.pnl)}`}>{signedRupee(l.pnl)}</td>
                 <td data-label="Delta" className="num mono">{signed(l.delta, 1)}</td>
                 <td data-label="Stop loss">
@@ -459,7 +476,13 @@ export default function Portfolio() {
 
       {mode === 'virtual' && a && (
         <section className="ledger" aria-label="Account summary">
-          <div className="stat"><span className="stat-label">Unbooked P&L</span><span className={`stat-value mono ${pnlClass(a.unrealized_pnl)}`}>{signedRupee(a.unrealized_pnl)}</span></div>
+          <div className="stat">
+            <span className="stat-label">Unbooked P&L</span>
+            <span className={`stat-value mono ${pnlClass(a.unrealized_pnl)}`}>{signedRupee(a.unrealized_pnl)}</span>
+            {data.totals.pnl_exit != null && (
+              <span className="stat-sub" title="Buying every short back at the ask right now: the spread is the difference">If closed now {signedRupee(data.totals.pnl_exit)}</span>
+            )}
+          </div>
           <div className="stat"><span className="stat-label">Booked P&L</span><span className={`stat-value mono ${pnlClass(a.realized_pnl)}`}>{signedRupee(a.realized_pnl)}</span></div>
           <div className="stat"><span className="stat-label">Margin used</span><span className="stat-value mono">{rupee(a.used_margin)}</span></div>
           <div className="stat"><span className="stat-label">Funds free</span><span className="stat-value mono">{rupee(a.available_margin)}</span></div>

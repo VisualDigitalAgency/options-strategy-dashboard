@@ -31,11 +31,15 @@ SCREEN_SKIP_REFRESH_SECONDS = 3600
 
 DELTA_MAX_ABS = 0.15  # strike must have |delta| below this on both CE and PE
 
-# Illiquid-strike gate (#80): a leg failing either check is dropped from the screener and refused
-# at order entry, so the virtual account never opens a position whose bid-ask spread alone would
-# show as an unrealized loss the moment it fills.
+# Illiquid-strike gate (#80, engine/pricing.py): a strike failing any check is passed over by the
+# screener (the next-highest-OI strike is tried), needs an explicit confirm on a manual order, and is
+# skipped by auto-trade. Spread and LTP gap are % of the bid/ask mid.
 LIQUIDITY_MIN_OI = 500
 LIQUIDITY_MAX_SPREAD_PCT = 10
+LIQUIDITY_MAX_LTP_GAP_PCT = 15    # LTP this far outside the book = no recent trades (stale)
+# The order ticket defaults a limit to the touch (bid for a sell) on a tight book; wider than this,
+# to the mid, so the spread isn't given away the moment the order fills.
+TICKET_MID_SPREAD_PCT = 3
 
 RISK_FREE_RATE = 0.065  # approx India 10Y-adjacent short rate, update periodically
 

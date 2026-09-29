@@ -80,6 +80,9 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
   }, [d.symbol, d.expiry, lots, JSON.stringify(limits), reload])
 
   const waiting = preview?.waiting ?? []
+  // Legs on an illiquid strike (wide spread, thin OI, stale last trade): shown before placing, and
+  // the button becomes "Place anyway", which is the confirmation the server asks for.
+  const illiquid = preview?.illiquid ?? []
 
   // Reload one leg's limit with the current best price: a fresh preview priced at the default
   // (the bid for a sell), leaving the other legs as typed. A failure keeps the typed value.
@@ -113,6 +116,7 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
     try {
       setDone(await rpc('va_place_order', {
         symbol: d.symbol, expiry: d.expiry, legs, sl_mode: slMode, confirm_waiting: confirmWaiting,
+        confirm_illiquid: illiquid.length > 0,
       }))
       refresh()
     } catch (e) {
@@ -128,7 +132,7 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
   const live = intent === 'live' && brokerConnected
   const virtualBtn = (
     <button className={`btn ${live ? '' : 'primary'}`} onClick={() => place()} disabled={!preview || !preview.sufficient || busy}>
-      {busy ? 'Placing…' : 'Place virtual limit order'}
+      {busy ? 'Placing…' : illiquid.length ? 'Place anyway' : 'Place virtual limit order'}
     </button>
   )
 
@@ -217,6 +221,23 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
       ))}
       {preview && !preview.sufficient && (
         <p className="form-error" role="alert">Not enough virtual funds. Exit a position or reset the account with more capital.</p>
+      )}
+      {illiquid.length > 0 && (
+        <div className="alert warn-alert" role="alert">
+          <AlertTriangle size={18} aria-hidden />
+          <div>
+            <b>Illiquid strike.</b>
+            <ul>
+              {illiquid.map((i) => (
+                <li key={`${i.side}-${i.strike}`} className="mono">
+                  {i.strike} {i.side}: {i.reason}
+                  <span className="muted"> · bid {rupee2(i.bid)} / ask {rupee2(i.ask)} · last {rupee2(i.ltp)}</span>
+                </li>
+              ))}
+            </ul>
+            <p>A sell here fills at the bid, and closing it pays the ask, so the spread is lost up front. Auto-trade skips strikes like this.</p>
+          </div>
+        </div>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
       {realError && <p className="form-error" role="alert">{realError}</p>}

@@ -6,49 +6,63 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 
-from . import config, data_fetch, filters, greeks_sr, span
+from . import config, data_fetch, filters, greeks_sr, pricing, span
 
 
 def _check(checks: list, rule: str, status: str, detail: str):
     checks.append({"rule": rule, "status": status, "detail": detail})
 
 
-def _pick_leg(chain: pd.DataFrame, spot: float, dte: int, side: str) -> dict | None:
-    """Highest-OI OTM strike on this side whose |delta| < DELTA_MAX_ABS."""
+def _pick_leg(chain: pd.DataFrame, spot: float, dte: int, side: str,
+              in_session: bool | None = None) -> tuple[dict | None, list[str]]:
+    """Highest-OI OTM strike on this side whose |delta| < DELTA_MAX_ABS and that is tradable
+    (engine/pricing.liquidity). An illiquid strike is passed over for the next one by OI; the
+    reasons come back so the check can say why. The premium is what a sell books: the bid."""
+    in_session = pricing.market_open() if in_session is None else in_session
     otm = chain[chain["strikePrice"] > spot] if side == "CE" else chain[chain["strikePrice"] < spot]
     otm = otm.copy()
     oi_col, ltp_col, iv_col = f"{side}_OI", f"{side}_LTP", f"{side}_IV"
-    otm = otm[(otm[oi_col] > 0) & (otm[ltp_col] > 0) & (otm[iv_col] > 0)]
+    bid_col, ask_col = f"{side}_BID", f"{side}_ASK"
+    otm = otm[(otm[oi_col] > 0) & ((otm[ltp_col] > 0) | (otm[bid_col] > 0)) & (otm[iv_col] > 0)]
     if otm.empty:
-        return None
+        return None, []
 
     otm["delta"] = otm.apply(
         lambda r: greeks_sr.bs_delta(spot, r["strikePrice"], dte, r[iv_col], side), axis=1
     )
     eligible = otm[otm["delta"].abs() < config.DELTA_MAX_ABS]
-    if eligible.empty:
-        return None
-
-    best = eligible.loc[eligible[oi_col].idxmax()]
-    strike, iv = float(best["strikePrice"]), float(best[iv_col])
-    g = greeks_sr.bs_greeks(spot, strike, dte, iv, side)
-    p_below = greeks_sr.prob_below(spot, strike, dte, iv)
-    p_beyond = (1 - p_below) if side == "CE" else p_below
-    return {
-        "side": side,
-        "strike": strike,
-        "premium": float(best[ltp_col]),
-        "bid": float(best[f"{side}_BID"]),
-        "ask": float(best[f"{side}_ASK"]),
-        "iv": iv,
-        "oi": int(best[oi_col]),
-        "oi_change": int(best[f"{side}_OI_CHG"]),
-        **g,
-        "prob_itm": round(p_beyond * 100, 1),
-        # Reflection principle: chance of touching the strike before expiry is ~2x finishing past it.
-        "prob_touch": round(min(1.0, 2 * p_beyond) * 100, 1),
-        "distance_pct": round((strike - spot) / spot * 100, 2),
-    }
+    passed_over: list[str] = []
+    for _, best in eligible.sort_values(oi_col, ascending=False).iterrows():
+        bid, ask, ltp, oi = float(best[bid_col]), float(best[ask_col]), float(best[ltp_col]), int(best[oi_col])
+        liq = pricing.liquidity(bid, ask, ltp, oi, in_session)
+        premium, src = pricing.sell_premium(bid, ask, ltp, in_session)
+        if liq["ok"] is False or premium <= 0:
+            passed_over.append(f"{float(best['strikePrice']):g} ({liq['reason'] or 'no sell price'})")
+            continue
+        strike, iv = float(best["strikePrice"]), float(best[iv_col])
+        g = greeks_sr.bs_greeks(spot, strike, dte, iv, side)
+        p_below = greeks_sr.prob_below(spot, strike, dte, iv)
+        p_beyond = (1 - p_below) if side == "CE" else p_below
+        return {
+            "side": side,
+            "strike": strike,
+            "premium": premium,
+            "premium_src": src,
+            "ltp": ltp,
+            "bid": bid,
+            "ask": ask,
+            "spread_pct": liq["spread_pct"],
+            "liquidity": liq,
+            "iv": iv,
+            "oi": oi,
+            "oi_change": int(best[f"{side}_OI_CHG"]),
+            **g,
+            "prob_itm": round(p_beyond * 100, 1),
+            # Reflection principle: chance of touching the strike before expiry is ~2x finishing past it.
+            "prob_touch": round(min(1.0, 2 * p_beyond) * 100, 1),
+            "distance_pct": round((strike - spot) / spot * 100, 2),
+        }, passed_over
+    return None, passed_over
 
 
 def _exposure_pct(price_hist: pd.DataFrame) -> float:
@@ -195,12 +209,17 @@ def _evaluate_for_expiry(symbol: str, expiry: pd.Timestamp, dte: int, today: pd.
 
     legs = []
     for side in ("CE", "PE"):
-        leg = _pick_leg(chain, spot, dte, side)
+        leg, passed_over = _pick_leg(chain, spot, dte, side)
         if leg is None:
-            _check(checks, f"{side} strike", "fail", f"No OTM strike with |delta| below {config.DELTA_MAX_ABS}")
+            why = (f"every OTM strike with |delta| below {config.DELTA_MAX_ABS} is illiquid: "
+                   + "; ".join(passed_over[:3])) if passed_over else \
+                f"No OTM strike with |delta| below {config.DELTA_MAX_ABS}"
+            _check(checks, f"{side} strike", "fail", why)
             continue
+        skipped = f"; passed over illiquid {', '.join(passed_over[:3])}" if passed_over else ""
         _check(checks, f"{side} strike", "pass",
-               f"{leg['strike']:.0f} has the highest OI ({leg['oi']:,}) with delta {leg['delta']:.3f}")
+               f"{leg['strike']:.0f} has the highest OI ({leg['oi']:,}) of the tradable strikes, "
+               f"delta {leg['delta']:.3f}{skipped}")
         zone = greeks_sr.strike_in_sr_zone(leg["strike"], zones)
         if zone:
             _check(checks, f"{side} S/R", "fail",
@@ -208,12 +227,14 @@ def _evaluate_for_expiry(symbol: str, expiry: pd.Timestamp, dte: int, today: pd.
                    f"({zone['touches']} touches), leg dropped")
             continue
         _check(checks, f"{side} S/R", "pass", f"{leg['strike']:.0f} is clear of all S/R zones")
-        spread_pct = (leg["ask"] - leg["bid"]) / leg["premium"] * 100 if leg["premium"] else 0
-        if leg["oi"] < config.LIQUIDITY_MIN_OI or spread_pct > config.LIQUIDITY_MAX_SPREAD_PCT:
-            _check(checks, f"{side} liquidity", "fail",
-                   f"OI {leg['oi']:,}, bid-ask spread {spread_pct:.0f}% of premium; too illiquid to trade, leg dropped")
-            continue
-        _check(checks, f"{side} liquidity", "pass", f"OI {leg['oi']:,}, spread {spread_pct:.0f}% of premium")
+        if leg["liquidity"]["ok"] is None:
+            _check(checks, f"{side} liquidity", "warn",
+                   f"No bid/ask outside market hours; premium ₹{leg['premium']:.2f} is the last trade, "
+                   "rechecked at the next in-session screen")
+        else:
+            _check(checks, f"{side} liquidity", "pass",
+                   f"OI {leg['oi']:,}, spread {leg['spread_pct']:.1f}% of mid; sells at the bid ₹{leg['premium']:.2f}"
+                   + (f" (last trade ₹{leg['ltp']:.2f})" if abs(leg["ltp"] - leg["premium"]) >= 0.05 else ""))
         leg["max_pain_distance_pct"] = round((leg["strike"] - max_pain) / max_pain * 100, 2)
         legs.append(leg)
 
