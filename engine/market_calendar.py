@@ -129,12 +129,15 @@ def holiday_dates(data: dict | None = None) -> set[str]:
     return {h["date"] for h in (data or load())["holidays"]}
 
 
-def events_until(events: list[dict], symbol: str, today: str, expiry: str | None) -> list[dict]:
-    """`symbol`'s events from today through `expiry` (inclusive), each with days_away and risky."""
+def events_until(events: list[dict], symbol: str, today: str, expiry: str | None,
+                 after: str | None = None) -> list[dict]:
+    """`symbol`'s events from today through `expiry` (inclusive), each with days_away and risky.
+    `after` (exclusive) limits them to one expiry cycle: events after the previous expiry."""
     t = pd.Timestamp(today)
     out = []
     for e in events:
-        if e["symbol"] == symbol and e["date"] >= today and (not expiry or e["date"] <= expiry):
+        if (e["symbol"] == symbol and e["date"] >= today and (not expiry or e["date"] <= expiry)
+                and (not after or e["date"] > after)):
             out.append({**e, "days_away": (pd.Timestamp(e["date"]) - t).days, "risky": e["type"] in RISKY})
     return out
 

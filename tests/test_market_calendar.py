@@ -57,6 +57,7 @@ oct_ = market_calendar.events_until(ev, "SBIN", "2026-09-29", "2026-10-27")
 check("Oct cycle sees only the Oct results", [(e["type"], e["days_away"], e["risky"]) for e in oct_] == [("results", 15, True)], oct_)
 dec = market_calendar.events_until(ev, "SBIN", "2026-09-29", "2026-12-29")
 check("Dec cycle also sees the split", [e["type"] for e in dec] == ["results", "split"], dec)
+check("after: one cycle's window only", [e["type"] for e in market_calendar.events_until(ev, "SBIN", "2026-09-29", "2026-12-29", after="2026-10-27")] == ["split"], None)
 check("past events dropped", market_calendar.events_until(ev, "SBIN", "2026-10-15", "2026-10-27") == [], None)
 
 # ---- screen rows and the RPC carry events
@@ -70,9 +71,11 @@ job._publish(rows=True)
 server.screen = batch.ScreenReader()
 server._ist_today = lambda: "2026-09-29"
 rows = server.get_screened_candidates()["candidates"]
-check("screener rows: events per expiry", [len(r["events"]) for r in rows] == [1, 2], [r.get("events") for r in rows])
+check("screener rows: each event only on the cycle it falls in", [[e["type"] for e in r["events"]] for r in rows] == [["results"], ["split"]], [r.get("events") for r in rows])
 detail = server.get_trade_detail("SBIN", "2026-10-27")
 check("detail carries events", [e["type"] for e in detail["events"]] == ["results"], detail.get("events"))
+dec_detail = server.get_trade_detail("SBIN", "2026-12-29")
+check("detail keeps every event up to expiry (Dec still lists the Oct results)", [e["type"] for e in dec_detail["events"]] == ["results", "split"], dec_detail.get("events"))
 check("screen cache not mutated", "events" not in job.results["SBIN"][0], None)
 cal = server.get_market_calendar()
 check("calendar RPC", cal["holidays"][0]["date"] == "2026-10-02" and len(cal["events"]) == 4 and cal["today"] == "2026-09-29", cal)
