@@ -18,6 +18,7 @@ let marketOpen = false
 let bid = 30
 let failDefaultPrice = false // the refresh (a preview with no typed price) fails
 let brokerStatus = 'disconnected'
+let illiquid = []
 globalThis.fetch = async (_url, opts) => {
   const { method, params, id } = JSON.parse(opts.body)
   let result = {}
@@ -28,7 +29,7 @@ globalThis.fetch = async (_url, opts) => {
     const limit = typed ?? bid
     result = {
       symbol: 'SUNPHARMA', expiry: '2026-10-27', lot_size: 350, premium: 10000, margin_change: 50000,
-      available_margin: 900000, sufficient: true, sl_mode_default: 'alert', notes: [], market_open: marketOpen, waiting,
+      available_margin: 900000, sufficient: true, sl_mode_default: 'alert', notes: [], market_open: marketOpen, waiting, illiquid,
       fills: [{ side: 'CE', strike: 2200, action: 'SELL', qty: 350, limit, price: limit, fills_now: false, bid, ask: bid + 1, ltp: bid, spot: 2000 }],
     }
   } else if (method === 'broker_account_summary') {
@@ -142,6 +143,26 @@ root = await open('virtual')
 check('virtual intent with a broker keeps virtual primary', primary() === 'Place virtual limit order')
 await act(async () => root.unmount())
 brokerStatus = 'disconnected'
+
+// 7. Illiquid strike (stale LTP / wide spread): the reason shows, the button asks "Place anyway",
+// and that click sends confirm_illiquid; a liquid strike sends it false.
+failDefaultPrice = false
+placed.length = 0
+illiquid = [{ side: 'CE', strike: 2200, reason: 'last trade ₹6.00 is 69% outside the ₹3.40/₹3.60 book (stale)', bid: 3.4, ask: 3.6, ltp: 6 }]
+root = await open('virtual')
+check('illiquid: reason shown', text().includes('Illiquid strike') && text().includes('outside the ₹3.40/₹3.60 book'))
+await click('Place anyway')
+await settle()
+check('illiquid: Place anyway sends confirm_illiquid', placed.length === 1 && placed[0].confirm_illiquid === true)
+await act(async () => root.unmount())
+illiquid = []
+placed.length = 0
+root = await open('virtual')
+check('liquid: no warning', !text().includes('Illiquid strike'))
+await click('Place virtual limit order')
+await settle()
+check('liquid: confirm_illiquid false', placed.length === 1 && placed[0].confirm_illiquid === false)
+await act(async () => root.unmount())
 
 console.log(ok ? 'ALL PASS' : 'SOME FAILED')
 process.exit(ok ? 0 : 1)
