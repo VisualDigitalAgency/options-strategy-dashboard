@@ -9,10 +9,14 @@ aggressively if you hit the endpoint too often).
 """
 
 import io
+import random
+import threading
 import time
 import requests
 import pandas as pd
 import yfinance as yf
+
+from . import config
 
 NSE_BASE = "https://www.nseindia.com"
 NSE_CONTRACT_INFO_URL = f"{NSE_BASE}/api/option-chain-contract-info"
@@ -29,32 +33,49 @@ _HEADERS = {
 
 _session_cache = {"session": None, "ts": 0}
 _SESSION_TTL = 60 * 5  # refresh NSE session cookies every 5 min
+_session_lock = threading.Lock()  # one thread refreshes cookies; the others wait and reuse them
+_pace = {"lock": threading.Lock(), "next": 0.0}
 
 
-def _get_nse_session() -> requests.Session:
-    now = time.time()
-    if _session_cache["session"] and now - _session_cache["ts"] < _SESSION_TTL:
-        return _session_cache["session"]
+def _wait_turn() -> None:
+    """Spaces every nseindia.com request in this process by NSE_MIN_GAP_SECONDS plus random jitter,
+    however many screen threads are running, so NSE sees a steady trickle instead of bursts."""
+    with _pace["lock"]:
+        now = time.monotonic()
+        start = max(now, _pace["next"])
+        _pace["next"] = start + config.NSE_MIN_GAP_SECONDS + random.uniform(0, config.NSE_GAP_JITTER_SECONDS)
+    if start > now:
+        time.sleep(start - now)
 
-    session = requests.Session()
-    session.headers.update(_HEADERS)
-    # Hitting the homepage first is required to receive valid cookies —
-    # calling the API cold returns 401/403.
-    session.get(NSE_BASE, timeout=10)
-    time.sleep(1)
-    _session_cache["session"] = session
-    _session_cache["ts"] = now
-    return session
+
+def _get_nse_session(stale: requests.Session | None = None) -> requests.Session:
+    """Cached session with NSE cookies. Pass the session that just failed to force a refresh;
+    if another thread already replaced it, that fresh one is reused."""
+    with _session_lock:
+        cur = _session_cache["session"]
+        if cur and cur is not stale and time.time() - _session_cache["ts"] < _SESSION_TTL:
+            return cur
+        session = requests.Session()
+        session.headers.update(_HEADERS)
+        # Hitting the homepage first is required to receive valid cookies —
+        # calling the API cold returns 401/403.
+        _wait_turn()
+        session.get(NSE_BASE, timeout=config.NSE_TIMEOUT_SECONDS)
+        time.sleep(1)
+        _session_cache.update(session=session, ts=time.time())
+        return session
 
 
 def _nse_get(url: str, params: dict) -> dict:
     session = _get_nse_session()
-    resp = session.get(url, params=params, timeout=10)
+    _wait_turn()
+    resp = session.get(url, params=params, timeout=config.NSE_TIMEOUT_SECONDS)
     if resp.status_code != 200 or not resp.text.strip("{} \n"):
-        # session likely stale — force a refresh once and retry
-        _session_cache["session"] = None
-        session = _get_nse_session()
-        resp = session.get(url, params=params, timeout=10)
+        # Session likely stale, or NSE pushing back: back off, refresh cookies once and retry.
+        time.sleep(config.NSE_RETRY_BACKOFF_SECONDS)
+        session = _get_nse_session(stale=session)
+        _wait_turn()
+        resp = session.get(url, params=params, timeout=config.NSE_TIMEOUT_SECONDS)
     resp.raise_for_status()
     return resp.json()
 
