@@ -24,6 +24,10 @@ MIN_DTE = 30  # the strategy's entry floor: auto-trade only opens cycles at leas
 SCREEN_DTE_FLOOR = 20
 SCREEN_DTE_CEIL = 90
 SCREEN_MAX_EXPIRY_CYCLES = 4
+# Cycles are screened month by month (every stock's nearest cycle, then the next, ...). A cycle that
+# came back SKIP is reused, not refetched, until it is this old; actionable, errored and new cycles
+# are refetched every run. The Refresh button refetches everything.
+SCREEN_SKIP_REFRESH_SECONDS = 3600
 
 DELTA_MAX_ABS = 0.15  # strike must have |delta| below this on both CE and PE
 

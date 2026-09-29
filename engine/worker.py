@@ -40,7 +40,7 @@ def start_screen_refresher(job: ScreenJob) -> None:
             try:
                 if cache.exists(FORCE) and not job.state["running"]:
                     cache.delete(FORCE)
-                    job.ensure(force=True, ttl=0)
+                    job.ensure(force=True, ttl=0, full=True)  # the Refresh button refetches everything
                 finished = job.state["finished_at"]
                 if not job.state["running"] and (not finished or time.time() - finished >= screen_interval()):
                     job.ensure(force=True, ttl=0)
