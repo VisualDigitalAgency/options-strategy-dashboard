@@ -28,6 +28,19 @@ def _empty_state() -> dict:
             "started_at": None, "finished_at": None, "span_source": None, "error": None}
 
 
+def _as_lists(results: dict) -> dict[str, list[dict]]:
+    """Screens saved before multi-expiry screening hold one dict per stock, not a list of cycles."""
+    return {s: r if isinstance(r, list) else [r] for s, r in (results or {}).items()}
+
+
+def _flatten(order: list[str], results: dict[str, list[dict]]) -> list[dict]:
+    return [row for s in order if s in results for row in results[s]]
+
+
+def _all_error(rows: list[dict]) -> bool:
+    return all(r.get("action") == "ERROR" for r in rows)
+
+
 def _read_file() -> dict | None:
     try:
         return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
@@ -43,7 +56,7 @@ class ScreenJob:
     def __init__(self):
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
-        self.results: dict[str, dict] = {}
+        self.results: dict[str, list[dict]] = {}  # symbol -> one row per expiry cycle, nearest first
         self.order: list[str] = []
         self.state = _empty_state()
         self._version = ""
@@ -52,7 +65,7 @@ class ScreenJob:
     def _load_cache(self) -> None:
         saved = _read_file()
         if saved:
-            self.results, self.order = saved["results"], saved["order"]
+            self.results, self.order = _as_lists(saved["results"]), saved["order"]
             self.state.update(finished_at=saved["finished_at"], span_source=saved["span_source"],
                               done=len(self.order), total=len(self.order))
             self._publish(rows=True)
@@ -108,12 +121,15 @@ class ScreenJob:
                 except Exception:
                     histories = {}  # evaluate_symbol falls back to a per-stock fetch
                 with ThreadPoolExecutor(max_workers=config.SCREEN_WORKERS) as pool:
-                    futures = {s: pool.submit(risk_rules.safe_evaluate, s, histories.get(f"{s}.NS")) for s in batch}
+                    # Each task screens every expiry cycle of one stock in turn, so the burst rate
+                    # to NSE stays at SCREEN_WORKERS; a full screen just takes longer.
+                    futures = {s: pool.submit(risk_rules.safe_evaluate_cycles, s, histories.get(f"{s}.NS"))
+                               for s in batch}
                     for s, f in futures.items():
-                        r = f.result()
+                        rows = f.result()
                         # A failed fetch keeps the last good result rather than replacing it with an error.
-                        if r.get("action") != "ERROR" or s not in self.results or self.results[s].get("action") == "ERROR":
-                            self.results[s] = r
+                        if not _all_error(rows) or s not in self.results or _all_error(self.results[s]):
+                            self.results[s] = rows
                         self.state["done"] += 1
                 self._publish(rows=True)
                 if n < len(batches):
@@ -129,10 +145,10 @@ class ScreenJob:
                 pass
 
     def snapshot(self) -> list[dict]:
-        return [self.results[s] for s in self.order if s in self.results]
+        return _flatten(self.order, self.results)
 
-    def get(self, symbol: str) -> dict | None:
-        return self.results.get(symbol)
+    def get(self, symbol: str, expiry: str | None = None) -> dict | None:
+        return risk_rules.pick_cycle(self.results.get(symbol), expiry)
 
 
 class ScreenReader:
@@ -156,15 +172,16 @@ class ScreenReader:
         if version != self._rows["version"]:
             data = cache.get_json(LATEST) if version != "file" else None
             data = data or _read_file() or {}
-            self._rows = {"version": version, "order": data.get("order", []), "results": data.get("results", {})}
+            self._rows = {"version": version, "order": data.get("order", []),
+                          "results": _as_lists(data.get("results", {}))}
         return self._rows
 
     def snapshot(self) -> list[dict]:
         rows = self._load()
-        return [rows["results"][s] for s in rows["order"] if s in rows["results"]]
+        return _flatten(rows["order"], rows["results"])
 
-    def get(self, symbol: str) -> dict | None:
-        return self._load()["results"].get(symbol)
+    def get(self, symbol: str, expiry: str | None = None) -> dict | None:
+        return risk_rules.pick_cycle(self._load()["results"].get(symbol), expiry)
 
     def request_refresh(self) -> None:
         """Asks the worker for an early refresh; it picks this up within a few seconds."""

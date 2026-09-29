@@ -15,6 +15,9 @@ import { addDaysIso, num, pct, rupee, shortDate, signedPct, suggestLots, todayIs
 
 const dayChange = (c) => (c.prev_close && c.spot ? ((c.spot - c.prev_close) / c.prev_close) * 100 : null)
 const stripIv = (c) => (c.legs.length ? c.legs.reduce((s, l) => s + l.iv, 0) / c.legs.length : c.atm_iv)
+const detailPath = (c) =>
+  `/stock/${encodeURIComponent(c.symbol)}${c.expiry ? `?expiry=${encodeURIComponent(c.expiry)}` : ''}`
+const rowKey = (c) => `${c.symbol}-${c.expiry ?? ''}`
 const room = (c) => (c.legs.length ? Math.min(...c.legs.map((l) => Math.abs(l.distance_pct))) : -1)
 
 /** One short line on why a stock produced no trade, from its first failed rule. */
@@ -48,6 +51,7 @@ const matches = (c, f) =>
 
 const COLUMNS = [
   { key: 'symbol', label: 'Stock', get: (c) => c.symbol },
+  { key: 'expiry', label: 'Expiry', get: (c) => c.dte ?? 999, num: true },
   { key: 'sentiment', label: 'Trend', get: (c) => c.sentiment?.score ?? -9 },
   { key: 'action', label: 'Setup', get: (c) => c.legs.length },
   { key: 'room', label: 'Room to strike', get: room, wide: true },
@@ -60,7 +64,7 @@ const COLUMNS = [
   { key: 'pcr', label: 'PCR', get: (c) => c.pcr ?? 9, num: true },
 ]
 
-const SK_WIDTHS = ['60%', '55%', '90%', '60%', '45%', '65%', '70%', '50%', '35%', '45%']
+const SK_WIDTHS = ['50%', '60%', '55%', '90%', '60%', '45%', '65%', '70%', '50%', '35%', '45%']
 
 function SkeletonRows({ count }) {
   return Array.from({ length: count }, (_, i) => (
@@ -120,32 +124,40 @@ export default function Overview() {
   )
 
   const [minDte, setMinDte] = useState(null)
+  // Every expiry cycle the backend screened (several per stock) at or past the slider's floor.
+  const inRange = useMemo(
+    () => candidates.filter((c) => minDte == null || c.dte == null || c.dte >= minDte),
+    [candidates, minDte],
+  )
 
   const rows = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sort.key)
-    return candidates
+    return inRange
       .filter((c) => matches(c, filter))
       .filter((c) => mood === 'all' || c.sentiment?.label === mood)
-      .filter((c) => minDte == null || c.dte == null || c.dte >= minDte)
       .filter((c) => c.symbol.toLowerCase().includes(query.trim().toLowerCase()))
       .sort((a, b) => {
         const x = col.get(a), y = col.get(b)
         const cmp = typeof x === 'string' ? x.localeCompare(y) : x - y
         return sort.dir === 'asc' ? cmp : -cmp
       })
-  }, [candidates, filter, mood, query, sort, minDte])
+  }, [inRange, filter, mood, query, sort])
 
-  const actionable = candidates.filter((c) => c.legs.length > 0)
+  const actionable = inRange.filter((c) => c.legs.length > 0)
   const avgPop = actionable.length ? actionable.reduce((s, c) => s + (c.strategy?.pop ?? 0), 0) / actionable.length : null
   const best = [...actionable].sort((a, b) => (b.strategy?.roi_pct ?? 0) - (a.strategy?.roi_pct ?? 0))[0]
-  const moods = ['Bullish', 'Neutral', 'Bearish'].map((m) => [m, candidates.filter((c) => c.sentiment?.label === m).length])
-  const series = candidates.find((c) => c.expiry)
+  // Trend is per stock, not per expiry cycle: count each stock once.
+  const perStock = [...new Map(candidates.map((c) => [c.symbol, c])).values()]
+  const moods = ['Bullish', 'Neutral', 'Bearish'].map((m) => [m, perStock.filter((c) => c.sentiment?.label === m).length])
+  // Nearest cycle still shown under the Expiry slider.
+  const series = inRange.filter((c) => c.expiry).sort((a, b) => a.dte - b.dte)[0]
   const today = todayIso()
   const clock = useMarketClock()
   const [cfg, setCfg] = useState(null)
   useEffect(() => { rpc('get_config').then(setCfg).catch(() => {}) }, [])
   useEffect(() => { if (cfg && minDte == null) setMinDte(cfg.min_dte ?? 30) }, [cfg]) // eslint-disable-line react-hooks/exhaustive-deps
   const baseDte = cfg?.min_dte ?? 30
+  const [dteFloor, dteCeil] = cfg?.screen_dte_range ?? [20, 90]
   const grace = cfg?.sl_grace_days ?? 15
   const slIso = addDaysIso(today, grace)
   const scanned = data?.generated_at
@@ -158,7 +170,7 @@ export default function Overview() {
 
   const toggleSort = (key) =>
     setSort((s) => ({ key, dir: s.key === key && s.dir === 'desc' ? 'asc' : 'desc' }))
-  const counts = Object.fromEntries(FILTERS.map(([k]) => [k, candidates.filter((c) => matches(c, k)).length]))
+  const counts = Object.fromEntries(FILTERS.map(([k]) => [k, inRange.filter((c) => matches(c, k)).length]))
 
   return (
     <>
@@ -169,19 +181,18 @@ export default function Overview() {
           <UpdatedTag ts={data?.generated_at} refreshing={refreshing} />
         </div>
         <ul className="rules" aria-label="Screening rules">
-          <li className="rule-slider" title="Only show stocks whose expiry is at least this many days out. The backend only ever screens one expiry cycle per stock (the nearest one at least this many days out), so this can only narrow the current cycle, not reach an earlier one that was never fetched.">
+          <li className="rule-slider" title={`Only show expiry cycles at least this many days out. Every monthly expiry ${dteFloor}–${dteCeil} days out is screened for each stock, so drag below ${baseDte} to see the nearer cycle too. Auto-trade only opens cycles ${baseDte}+ days out.`}>
             <CalendarClock size={14} strokeWidth={2} aria-hidden />
             <span className="rule-label">Expiry</span>
             <input
               type="range"
-              className="v-slider"
-              min={baseDte}
-              max={90}
+              className="dte-slider"
+              min={dteFloor}
+              max={dteCeil}
               step={1}
               value={minDte ?? baseDte}
               onChange={(e) => setMinDte(Number(e.target.value))}
               aria-label="Minimum days to expiry"
-              orient="vertical"
             />
             <b className="num">{'≥'} {minDte ?? baseDte} days</b>
           </li>
@@ -218,7 +229,7 @@ export default function Overview() {
         </div>
         <div>
           <dt><ListChecks size={13} aria-hidden />Setups</dt>
-          <dd><span className="num">{actionable.length}</span> <small>of {candidates.length || 50}</small></dd>
+          <dd><span className="num">{actionable.length}</span> <small>of {inRange.length || 50}</small></dd>
           <p className="num">{counts.strangle} strangle, {counts.ce} CE, {counts.pe} PE</p>
         </div>
         <div>
@@ -322,18 +333,22 @@ export default function Overview() {
           <tbody>
             {rows.map((c) => {
               const s = c.strategy
-              const go = () => navigate(`/stock/${encodeURIComponent(c.symbol)}`)
+              const go = () => navigate(detailPath(c))
               const chg = dayChange(c)
               const reason = c.legs.length ? null : skipReason(c)
               return (
-                <tr key={c.symbol} className={c.legs.length ? 'row' : 'row dim'} onClick={go}>
+                <tr key={rowKey(c)} className={c.legs.length ? 'row' : 'row dim'} onClick={go}>
                   <td>
-                    <Link to={`/stock/${encodeURIComponent(c.symbol)}`} className="sym" onClick={(e) => e.stopPropagation()}>
+                    <Link to={detailPath(c)} className="sym" onClick={(e) => e.stopPropagation()}>
                       {c.symbol}
                     </Link>
                     <span className="sub num">
                       {num(c.spot)} <span className={chg > 0 ? 'pos' : chg < 0 ? 'neg' : ''}>{signedPct(chg)}</span>
                     </span>
+                  </td>
+                  <td className="num">
+                    {shortDate(c.expiry)}
+                    {c.dte != null && <span className="sub">{c.dte} days</span>}
                   </td>
                   <td><SentimentBadge sentiment={c.sentiment} /></td>
                   <td className="setup-cell">
@@ -379,10 +394,13 @@ export default function Overview() {
 
       <ul className="card-list" aria-label="Stocks">
         {rows.map((c) => (
-          <li key={c.symbol}>
-            <Link to={`/stock/${encodeURIComponent(c.symbol)}`} className={`m-card ${c.legs.length ? '' : 'dim'}`}>
+          <li key={rowKey(c)}>
+            <Link to={detailPath(c)} className={`m-card ${c.legs.length ? '' : 'dim'}`}>
               <div className="m-card-head">
-                <span className="sym">{c.symbol}</span>
+                <span className="sym">
+                  {c.symbol}
+                  {c.expiry && <small className="m-card-exp num"> {shortDate(c.expiry)} · {c.dte}d</small>}
+                </span>
                 <ActionBadge action={c.action} />
               </div>
               <div className="m-card-row">

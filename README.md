@@ -135,7 +135,7 @@ Accounts: every page needs a sign-in. New users request access on `/register` an
 |---|---|
 | Universe | Nifty 50, read live from NSE's constituent CSV (falls back to a saved list if unreachable) |
 | PCR (OI) | 0.4 – 0.7 |
-| Expiry | First expiry with 30+ DTE |
+| Expiry | Every monthly expiry 20–90 days out is screened (at most 4 per stock), one Screener row each. The strategy enters at 30+ DTE: the Expiry slider starts there and auto-trade only opens cycles 30+ days out |
 | Strike | Highest-OI OTM strike with \|delta\| < 0.15 (Black-Scholes from NSE IV) |
 | Max Pain | Shown as distance from the strike, used for confirmation only |
 | S/R | 6-month daily swings (5-candle fractal), zones ±1.5%, 2+ touches. A strike inside a zone drops that leg |
@@ -181,7 +181,7 @@ Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹10
 | Stop loss | Per short leg, three modes: **Auto exit** (the whole group closes once a leg's ask reaches the premium collected, from day 15), **Alert only** (flags the leg for you to act), **Off*[...]
 | Exits | Exit a leg or the whole group. With the market closed, the exit waits as an open order; pressing Exit again doesn't queue a second one |
 | Monitor | The worker checks stop losses, time exits and profit targets every minute in market hours (09:15–15:30 IST), fills open orders once the market reaches them, and settles expired cont[...]
-| Auto-trade | Optional, per user: once a day at a set time it sells the top-ranked actionable setups within a per-trade cap and a free-funds reserve. It skips any stock and expiry that already h[...]
+| Auto-trade | Optional, per user: once a day at a set time it sells the top-ranked actionable setups (one per stock: its best-scoring expiry cycle 30+ days out) within a per-trade cap and a free-funds reserve. It skips any stock and expiry that already h[...]
 | Wallet | The top bar shows free funds, refreshed every 30 s and after every order; set the max margin % per trade there |
 
 ## Price & pivot levels

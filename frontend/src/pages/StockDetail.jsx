@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle, ArrowLeft, Calculator, ChartCandlestick, ChartNoAxesColumn, ChartSpline, ClipboardCheck, Minus, Plus,
   ShieldAlert, ShieldCheck, Sigma, SlidersHorizontal,
@@ -75,6 +75,10 @@ function atmIv(d) {
 
 export default function StockDetail() {
   const { symbol } = useParams()
+  // Several expiry cycles are screened per stock; without ?expiry= the server picks the default one.
+  const [params] = useSearchParams()
+  const expiry = params.get('expiry') || undefined
+  const navigate = useNavigate()
   const { data: screen } = useScreen()
   const { perTrade, capital, maxPct } = useBudget()
   const [d, setD] = useState(null)
@@ -82,18 +86,18 @@ export default function StockDetail() {
   const [lots, setLots] = useState(null)
   const [ticket, setTicket] = useState(false)
 
-  // New symbol: clear and load. Newer screen for the same symbol: swap the data in silently.
+  // New symbol or expiry: clear and load. Newer screen for the same one: swap the data in silently.
   useEffect(() => {
     setD(null)
     setError(null)
-  }, [symbol])
+  }, [symbol, expiry])
   useEffect(() => {
     let live = true
-    rpc('get_trade_detail', { symbol })
+    rpc('get_trade_detail', expiry ? { symbol, expiry } : { symbol })
       .then((r) => live && (setD(r), setError(null)))
       .catch((e) => live && setError((prev) => prev ?? e.message))
     return () => { live = false }
-  }, [symbol, screen?.generated_at])
+  }, [symbol, expiry, screen?.generated_at])
 
   useEffect(() => {
     document.title = `${symbol} · Theta Desk`
@@ -103,7 +107,8 @@ export default function StockDetail() {
   const s = d?.strategy
   const suggested = suggestLots(s?.margin, perTrade)
   const chosen = lots ?? Math.max(suggested, 1)
-  useEffect(() => setLots(null), [symbol, perTrade])
+  useEffect(() => setLots(null), [symbol, expiry, perTrade])
+  const cycles = (screen?.candidates ?? []).filter((c) => c.symbol === symbol && c.expiry)
 
   if (error)
     return (
@@ -146,7 +151,27 @@ export default function StockDetail() {
             </div>
           </div>
           <dl className="facts-inline">
-            <div><dt>Expiry</dt><dd>{shortDate(d.expiry)} <span className="muted num">({d.dte}d)</span></dd></div>
+            <div>
+              <dt>Expiry</dt>
+              <dd>
+                {cycles.length > 1 ? (
+                  <span className="segmented small" role="group" aria-label="Expiry cycle">
+                    {cycles.map((c) => (
+                      <button
+                        key={c.expiry}
+                        className={c.expiry === d.expiry ? 'active' : ''}
+                        aria-pressed={c.expiry === d.expiry}
+                        onClick={() => navigate(`/stock/${encodeURIComponent(symbol)}?expiry=${c.expiry}`, { replace: true })}
+                      >
+                        {shortDate(c.expiry)} <span className="count num">{c.dte}d</span>
+                      </button>
+                    ))}
+                  </span>
+                ) : (
+                  <>{shortDate(d.expiry)} <span className="muted num">({d.dte}d)</span></>
+                )}
+              </dd>
+            </div>
             <div><dt>Lot</dt><dd className="num">{int(d.lot_size)}</dd></div>
             <div><dt>ATM IV</dt><dd className="num">{pct(atmIv(d))}</dd></div>
             <div><dt>PCR</dt><dd className="num">{num(d.pcr, 2)}</dd></div>
