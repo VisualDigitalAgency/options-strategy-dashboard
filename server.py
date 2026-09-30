@@ -319,7 +319,7 @@ def admin_reset_password(_ctx: Ctx, target_id: int):
 
 def admin_audit_log(_ctx: Ctx, limit: int = 100):
     with db.tx() as c:
-        return c.all("SELECT l.id, l.ts, l.action, l.ip::text AS ip, l.detail, a.email AS actor, t.email AS target "
+        return c.all("SELECT l.id, l.ts, l.action, host(l.ip) AS ip, l.detail, a.email AS actor, t.email AS target "
                      "FROM audit_log l LEFT JOIN users a ON a.id = l.actor_id "
                      "LEFT JOIN users t ON t.id = l.target_user_id ORDER BY l.id DESC LIMIT :n", n=limit)
 
