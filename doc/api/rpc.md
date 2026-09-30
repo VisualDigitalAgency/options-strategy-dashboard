@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-54 methods: 7 public, 3 account, 5 market data, 28 user, 11 admin.
+54 methods: 7 public, 3 account, 5 market data, 30 user, 9 admin.
 
 ## Tiers
 
@@ -55,6 +55,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`va_set_autotrade`](#va_set_autotrade) | user | Changes auto-trade settings; an omitted field keeps its value. |
 | [`va_autotrade_runs`](#va_autotrade_runs) | user | Past auto-trade runs, newest first, with what each placed. |
 | [`va_autotrade_run_now`](#va_autotrade_run_now) | user | Runs auto-trade on the current screen. |
+| [`broker_connect_url`](#broker_connect_url) | user | Starts connecting the caller's Zerodha account: the Kite login URL and a one-time `state` to pass back to broker_exchange_token. |
+| [`broker_exchange_token`](#broker_exchange_token) | user | Finishes connecting Zerodha: swaps Kite's one-time request_token for an access token, stored encrypted. |
 | [`broker_status`](#broker_status) | user | The user's latest broker connection: broker, status, broker user id, connection and token expiry times. |
 | [`broker_disconnect`](#broker_disconnect) | user | Revokes the broker session and marks the connection disconnected. |
 | [`broker_get_positions`](#broker_get_positions) | user | Real positions from the poller's last snapshot. |
@@ -72,8 +74,6 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_set_role`](#admin_set_role) | admin | Changes an account's role to sub_admin, beta or user. |
 | [`admin_get_features`](#admin_get_features) | admin | Owner only: which features each role (sub_admin, beta, user) has, and the feature list. |
 | [`admin_set_feature`](#admin_set_feature) | admin | Owner only: turns one feature on or off for a role. |
-| [`broker_connect_url`](#broker_connect_url) | admin | Starts connecting the caller's Zerodha account: the Kite login URL and a one-time `state` to pass back to broker_exchange_token. |
-| [`broker_exchange_token`](#broker_exchange_token) | admin | Finishes connecting Zerodha: swaps Kite's one-time request_token for an access token, stored encrypted. |
 
 ## Parameter rules
 
@@ -509,6 +509,28 @@ No params.
 
 Set by the server, never by the client: `user_id`.
 
+### `broker_connect_url`
+
+Starts connecting the caller's Zerodha account: the Kite login URL and a one-time `state` to
+pass back to broker_exchange_token. Needs the live_trading feature.
+
+No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `broker_exchange_token`
+
+Finishes connecting Zerodha: swaps Kite's one-time request_token for an access token, stored
+encrypted. `state` must be the one broker_connect_url returned. One active connection per user.
+Needs the live_trading feature.
+
+| Param | Type | Default |
+|---|---|---|
+| `request_token` | `str` | required |
+| `state` | `str` | required |
+
+Set by the server, never by the client: `user_id`.
+
 ### `broker_status`
 
 The user's latest broker connection: broker, status, broker user id, connection and token
@@ -687,26 +709,5 @@ Owner only: turns one feature on or off for a role. Applies on the role's next r
 | `role` | `str` | required |
 | `feature` | `str` | required |
 | `enabled` | `bool` | required |
-
-Set by the server, never by the client: `_ctx`.
-
-### `broker_connect_url`
-
-Starts connecting the caller's Zerodha account: the Kite login URL and a one-time `state` to
-pass back to broker_exchange_token.
-
-No params.
-
-Set by the server, never by the client: `_ctx`.
-
-### `broker_exchange_token`
-
-Finishes connecting Zerodha: swaps Kite's one-time request_token for an access token, stored
-encrypted. `state` must be the one broker_connect_url returned. One active connection per user.
-
-| Param | Type | Default |
-|---|---|---|
-| `request_token` | `str` | required |
-| `state` | `str` | required |
 
 Set by the server, never by the client: `_ctx`.

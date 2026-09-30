@@ -71,9 +71,9 @@ OAUTH_STATE_TTL = 600  # seconds a connect attempt's CSRF state stays valid
 def connect_url(user_id: int, broker: str = "zerodha") -> dict:
     """Returns the Zerodha login URL plus a one-time `state` the caller must echo back to
     broker_exchange_token. Kite's own redirect doesn't forward custom query params, so the state
-    is bound server-side to this admin's user_id and round-tripped by the frontend via
+    is bound server-side to this user's user_id and round-tripped by the frontend via
     sessionStorage (same browser tab, survives the redirect) rather than via the URL, closing a
-    login-CSRF hole where an attacker could otherwise trick an admin into linking the attacker's
+    login-CSRF hole where an attacker could otherwise trick a user into linking the attacker's
     own Zerodha account by submitting a request_token the attacker obtained themselves."""
     if broker not in registry.CONNECTABLE:
         raise ValueError(f"{broker} isn't connectable yet")
@@ -82,26 +82,26 @@ def connect_url(user_id: int, broker: str = "zerodha") -> dict:
     return {"url": registry.adapter(broker).login_url(), "state": state}
 
 
-def exchange_token(admin_user_id: int, request_token: str, state: str, broker: str = "zerodha") -> dict:
+def exchange_token(user_id: int, request_token: str, state: str, broker: str = "zerodha") -> dict:
     """Completes the OAuth-style redirect: exchanges Zerodha's one-time request_token for a
     per-user access token, and stores it encrypted. Enforces one active connection per user."""
     if broker not in registry.CONNECTABLE:
         raise ValueError(f"{broker} isn't connectable yet")
-    pending = cache.pop_json(f"broker_oauth_state:{admin_user_id}")  # one-time use, whether or not it matches
+    pending = cache.pop_json(f"broker_oauth_state:{user_id}")  # one-time use, whether or not it matches
     if not pending or pending.get("broker") != broker or not _secrets.compare_digest(
             pending.get("state", "").encode(), state.encode()):
         raise ValueError("This connect attempt has expired or is invalid; start connecting again")
-    if _active_connection(admin_user_id):
+    if _active_connection(user_id):
         raise AlreadyConnected("You're already connected to another broker. Disconnect it first to connect this one.")
     session, expires_at = registry.adapter(broker).exchange_request_token(request_token)
-    existing = _active_connection(admin_user_id)
+    existing = _active_connection(user_id)
     if existing:  # fast path: no need to touch the broker again if already connected
         raise AlreadyConnected("You're already connected to another broker. Disconnect it first to connect this one.")
     try:
-        with db.tx(admin_user_id) as c:
+        with db.tx(user_id) as c:
             c.run("INSERT INTO broker_connections (user_id, broker, broker_user_id, access_token_enc, "
                   "public_token_enc, token_expires_at) VALUES (:u, :b, :bu, :at, :pt, :exp)",
-                  u=admin_user_id, b=broker, bu=session.broker_user_id,
+                  u=user_id, b=broker, bu=session.broker_user_id,
                   at=broker_crypto.encrypt(session.access_token),
                   pt=broker_crypto.encrypt(session.public_token) if session.public_token else None,
                   exp=expires_at)
@@ -109,7 +109,7 @@ def exchange_token(admin_user_id: int, request_token: str, state: str, broker: s
         # broker_connections_one_active caught a genuine race (two tabs completing the redirect
         # at once) that the pre-check above couldn't see; same friendly error, not a 500.
         raise AlreadyConnected("You're already connected to another broker. Disconnect it first to connect this one.")
-    auth.audit("broker_connected", actor_id=admin_user_id, target_user_id=admin_user_id, broker=broker)
+    auth.audit("broker_connected", actor_id=user_id, target_user_id=user_id, broker=broker)
     return {"status": "active", "broker": broker}
 
 
