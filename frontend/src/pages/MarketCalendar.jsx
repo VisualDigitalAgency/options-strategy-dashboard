@@ -3,6 +3,7 @@ import { AlertCircle, CalendarDays, CalendarOff, CalendarRange, Coins, FileChart
 import { rpc } from '../rpc'
 import UpdatedTag from '../components/UpdatedTag'
 import EventTable from '../components/EventTable'
+import EconomicCalendar from '../components/EconomicCalendar'
 import { dayDate, dayMonth } from '../events'
 
 // Results and dividends can gap a stock through a short strike; the rest (splits, bonuses,
@@ -157,6 +158,8 @@ export default function MarketCalendar() {
           )}
         </aside>
       </div>
+
+      <EconomicCalendar />
     </>
   )
 }
