@@ -1,31 +1,10 @@
+@AGENTS.md
+
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. The working rules for every AI agent are in AGENTS.md, imported above.
 
 Theta Desk: a Nifty 50 options-selling screener (30+ DTE setups) with paper trading on a virtual account. Python 3.12 / Flask JSON-RPC backend, React 19 (Vite) frontend, PostgreSQL 16 + Redis 7. Real broker execution (Zerodha, phase 1) is wired but soft-launched to admin accounts only, manual-confirm-only — everyone else, and every automated flow (auto-trade), stays on the virtual account. Proprietary (LICENSE); contributor rules are in CONTRIBUTING.md and SECURITY.md, and README.md documents features and trading rules.
-
-## Working rules
-
-### Core behavior
-1. Don't assume. Don't hide confusion. Surface tradeoffs.
-2. Minimum code that solves the problem. Nothing speculative.
-3. Touch only what you must. Clean up only your own mess.
-4. Define success criteria. Loop until verified.
-
-### How the owner works
-- Plan before build: confirm the approach in chat before generating files.
-- Execution-ready output, not outlines or scaffolds.
-- When iterating, make targeted corrections; don't rewrite the whole thing.
-
-### Communication
-- Ask before assuming scope on ambiguous requests.
-- If a task needs more than ~3 file changes, outline the plan first.
-- Flag uncertainty rather than picking silently.
-
-### Never
-- Never touch `.env`, `secrets/`, or credentials files without asking.
-- Never `git push --force` without explicit confirmation.
-- Never delete files outside the current task's scope.
 
 ## Commands
 
