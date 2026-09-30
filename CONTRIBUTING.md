@@ -31,6 +31,7 @@ These trip people up. [CLAUDE.md](CLAUDE.md) has the full architecture notes.
 - `rpc_guard.validate` checks params against the handler's signature, so type-annotate every parameter accurately.
 - Parameters named `user_id`, or starting with `_`, can never come from a client.
 - Wrappers must use `functools.wraps`, as `_then_refresh` does.
+- Give every method a docstring written for API callers, then run `make rpc-docs` and commit `doc/api/rpc.md`. CI fails when it's stale or a method has no docstring. The protocol, error codes and examples are in [doc/api/README.md](doc/api/README.md).
 - A `symbol` param is checked against the Nifty 50. For a method that must also work for stocks that have left the index, add it to `ANY_SYMBOL` and check the user holds the stock (see `virtual.price_levels`).
 
 **Errors**

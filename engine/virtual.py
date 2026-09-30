@@ -305,11 +305,13 @@ def get_account(user_id: int, _positions: list | None = None) -> dict:
 
 
 def get_orders(user_id: int, limit: int = 200) -> list[dict]:
+    """The account's fills (entries, exits, settlements), newest first."""
     with db.tx(user_id) as c:
         return c.all("SELECT * FROM orders WHERE user_id=:u ORDER BY id DESC LIMIT :n", u=user_id, n=limit)
 
 
 def get_closed(user_id: int, limit: int = 200) -> list[dict]:
+    """Closed positions, most recently closed first."""
     with db.tx(user_id) as c:
         return c.all("SELECT * FROM positions WHERE user_id=:u AND status='closed' "
                      "ORDER BY closed_at DESC LIMIT :n", u=user_id, n=limit)
@@ -388,8 +390,8 @@ def _check_liquidity(l: dict, q: dict) -> None:
 
 
 def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> dict:
-    """legs: [{side, strike, action: 'BUY'|'SELL', lots, price?}]. `price` is the limit; without it
-    it's a market order and the limit defaults to the touch price (the bid for a sell, the ask for
+    """Prices an order without placing it. legs: [{side, strike, action: 'BUY'|'SELL', lots, price?}].
+    `price` is the limit; without it it's a market order and the limit defaults to the touch price (the bid for a sell, the ask for
     a buy) — gated by _check_liquidity so a thin quote can't book a bad fill. Returns each leg's
     limit, whether it fills now, and the margin impact."""
     lot = data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry))
@@ -464,8 +466,8 @@ def _insufficient(m: dict) -> ValueError:
 
 def place_order(user_id: int, symbol: str, expiry: str, legs: list[dict], sl_mode: str | None = None,
                 confirm_waiting: bool = False, confirm_illiquid: bool = False) -> dict:
-    """Public entry point (RPC). Always prices fills itself from live quotes. While an earlier order
-    on the same stock and expiry is still waiting, it refuses unless `confirm_waiting` is set, so a
+    """Places an order on the virtual account. Always prices fills itself from live quotes. While an
+    earlier order on the same stock and expiry is still waiting, it refuses unless `confirm_waiting` is set, so a
     second click never doubles the trade by accident. A leg on an illiquid strike (wide spread, thin
     OI, stale last trade) needs `confirm_illiquid`: the ticket shows why before asking."""
     p = preview_order(user_id, symbol, expiry, legs)
@@ -567,6 +569,8 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
 
 
 def exit_position(user_id: int, position_id: int) -> list[dict]:
+    """Closes one open position with a limit at the touch. With the market shut, or no bid/ask, it
+    becomes an open limit order at the last price instead."""
     with db.tx(user_id) as c:
         rows = c.all("SELECT * FROM positions WHERE id=:i AND user_id=:u AND status='open'", i=position_id, u=user_id)
     if not rows:
@@ -575,6 +579,8 @@ def exit_position(user_id: int, position_id: int) -> list[dict]:
 
 
 def exit_group(user_id: int, symbol: str, expiry: str) -> list[dict]:
+    """Closes every open leg in one stock and expiry, the same way as exit_position. Works for a
+    stock that has since left the Nifty 50."""
     with db.tx(user_id) as c:
         rows = _open_rows(c, user_id, symbol, expiry)
     if not rows:
@@ -583,6 +589,8 @@ def exit_group(user_id: int, symbol: str, expiry: str) -> list[dict]:
 
 
 def set_sl_mode(user_id: int, mode: str, position_id: int | None = None) -> dict:
+    """Sets the stop-loss mode (auto, alert or off) of one short position, or the account default
+    for new positions when position_id is omitted."""
     if mode not in SL_MODES:
         raise ValueError(f"SL mode must be one of {SL_MODES}")
     with db.tx(user_id) as c:
@@ -595,12 +603,15 @@ def set_sl_mode(user_id: int, mode: str, position_id: int | None = None) -> dict
 
 
 def dismiss_alert(user_id: int, position_id: int) -> dict:
+    """Clears a position's stop-loss alert."""
     with db.tx(user_id) as c:
         c.run("UPDATE positions SET sl_alert_at=NULL WHERE id=:i AND user_id=:u", i=position_id, u=user_id)
     return {"ok": True}
 
 
 def reset(user_id: int, starting_capital: float = config.STARTING_CAPITAL) -> dict:
+    """Deletes every order and position and restarts the virtual account with `starting_capital`
+    (₹10,000 to ₹1,000 crore)."""
     if not 10_000 <= starting_capital <= 10_000_000_000:  # the NaN-safe form: NaN fails both bounds
         raise ValueError("Starting capital must be from ₹10,000 to ₹1,000 crore")
     with _lock, db.tx(user_id) as c:
@@ -643,6 +654,8 @@ def get_open_orders(user_id: int) -> list[dict]:
 
 
 def cancel_order(user_id: int, order_id: int) -> dict:
+    """Cancels an open limit order, which releases its blocked margin. Refused once it has filled
+    or ended."""
     with db.tx(user_id) as c:
         n = c.run("UPDATE pending_orders SET status='cancelled', updated_at=now() "
                   "WHERE id=:i AND user_id=:u AND status='open'", i=order_id, u=user_id)
@@ -652,7 +665,7 @@ def cancel_order(user_id: int, order_id: int) -> dict:
 
 
 def modify_order(user_id: int, order_id: int, price: float) -> dict:
-    """New limit price. If the market already meets it, the order fills now at the bid/ask."""
+    """Changes an open limit order's price. If the market already meets it, the order fills now at the bid/ask."""
     price = tick(price)
     if price <= 0:
         raise ValueError("Limit price must be above zero")
