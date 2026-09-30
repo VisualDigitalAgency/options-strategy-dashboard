@@ -1,30 +1,34 @@
-A short option has a capped gain and an uncapped loss. A **stop-loss** is the rule that caps the loss, decided *before* the trade, when you are calm.
+> Think of a seat belt. You put it on before the drive, not during the crash. A **stop-loss** is a rule you set before the trade: "if it goes this wrong, I get out".
 
 ## Theta Desk's stop-loss rule
 
-- **Days 1–14: no stop-loss.** Early in the trade, premiums jump around on normal noise. A tight stop here gets triggered by moves that later reverse.
-- **From day 15: buy back at the original premium collected.** If the option's price climbs back up to what you sold it for, you exit. The trade ends at roughly breakeven on that leg, before costs.
-- The trigger uses the **mid** of the bid and ask, not the ask alone, and the exit is a limit order at the ask.
+::visual stoploss-timeline
 
-In the virtual account each short leg has three modes: **Auto exit** (the group closes for you), **Alert only** (you are told and act yourself), and **Off**. Levels reward trades where the stop-loss was on and respected.
+- **Days 1–14: no stop-loss.** Prices wiggle a lot early on. A stop-loss here gets hit by normal wiggles that would have calmed down.
+- **From day 15: exit at the price you sold for.** If the option's price climbs back up to the fee you collected, you buy it back. You end that leg at about zero, before costs.
+- The trigger uses the middle of the buy and sell prices, so one odd quote can't set it off.
 
-## Why a missed stop-loss ends accounts
+Your practice account has three settings per leg: **Auto exit** (it closes for you), **Alert only** (it tells you), and **Off**. Levels reward trades where the stop-loss was on and followed.
 
-Losses on a short option can grow very fast once the stock moves past the strike:
+## Why ignoring it is so dangerous
 
-- Premium ₹8 → ₹16 is a 1× loss of the premium.
-- ₹8 → ₹40 is a 4× loss: four good months gone.
-- ₹8 → ₹120 after a results gap is 14× the premium.
+Once the price crosses your line, losses grow fast:
 
-The hardest moment to exit is when the loss is already big, because it feels like "it will come back". Most blown-up accounts are not one bad trade but one bad trade that was held.
+::visual loss-multiplier
 
-## Other exits Theta Desk uses
+- Sold at ₹8, now ₹16: you lost 1 fee.
+- Now ₹40: you lost 4 fees. Four good months gone.
+- Now ₹120 after a results jump: you lost 14 fees.
 
-- **Profit exit**: close the whole group once 90% of the premium has decayed. The last 10% isn't worth holding the full risk for.
-- **Time exit**: close every leg once fewer than 7 days remain, because stock options settle by physical delivery.
+The hardest time to get out is when the loss is already big, because it feels like "it will come back". Most blown-up accounts are one bad trade that was *held*.
 
-## Habits the levels reward
+## Two more automatic exits
 
-- Every trade has a stop-loss before it's placed.
-- You never average down: selling more of a losing position to "improve the price" doubles the risk at the worst time.
-- When a stop-loss fires, you accept it and move on.
+- **Profit exit**: once 90% of the fee has melted away, close it. The last 10% isn't worth the risk.
+- **Time exit**: close everything when fewer than 7 days are left.
+
+## Habits that move you up the levels
+
+- Every trade has a stop-loss before you place it.
+- Never **average down**: don't sell more of a losing trade to "fix" it. That doubles the danger.
+- When a stop-loss fires, accept it and move on.

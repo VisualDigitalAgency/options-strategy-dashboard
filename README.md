@@ -136,7 +136,7 @@ Accounts: every page needs a sign-in. New users request access on `/register` an
 
 Short lessons for option sellers, from what an option is to managing a short strangle, at `/learn`. Reading is public (no account needed, so lessons can be shared); the quiz at the end of each lesson needs a free account.
 
-- Content is plain files in `content/lessons/`: `NN-slug.md` for the text (headings, lists, **bold** and *italic* only) and `NN-slug.json` for the title, level, summary and quiz. Changes go through pull requests like code.
+- Content is plain files in `content/lessons/`: `NN-slug.md` for the text (headings, lists, **bold** and *italic*, `> ` comparison boxes, and `::visual name` for a diagram from `frontend/src/components/LessonVisuals.jsx`) and `NN-slug.json` for the title, level, summary and quiz. Changes go through pull requests like code.
 - Quizzes are marked on the server, and answers never reach the browser. 80% passes. After a failed attempt the quiz locks for 24 hours, and the right answers are shown only on a pass.
 - A pass is recorded once per lesson (`lesson_progress`). The learning path's XP ledger (#122) will award lesson XP from it.
 - Every lesson carries an "educational, not investment advice" note.

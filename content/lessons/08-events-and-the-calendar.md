@@ -1,31 +1,37 @@
-Most of an option seller's biggest losses come from **scheduled events**, not random days. The good news is that many of them are known in advance.
+> Think of a school timetable. Exams are written on it weeks ahead, so they're never a surprise. The **Market Calendar** is a timetable of the days a stock is likely to jump.
 
-## Quarterly results
+Most big losses for option sellers happen on days that were known in advance. Knowing the dates means you can step aside.
 
-On results day a stock can gap 5–10% or more at the open, straight past a short strike. A stop-loss can't help when the price jumps overnight: the first trade of the day is already far beyond it.
+## Results day
 
-- Implied volatility usually rises before results, so premiums look attractive. That is the market pricing in the move, not a free gift.
-- After results, IV usually drops sharply ("IV crush"). Selling *after* the event is often the calmer trade.
+When a company shares its results, the price can jump 5–10% or more at the next open, right past your line.
 
-## Dividends and short calls
+::visual event-gap
 
-A large dividend can make an ITM call worth exercising early for the dividend. For a short call close to the money, a record date before expiry is a risk to check.
+A stop-loss can't help with a jump. The first price of the day is already far past it.
 
-## Other corporate actions
+- Before results, fees look extra juicy. That's the market paying for the jump it expects, not free money.
+- After results, fees usually drop fast ("IV crush"). Selling *after* the news is often the calmer choice.
 
-Splits, bonuses and buybacks change the contract details (strike and lot size are adjusted). Positions stay equivalent in value, but the numbers you see change, which confuses many beginners.
+## Dividends and sold calls
 
-## Market-wide events
+A big dividend can make a buyer use a nearly in-the-money call early to collect the dividend. If you've sold a call close to the price, check for a dividend date before your end date.
 
-RBI policy, the Union Budget, and big global releases like US Fed decisions or CPI can move the whole market at once. A portfolio of strangles on different stocks can then lose on many positions together.
+## Splits, bonuses, buybacks
 
-## How to use the Market Calendar
+These change the contract numbers (the strike and the lot size), but your position is worth the same. It's confusing the first time, not dangerous.
 
-- Before selling, check whether the stock has **results or a dividend before your expiry**. Theta Desk marks these as risky events.
-- The calendar groups events by the expiry cycle they fall in, so you can see at a glance which cycle is clean.
-- The **Economic calendar** on the same page shows market-wide releases.
-- If you already hold a position and an event appears, decide *before* the event whether to hold, reduce or exit. Don't decide during it.
+## Whole-market days
+
+RBI announcements, the Union Budget, and big US news can move every stock at once. Then many of your trades can lose together.
+
+## Using the Market Calendar
+
+- Before you sell, check for **results or dividends before your end date**. Theta Desk marks these as risky.
+- Events are grouped by expiry, so you can see which month is clean.
+- The **Economic calendar** on the same page shows the whole-market days.
+- Already in a trade and an event shows up? Decide **before** the event whether to stay or leave. Never decide during it.
 
 ## The habit
 
-Clean cycle, clean trade. A seller who simply avoids holding through results skips a large share of the worst outcomes.
+Clean month, clean trade. Just avoiding results days removes many of the worst losses.

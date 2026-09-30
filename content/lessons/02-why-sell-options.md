@@ -1,35 +1,37 @@
-Most options expire worthless or close to it. An option seller aims to collect premium on contracts that are unlikely to be exercised, again and again, while keeping every loss small enough to survive.
+> Think of an ice cube on a warm day. It gets smaller every hour, and faster near the end. An option's price does the same thing as its end date gets closer. The seller keeps what melts.
 
-## Time decay (theta)
+## The melting part: time value
 
-An option's premium has two parts:
+An option's price is made of two parts:
 
-- **Intrinsic value**: how far it is in the money. An OTM option has none.
-- **Time value**: what buyers pay for the *chance* the stock moves past the strike before expiry.
+- **Intrinsic value**: how far past the line the price already is. A far-away (OTM) option has none.
+- **Time value**: what buyers pay for the *hope* that the price crosses the line before the end date.
 
-Time value shrinks every day, and it shrinks faster as expiry gets closer. That daily shrinkage is called **theta**. A seller earns theta: if nothing else changes, the option they sold is worth a little less each day, and they can buy it back cheaper or let it expire.
+Hope costs less every day, because there are fewer days left for the big move. This daily melt is called **theta**.
 
-## Why sellers win more often
+::visual theta-decay
 
-A far OTM option needs a big move to become valuable. Most months, most stocks don't make that move. So a seller of far OTM options is right more often than wrong. Theta Desk only sells strikes where the model gives a small chance of finishing in the money.
+## Why sellers win often
 
-## Why sellers can still lose badly
+A far-away option needs a big move to pay out. Most months, most stocks don't make a big move. So sellers of far-away options are right most of the time.
+
+## Why sellers can still lose
 
 Being right often is not the same as making money:
 
-- The gain is **capped** at the premium collected.
-- The loss is **uncapped** for a naked short. One sharp move, such as a results surprise, can wipe out many months of premium.
-- Premiums are small because the risk is rare, not because it is absent.
+- The most you can make is the fee (the **premium**).
+- The most you can lose has **no limit** if you don't protect yourself.
+- One sharp move, like a results surprise, can erase many months of fees.
 
-A seller who wins 9 months out of 10 but loses 12 months of premium in the tenth has lost money.
+::visual win-loss-bars
 
-## What this course teaches instead
+If you win 9 months out of 10, but the 10th month loses as much as 12 months of fees, you have lost money overall.
 
-Profitable selling is about **survival first**:
+## How good sellers survive
 
-1. Sell strikes that are genuinely far away (next lesson: delta).
-2. Keep enough margin free and never overload one position.
-3. Use a stop-loss and respect it.
-4. Avoid holding through known events like results.
+1. Sell lines that are far away (next lesson: delta).
+2. Don't use all your money on one trade.
+3. Always have a stop-loss, and follow it.
+4. Don't hold through known events like results.
 
-Theta Desk's levels reward exactly these habits. Profit matters, but discipline is what gets you to the next level.
+Theta Desk's levels reward these habits. Profit is nice, but good habits are what move you up.

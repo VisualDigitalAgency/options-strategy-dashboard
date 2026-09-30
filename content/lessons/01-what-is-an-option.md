@@ -1,31 +1,37 @@
-An **option** is a contract that gives its buyer a right, but not an obligation, to buy or sell a stock at a fixed price on or before a fixed date. The seller of the option takes the other side: they receive money up front and accept the obligation.
+> Think of it like a promise with a small fee. Someone pays you a little money today. In return, you promise to pay them if a stock's price crosses a line by a certain date. If the price never crosses the line, you keep the fee.
 
-## Calls and puts
+That promise is called an **option**. The person who pays is the **buyer**. The person who gets paid and makes the promise is the **seller**. On Theta Desk, you are the seller.
 
-- A **call (CE)** gives the buyer the right to *buy* the stock at the strike price. Buyers of calls want the stock to rise.
-- A **put (PE)** gives the buyer the right to *sell* the stock at the strike price. Buyers of puts want the stock to fall.
+::visual option-ticket
 
-The seller of a call is betting the stock will **not** rise above the strike. The seller of a put is betting the stock will **not** fall below it.
+## Two kinds of promise
 
-## The words you will see everywhere
+- A **call (CE)** pays out if the price goes **up** past the line. Buyers of calls hope the price rises.
+- A **put (PE)** pays out if the price goes **down** past the line. Buyers of puts hope the price falls.
 
-- **Strike**: the fixed price in the contract, for example RELIANCE 3,000 CE.
-- **Expiry**: the last day the contract exists. Nifty 50 stock options expire on the last Tuesday of each month (the exchange can change this day, so always read the expiry date shown).
-- **Premium**: the price of the option. The buyer pays it; the seller keeps it if the option expires worthless.
-- **Lot size**: options trade in fixed lots, not single shares. If the lot size is 500 and the premium is ₹10, one lot costs the buyer ₹5,000 and pays the seller ₹5,000.
-- **In the money (ITM)**: a call whose strike is below the stock price, or a put whose strike is above it. It has real value at expiry.
-- **Out of the money (OTM)**: a call above the stock price, or a put below it. If it stays OTM until expiry, it expires worthless.
+As a seller, you want the price to **stay away** from your line.
 
-## A worked example
+::visual call-put-ladder
 
-INFY trades at ₹1,500. You sell one lot (400 shares) of the 1,650 CE for ₹8.
+## Words you will see every day
 
-- You receive ₹8 × 400 = **₹3,200** today.
-- If INFY stays below ₹1,650 until expiry, the call expires worthless and you keep the whole ₹3,200.
-- If INFY closes at ₹1,700 on expiry, the call is worth ₹50. You owe ₹50 × 400 = ₹20,000, minus the ₹3,200 you received: a **loss of ₹16,800**.
+- **Strike**: the line. For example, "RELIANCE 3,000 CE" has its line at ₹3,000.
+- **Expiry**: the date the promise ends. Nifty 50 stock options end once a month (always check the date shown, because the exchange can change the day).
+- **Premium**: the fee. The buyer pays it and the seller keeps it.
+- **Lot size**: options come in bundles, not single shares. Lot size 500 and a premium of ₹10 means the seller receives ₹5,000.
+- **Out of the money (OTM)**: the line is still far away. If it stays that way until expiry, the promise costs the seller nothing.
+- **In the money (ITM)**: the price has crossed the line. Now the promise costs the seller money.
 
-That asymmetry, a small fixed gain against a large possible loss, is the heart of option selling. The rest of this course is about managing it.
+## A story with numbers
 
-## Stock options settle by delivery
+INFY is at ₹1,500. You sell one lot (400 shares) of the 1,650 CE for ₹8.
 
-Stock options in India settle by **physical delivery**: an ITM position left open at expiry turns into an obligation to buy or sell the actual shares. Theta Desk closes every leg once fewer than 7 days remain, so paper positions never reach that point.
+- Today you get ₹8 × 400 = **₹3,200**.
+- INFY stays below ₹1,650 until expiry: you keep all **₹3,200**.
+- INFY ends at ₹1,700: the promise costs ₹50 × 400 = ₹20,000. Take away the ₹3,200 you got, and you **lose ₹16,800**.
+
+Small, likely win. Rare, big loss. The rest of this course is about keeping that big loss from happening.
+
+## One more rule
+
+Stock options in India end with real shares changing hands if they are in the money. Theta Desk closes every position when fewer than 7 days are left, so your practice trades never get there.

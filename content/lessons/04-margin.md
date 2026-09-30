@@ -1,28 +1,31 @@
-A buyer pays the premium and can never lose more. A seller can lose far more than they receive, so the exchange makes sellers set aside **margin**: money blocked in the account as a safety deposit.
+> Think of renting out a bicycle. The shop asks for a big deposit before you take it, in case something goes wrong. **Margin** is that deposit. The exchange locks it in your account while you have a sold option.
 
-## The two parts of margin in India
+A buyer can only lose the fee they paid. A seller can lose much more. So sellers must lock up a deposit.
 
-- **SPAN margin**: NSE's risk system tests your position against 16 price and volatility scenarios and blocks the worst-case loss. Theta Desk reads NSE's own daily SPAN risk file to compute it.
-- **Exposure margin**: an extra buffer on each short leg, a percentage of the contract's value.
+::visual margin-vs-premium
 
-**Total margin = SPAN + exposure.** For a Nifty 50 stock, one short lot often blocks ₹1 lakh or more, while collecting only a few thousand rupees of premium.
+## The two parts of the deposit
 
-## Return on margin
+- **SPAN margin**: the exchange imagines 16 bad days (price jumps, fear spikes) and locks the worst loss. Theta Desk reads the exchange's own daily file to work this out.
+- **Exposure margin**: a small extra cushion on top.
 
-Because margin is large and premium is small, judge a trade by **premium ÷ margin**, not by the premium alone. ₹4,000 of premium on ₹1,00,000 of margin is a 4% return on the capital you tied up, for about a month, if it works.
+**Total margin = SPAN + exposure.** For one lot of a Nifty 50 stock this is often ₹1 lakh or more, to earn a fee of a few thousand rupees.
 
-## Strangles get an offset
+## Judge a trade by fee ÷ deposit
 
-A short strangle sells a call and a put on the same stock. Both can't lose at the same time, since the stock can only go one way, so SPAN gives a margin benefit. A strangle usually needs much less than the two legs' margin added together.
+A ₹4,000 fee on a ₹1,00,000 deposit is **4%** on the money you locked up, for about a month, if it works.
 
-## Margin can grow
+## Strangles need less
 
-Margin is recalculated every day. If the stock moves against you or volatility jumps, the blocked amount rises. If your free funds can't cover it, a real broker will ask for more money or close your position for you, often at the worst moment.
+A strangle sells one call and one put on the same stock. The price can't go up and down at the same time, so both can't lose together. The exchange knows this and asks for a smaller deposit than the two added up.
 
-## How Theta Desk keeps you safe
+## The deposit can grow
 
-- **Max % per trade**: the wallet setting caps how much of your account one trade may use.
-- The virtual account checks margin again at the moment of booking, so two orders can't both spend the same free funds.
-- A good habit is to keep a healthy share of the account free, so a margin increase never forces an exit.
+The exchange checks every day. If the price moves against you, it can ask for a bigger deposit. With no spare money, a real broker may close your trade for you, usually at the worst time.
 
-Overloading margin is the most common way new sellers lose an account: not because the trade was wrong, but because they couldn't hold it.
+## Stay safe
+
+- Use the **max % per trade** setting in your wallet so one trade can't take everything.
+- Keep plenty of money free, so a bigger deposit never forces you out.
+
+Most new sellers who blow up an account were not wrong about the stock. They just used too much deposit to hold on.
