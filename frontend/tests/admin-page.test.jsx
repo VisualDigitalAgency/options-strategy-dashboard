@@ -1,5 +1,6 @@
 // Admin page (issue #101): on phones and tablets each table row stacks as label/value lines, so every
 // data cell needs a label; newer audit events read as words, not raw keys; IPs have no "/32".
+// Roles (issue #46): role column and editor, role filter, owner-only feature toggles.
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 
 GlobalRegistrator.register({ width: 375, height: 800 })
@@ -12,7 +13,7 @@ const { AuthProvider } = await import('../src/auth.jsx')
 const { default: Admin } = await import('../src/pages/Admin.jsx')
 const { act, createElement: h } = React
 
-const ME = { id: 1, name: 'Murali', email: 'admin@test.example', role: 'admin', prefs: {} }
+const ME = { id: 1, name: 'Murali', email: 'admin@test.example', role: 'owner', features: ['manage_users', 'manage_roles', 'live_trading', 'autotrade', 'market_calendar'], prefs: {} }
 const USERS = [
   { id: 1, ...ME, status: 'active', created_at: '2026-09-01T10:00:00Z', last_login_at: '2026-09-29T10:00:00Z', links: [] },
   { id: 2, name: 'Demo', email: 'demo@test.example', role: 'user', status: 'active', created_at: '2026-09-02T10:00:00Z',
@@ -24,9 +25,17 @@ const LOG = [
   { id: 1, ts: '2026-09-28T04:20:00Z', action: 'some_future_event', ip: '10.0.0.1', actor: null, target: null },
 ]
 const BLOCKED = [{ id: 9, name: 'Late', email: 'late@test.example', created_at: '2026-09-01T10:00:00Z' }]
-const RESULT = { auth_me: ME, admin_list_users: USERS, admin_audit_log: LOG, admin_list_blocked: BLOCKED }
+const FEATURES = {
+  roles: ['sub_admin', 'beta', 'user'],
+  features: [{ key: 'live_trading', label: 'Real orders' }, { key: 'autotrade', label: 'Auto-trade' }],
+  matrix: { sub_admin: { live_trading: false, autotrade: true }, beta: { live_trading: false, autotrade: true }, user: { live_trading: false, autotrade: true } },
+}
+const calls = []
+const RESULT = { admin_get_features: FEATURES, admin_set_role: { id: 2, role: 'beta' },
+  admin_set_feature: { ...FEATURES, matrix: { ...FEATURES.matrix, beta: { live_trading: true, autotrade: true } } }, auth_me: ME, admin_list_users: USERS, admin_audit_log: LOG, admin_list_blocked: BLOCKED }
 globalThis.fetch = async (_url, opts) => {
-  const { method, id } = JSON.parse(opts.body)
+  const { method, id, params } = JSON.parse(opts.body)
+  calls.push({ method, params })
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: RESULT[method] ?? {} }) }
 }
 
@@ -50,6 +59,19 @@ await settle()
 check('users: two rows', document.querySelectorAll('.admin-table tbody tr').length === 2)
 check('users: every data cell labelled', unlabelled([0]).length === 0, unlabelled([0]))
 check('users: dates are shown, not hidden', document.querySelectorAll('td[data-label="Signed up"]').length === 2)
+const roleSel = document.querySelector('select[aria-label="Role for Demo"]')
+check('users: owner gets a role editor for others, none for self', roleSel && !document.querySelector('select[aria-label="Role for Murali"]'))
+check('users: owner can grant sub-admin, never owner', [...roleSel.options].map((o) => o.value).join() === 'sub_admin,beta,user', [...roleSel.options].map((o) => o.value))
+await act(async () => {
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(roleSel, 'beta')
+  roleSel.dispatchEvent(new Event('change', { bubbles: true }))
+})
+await settle()
+check('users: changing the role calls admin_set_role', calls.some((c) => c.method === 'admin_set_role' && c.params.target_id === 2 && c.params.role === 'beta'))
+const filterBtn = [...document.querySelectorAll('[aria-label="Filter by role"] button')].find((b) => b.textContent.startsWith('Owner'))
+await act(async () => filterBtn.click())
+check('users: role filter narrows the list', document.querySelectorAll('.admin-table tbody tr').length === 1)
+await act(async () => [...document.querySelectorAll('[aria-label="Filter by role"] button')][0].click())
 check('users: actions in their own cell', document.querySelectorAll('.admin-act-cell .admin-actions').length === 2)
 
 // Blocked sign-ups
@@ -64,5 +86,14 @@ check('log: broker events have labels', text.includes('Broker disconnected') && 
 check('log: self password reset has a label', text.includes('Reset own password') && !text.includes('password_reset_self'))
 check('log: unknown events read as words', text.includes('Some future event') && !text.includes('some_future_event'))
 check('log: IP shown as sent', text.includes('110.226.112.201'))
+
+// Roles & features (owner only)
+await tab('Roles')
+const sw = document.querySelector('[role=switch][aria-label="live trading for Beta"]')
+check('features: a switch per role and feature', document.querySelectorAll('.feature-matrix [role=switch]').length === 6 && sw?.getAttribute('aria-checked') === 'false')
+await act(async () => sw.click())
+await settle()
+check('features: toggling saves and shows the new state', calls.some((c) => c.method === 'admin_set_feature' && c.params.role === 'beta' && c.params.enabled === true)
+  && document.querySelector('[role=switch][aria-label="live trading for Beta"]').getAttribute('aria-checked') === 'true')
 
 process.exit(ok ? 0 : 1)

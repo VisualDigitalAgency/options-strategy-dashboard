@@ -99,7 +99,7 @@ def client_for(uid):
 # ---------- admin-only connect ----------
 
 plain_uid = users.create_user("plain@test.example", "Plain", status="active")
-admin_uid = users.create_user("admin@test.example", "Admin", role="admin", status="active")
+admin_uid = users.create_user("admin@test.example", "Admin", role="owner", status="active")
 plain_c, admin_c = client_for(plain_uid), client_for(admin_uid)
 
 j = call("broker_connect_url", {}, plain_c)

@@ -10,7 +10,7 @@ import ThemeToggle from './components/ThemeToggle'
 import DetailSkeleton from './components/DetailSkeleton'
 import Overview from './pages/Overview'
 import DialMark from './components/DialMark'
-import { AuthProvider, useAuth } from './auth'
+import { AuthProvider, can, useAuth } from './auth'
 import { ChangePassword, ForgotPassword, Login, Register, ResetPassword } from './pages/AuthPages'
 import BrokerOnboarding from './components/BrokerOnboarding'
 
@@ -26,7 +26,7 @@ const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
 const NAV = [
   { to: '/', label: 'Screener', icon: LayoutGrid, end: true },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar' },
   { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
   { to: '/broker', label: 'Broker', icon: Plug },
 ]
@@ -117,7 +117,7 @@ function UserMenu() {
             <b>{user.name}</b>
             <span className="muted small">{user.email}</span>
           </div>
-          {user.role === 'admin' && (
+          {can(user, 'manage_users') && (
             <Link role="menuitem" to="/admin" onClick={() => setOpen(false)}><ShieldCheck size={16} aria-hidden /> Admin</Link>
           )}
           <Link role="menuitem" to="/account/password" onClick={() => setOpen(false)}><KeyRound size={16} aria-hidden /> Change password</Link>
@@ -130,6 +130,7 @@ function UserMenu() {
 
 function TopBar() {
   const { account, auto } = useBudget()
+  const { user } = useAuth()
   const clock = useMarketClock()
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
@@ -142,7 +143,7 @@ function TopBar() {
           <span className="wordmark">Theta Desk</span>
         </Link>
         <nav className="main-nav" aria-label="Main">
-          {NAV.map(({ to, label, short, icon: Icon, end }) => (
+          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -159,7 +160,7 @@ function TopBar() {
             <span className={`mkt-dot ${clock.key}`} aria-hidden />
             NSE {clock.label.toLowerCase()} <span className="num">{clock.time}</span> IST
           </span>
-          {auto?.enabled && (
+          {auto?.enabled && can(user, 'autotrade') && (
             <Link to="/virtual#auto" className="auto-chip" title={`Auto-trade on, runs daily at ${auto.run_at} IST`}>
               <Bot size={15} aria-hidden /> <span className="auto-chip-label">Auto</span> <span className="num">{auto.run_at}</span>
             </Link>
@@ -212,13 +213,13 @@ function SignedIn() {
             <Route path="/" element={<Overview />} />
             <Route path="/stock/:symbol" element={lazyPage(StockDetail)} />
             <Route path="/portfolio" element={lazyPage(Portfolio)} />
-            <Route path="/calendar" element={lazyPage(MarketCalendar)} />
+            {can(user, 'market_calendar') && <Route path="/calendar" element={lazyPage(MarketCalendar)} />}
             <Route path="/virtual" element={lazyPage(VirtualAccount)} />
             <Route path="/broker" element={lazyPage(Broker)} />
             <Route path="/broker/account" element={lazyPage(BrokerAccount)} />
             <Route path="/broker/zerodha/callback" element={lazyPage(BrokerCallback)} />
             <Route path="/account/password" element={<ChangePassword />} />
-            {user.role === 'admin' && <Route path="/admin" element={lazyPage(Admin)} />}
+            {can(user, 'manage_users') && <Route path="/admin" element={lazyPage(Admin)} />}
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/register" element={<Navigate to="/" replace />} />
             <Route path="/forgot-password" element={<Navigate to="/" replace />} />

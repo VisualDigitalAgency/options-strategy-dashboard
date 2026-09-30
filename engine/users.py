@@ -37,11 +37,11 @@ def create_user(email: str, name: str, role: str = "user", status: str = "pendin
 
 
 def bootstrap_local_user() -> int:
-    """The first admin: created once on a fresh database, with no password until
-    scripts/set_admin.py sets one. Idempotent, and never adds a second admin."""
+    """The owner: created once on a fresh database, with no password until scripts/set_admin.py
+    sets one. Idempotent, and never adds a second owner (the database allows only one)."""
     with db.tx() as c:
-        uid = c.value("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
-    return uid or create_user(LOCAL_EMAIL, "Admin", role="admin", status="active")
+        uid = c.value("SELECT id FROM users WHERE role = 'owner'")
+    return uid or create_user(LOCAL_EMAIL, "Admin", role="owner", status="active")
 
 
 def active_user_ids() -> list[int]:

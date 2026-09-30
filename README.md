@@ -61,6 +61,7 @@ Live: https://theta.connectbiomedical.com (sign-in required; new users confirm t
 - [Run locally](#run-locally)
 - [Tests](#tests)
 - [Features](#features)
+- [Roles & features](#roles--features)
 - [Rules](#rules-edit-in-engineconfigpy) · [Trade metrics](#trade-metrics) · [Strategy lab](#strategy-lab-stock-detail-page) · [Portfolio & virtual account](#portfolio--virtual-account) · [Pri[...]
 - [Layout](#layout)
 - [Deploy](#deploy)
@@ -124,11 +125,44 @@ DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://lo
 | **Market calendar** (`/calendar`) | NSE trading holidays and Nifty 50 corporate events (results, ex-dividend, splits, bonuses, AGMs, buybacks), grouped by the expiry cycle each falls before, with a summary of what lands before the next expiry and a "Held" tag on stocks you have open positions in. Filter by results & dividends / corporate actions, or search a symbol. Screener rows show the next event and its date on the symbol line when it falls inside that row's expiry cycle: results on 9 Oct badge the Oct row only, not Nov or Dec (the stock page still lists every event up to its expiry). AGMs and plain board meetings are left to the calendar and stock page. Hover or tap the badge for the full list. Results and ex-dividend dates are highlighted as risky. Refreshed once a day by the worker |
 | **Portfolio** (`/portfolio`) | Open positions by stock and expiry: live P&L, margin, Greeks, stop-loss mode per leg, payoff, price & pivot chart, exit leg / exit all, open limit orders |
 | **Virtual account** (`/virtual`) | Order history, closed trades, auto-trade settings and runs, account reset |
-| **Broker** (`/broker`) | Connect a real broker (Zerodha; others are previews). Admin-only for now — everyone else sees the same page as a preview |
+| **Broker** (`/broker`) | Connect a real broker (Zerodha; others are previews). Only roles with *live trading* — everyone else sees the same page as a preview |
 | **Real account** (`/broker/account`) | Real (or, until connected, approximate virtual-derived) available margin, cash, collateral, span, exposure and open positions |
-| **Admin** (`/admin`, admin only) | Approve, reject or disable users, issue temporary passwords, sign-in activity log with client IPs |
+| **Admin** (`/admin`, roles with *manage users*) | Approve, reject or disable users, issue temporary passwords, change roles, sign-in activity log with client IPs. The owner also gets **Roles & features** |
 
 Accounts: every page needs a sign-in. New users request access on `/register` and start as pending with ₹10,00,000 of virtual capital.
+
+## Roles & features
+
+Four roles, highest first. There is exactly one **Owner** (the database refuses a second), and
+nobody can be made Owner; the highest role anyone can be given is Sub-admin.
+
+| Role | Who | Can change roles |
+|---|---|---|
+| **Owner** | The account `scripts/set_admin.py` manages | Anyone else, to Sub-admin, Beta or User |
+| **Sub-admin** | Helpers the owner picks | With *manage roles*: Beta ↔ User only |
+| **Beta** | Early-access users | — |
+| **User** | Everyone else (the default) | — |
+
+**Feature toggles.** On Admin → *Roles & features* the owner switches each feature on or off per
+role (Sub-admin, Beta, User). The owner always has everything, and only the owner sees this tab.
+A change applies on that person's next click; their menu updates when they reload.
+
+| Feature | What it unlocks | Starts on for |
+|---|---|---|
+| manage users | The Admin page: approve, disable, reset passwords, activity log | Sub-admin |
+| manage roles | Moving accounts between Beta and User | Sub-admin |
+| live trading | Connecting Zerodha and placing real orders (manual confirm only) | nobody but the owner |
+| autotrade | Auto-trade on the virtual account (the scheduler skips roles without it) | everyone |
+| market calendar | The Market Calendar page | everyone |
+
+Rules no toggle can change: a manager only acts on accounts ranked below their own (a Sub-admin
+never touches the Owner or another Sub-admin); only the Owner grants or removes Sub-admin; and
+auto-trade never places real orders. Every role change and toggle is in the activity log. The
+server enforces all of it (`REQUIRES` in `server.py`, `engine/permissions.py`); the UI only hides
+what would be refused.
+
+Upgrading from before roles: the first admin becomes the Owner and any other admins become
+Sub-admins, who lose real trading until the owner turns *live trading* on for Sub-admin.
 
 ## Rules (edit in `engine/config.py`)
 

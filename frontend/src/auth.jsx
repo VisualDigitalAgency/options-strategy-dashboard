@@ -65,3 +65,8 @@ export function AuthProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext)
+
+/** Whether the signed-in user's role has a feature (engine/permissions.py). The server enforces the
+ * same list; this only hides what would be refused. Read at sign-in and on reload. */
+export const can = (user, feature) => Boolean(user?.features?.includes(feature))
+export const useCan = (feature) => can(useAuth().user, feature)

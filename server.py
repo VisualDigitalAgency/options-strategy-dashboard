@@ -18,7 +18,7 @@ import requests
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from engine import auth, autotrade, broker, cache, config, data_fetch, db, market_calendar, risk_rules, span, users, virtual
+from engine import auth, autotrade, broker, cache, config, data_fetch, db, market_calendar, permissions, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -346,6 +346,22 @@ def admin_reset_password(_ctx: Ctx, target_id: int):
     return auth.reset_password(_ctx.user_id, target_id, ip=_ctx.ip)
 
 
+def admin_set_role(_ctx: Ctx, target_id: int, role: str):
+    """Changes an account's role to sub_admin, beta or user. Only the owner grants or removes
+    sub-admin; others move lower-ranked accounts between beta and user. Nobody can be made owner."""
+    return auth.set_role(_ctx.user_id, target_id, role, ip=_ctx.ip)
+
+
+def admin_get_features(_ctx: Ctx):
+    """Owner only: which features each role (sub_admin, beta, user) has, and the feature list."""
+    return permissions.matrix()
+
+
+def admin_set_feature(_ctx: Ctx, role: str, feature: str, enabled: bool):
+    """Owner only: turns one feature on or off for a role. Applies on the role's next request."""
+    return permissions.set_feature(_ctx.user_id, role, feature, enabled, ip=_ctx.ip)
+
+
 def admin_audit_log(_ctx: Ctx, limit: int = 100):
     """The newest `limit` audit events (sign-ins, admin actions, broker events) with actor, target
     account and IP."""
@@ -379,7 +395,10 @@ def broker_exchange_token(_ctx: Ctx, request_token: str, state: str):
 #   METHODS  signed in; shared market data, same answer for every user
 #   USER     signed in; first argument is the acting user's id, supplied by the server.
 #            rpc_guard refuses a client-sent `user_id`, so no request can act for someone else.
-#   ADMIN    signed in with the admin role; context
+#   ADMIN    signed in with the feature REQUIRES names for it; context
+#
+# REQUIRES maps a method to the feature (engine/permissions.py) its caller's role must have, or
+# "owner". Every ADMIN method must be listed. Checked on every call, so a toggle applies at once.
 
 PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me,
                   "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code,
@@ -418,7 +437,7 @@ USER_METHODS = {
     "va_set_autotrade": autotrade.set_settings,
     "va_autotrade_runs": autotrade.get_runs,
     "va_autotrade_run_now": va_autotrade_run_now,
-    # Real broker (phase 1: Zerodha). Connecting itself is admin-only (ADMIN_METHODS below); once
+    # Real broker (phase 1: Zerodha). Connecting needs live_trading (ADMIN_METHODS below); once
     # connected, these are the acting user's own methods same as the va_* ones above.
     "broker_status": broker.status,
     "broker_disconnect": broker.disconnect,
@@ -437,10 +456,26 @@ ADMIN_METHODS = {
     "admin_audit_log": admin_audit_log,
     "admin_list_blocked": admin_list_blocked,
     "admin_unblock_signup": admin_unblock_signup,
-    # Real-money connection, soft-launched to admins only; see doc/2026-09-26-broker-integration-phase1-zerodha.md
+    "admin_set_role": admin_set_role,
+    "admin_get_features": admin_get_features,
+    "admin_set_feature": admin_set_feature,
+    # Real-money connection, for roles with live_trading; see doc/2026-09-26-broker-integration-phase1-zerodha.md
     "broker_connect_url": broker_connect_url,
     "broker_exchange_token": broker_exchange_token,
 }
+
+REQUIRES = {
+    "admin_list_users": "manage_users", "admin_set_status": "manage_users",
+    "admin_reset_password": "manage_users", "admin_audit_log": "manage_users",
+    "admin_list_blocked": "manage_users", "admin_unblock_signup": "manage_users",
+    "admin_set_role": "manage_roles",
+    "admin_get_features": "owner", "admin_set_feature": "owner",
+    "broker_connect_url": "live_trading", "broker_exchange_token": "live_trading",
+    "broker_preview_order": "live_trading", "broker_place_order": "live_trading",
+    "va_set_autotrade": "autotrade", "va_autotrade_run_now": "autotrade",
+    "get_market_calendar": "market_calendar",
+}
+assert set(ADMIN_METHODS) <= set(REQUIRES), "every admin method needs a REQUIRES entry"
 
 # Methods whose `symbol` may be outside the current Nifty 50 (they only act on existing positions).
 ANY_SYMBOL = {"va_exit_group", "va_price_levels"}
@@ -550,8 +585,9 @@ def rpc():
             return _error(req_id, NOT_SIGNED_IN, "Sign in to continue")
         if ctx.user["must_change_password"] and name not in WHILE_MUST_CHANGE:
             return _error(req_id, MUST_CHANGE, "Set a new password to continue")
-        if kind == "admin" and ctx.user["role"] != "admin":
-            return _error(req_id, FORBIDDEN, "Admins only")
+        need = REQUIRES.get(name)
+        if need and not permissions.allowed(ctx.user["role"], need):
+            return _error(req_id, FORBIDDEN, "You don't have access to this")
 
     try:
         # Closing what you hold never depends on today's index list: a stock that left the Nifty 50

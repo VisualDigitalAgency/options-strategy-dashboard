@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Check, Copy, KeyRound, UserCheck, UserX } from 'lucide-react'
 import { rpc } from '../rpc'
-import { useAuth } from '../auth'
+import { can, useAuth } from '../auth'
 import { dateTime } from '../format'
 import Modal, { ConfirmDialog } from '../components/Modal'
 
 const STATUS = { pending: 'Waiting', active: 'Active', rejected: 'Rejected', disabled: 'Disabled' }
+const ROLE = { owner: 'Owner', sub_admin: 'Sub-admin', beta: 'Beta', user: 'User' }
+// Mirrors engine/permissions.py; the server enforces the same rules and has the last word.
+const RANK = { owner: 3, sub_admin: 2, beta: 1, user: 1 }
+const outranks = (a, b) => (RANK[a] ?? 0) > (RANK[b] ?? 0)
+// Roles the signed-in user may move this account to (empty: no role control).
+function roleChoices(me, u) {
+  if (u.id === me.id || !outranks(me.role, u.role)) return []
+  if (me.role === 'owner') return ['sub_admin', 'beta', 'user']
+  return can(me, 'manage_roles') ? ['beta', 'user'] : []
+}
 
 const ACTION = {
   register: 'Requested access', register_duplicate: 'Sign-up refused: email already registered', register_same_device: 'Sign-up refused: browser already has an account', login: 'Signed in',
@@ -15,6 +25,7 @@ const ACTION = {
   email_code_sent: 'Sign-up code emailed', email_verified: 'Confirmed email', email_verify_failed: 'Wrong sign-up code',
   mail_failed: 'Email failed to send', signup_unblocked: 'Unblocked sign-up',
   password_reset: 'Temporary password issued', admin_password_set: 'Admin password set', sqlite_import: 'Data imported',
+  role_changed: 'Role changed', feature_on: 'Feature turned on', feature_off: 'Feature turned off',
   password_reset_requested: 'Password reset requested', password_reset_self: 'Reset own password',
   broker_connected: 'Broker connected', broker_disconnected: 'Broker disconnected',
   broker_order_placed: 'Real order placed', broker_order_failed: 'Real order failed',
@@ -35,12 +46,13 @@ const CONFIRM = {
     body: (u) => `${u.name} is signed out everywhere and must set a new password after signing in with the temporary one.` },
 }
 
-function UserRow({ u, me, onAct }) {
+function UserRow({ u, me, onAct, onRole, busy }) {
   const self = u.id === me.id
+  const choices = roleChoices(me, u)
   return (
     <tr>
       <td>
-        <b>{u.name}</b>{u.role === 'admin' && <span className="chip admin-chip">Admin</span>}
+        <b>{u.name}</b>{u.role !== 'user' && <span className="chip admin-chip">{ROLE[u.role]}</span>}
         <span className="muted small block">{u.email}</span>
       </td>
       <td data-label="Status"><span className={`chip st-${u.status}`}>{STATUS[u.status]}</span>
@@ -51,11 +63,19 @@ function UserRow({ u, me, onAct }) {
             <AlertTriangle size={13} aria-hidden /> Same {l.kind} as {l.name}
           </span>
         ))}</td>
+      <td data-label="Role">
+        {choices.length ? (
+          <select value={u.role} disabled={busy} aria-label={`Role for ${u.name}`} onChange={(e) => onRole(u, e.target.value)}>
+            {!choices.includes(u.role) && <option value={u.role}>{ROLE[u.role]}</option>}
+            {choices.map((r) => <option key={r} value={r}>{ROLE[r]}</option>)}
+          </select>
+        ) : <span className="small">{ROLE[u.role]}</span>}
+      </td>
       <td className="mono small" data-label="Signed up">{dateTime(u.created_at)}</td>
       <td className="mono small" data-label="Last sign-in">{u.last_login_at ? dateTime(u.last_login_at) : '—'}</td>
       <td className="admin-act-cell">
         <div className="admin-actions">
-          {self ? <span className="muted small">You</span> : (
+          {self ? <span className="muted small">You</span> : !outranks(me.role, u.role) ? <span className="muted small">—</span> : (
             <>
               {u.status === 'pending' && (
                 <>
@@ -102,6 +122,41 @@ function TempPassword({ user, password, onClose }) {
   )
 }
 
+// Owner only: which features each role has. Each switch saves at once and applies on that role's
+// next request; the owner's own column isn't shown because it always has everything.
+function FeatureMatrix({ data, onToggle, busy }) {
+  if (!data) return <p className="muted">Loading…</p>
+  return (
+    <>
+      <p className="muted small">You (the owner) always have every feature. Changes apply on each person&apos;s next
+        click; the menu and pages they see update when they reload.</p>
+      <div className="card table-scroll">
+        <table className="admin-table feature-matrix">
+          <thead><tr><th>Feature</th>{data.roles.map((r) => <th key={r}>{ROLE[r]}</th>)}</tr></thead>
+          <tbody>
+            {data.features.map((f) => (
+              <tr key={f.key}>
+                <td><b>{f.key.replaceAll('_', ' ')}</b><span className="muted small block">{f.label}</span></td>
+                {data.roles.map((r) => {
+                  const on = data.matrix[r][f.key]
+                  return (
+                    <td key={r} data-label={ROLE[r]}>
+                      <button type="button" role="switch" aria-checked={on} className="switch" disabled={busy}
+                        aria-label={`${f.key.replaceAll('_', ' ')} for ${ROLE[r]}`} onClick={() => onToggle(r, f.key, !on)}>
+                        <span className="switch-thumb" aria-hidden />
+                      </button>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
 export default function Admin() {
   const { user: me } = useAuth()
   const [users, setUsers] = useState(null)
@@ -113,6 +168,9 @@ export default function Admin() {
   const [temp, setTemp] = useState(null)
   const [blocked, setBlocked] = useState(null)
   const [note, setNote] = useState(null)
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [features, setFeatures] = useState(null)
+  const owner = me?.role === 'owner'
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +184,33 @@ export default function Admin() {
     }
   }, [])
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (owner) rpc('admin_get_features').then(setFeatures).catch((e) => setError(e.message))
+  }, [owner])
+
+  const setRole = async (u, role) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await rpc('admin_set_role', { target_id: u.id, role })
+      await load()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const toggle = async (role, feature, enabled) => {
+    setBusy(true)
+    setError(null)
+    try {
+      setFeatures(await rpc('admin_set_feature', { role, feature, enabled }))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const act = async (u, action) => {
     setError(null)
@@ -184,17 +269,31 @@ export default function Admin() {
         <button role="tab" aria-selected={tab === 'blocked'} className={tab === 'blocked' ? 'active' : ''} onClick={() => setTab('blocked')}>
           Blocked sign-ups {blocked?.length > 0 && <span className="muted">{blocked.length}</span>}
         </button>
+        {owner && (
+          <button role="tab" aria-selected={tab === 'features'} className={tab === 'features' ? 'active' : ''} onClick={() => setTab('features')}>Roles &amp; features</button>
+        )}
         <button role="tab" aria-selected={tab === 'log'} className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>Activity</button>
       </div>
 
       {tab === 'users' && (
-        <div className="card table-scroll">
-          <table className="admin-table">
-            <thead><tr><th>User</th><th>Status</th><th>Signed up</th><th>Last sign-in</th><th /></tr></thead>
-            <tbody>{users?.map((u) => <UserRow key={u.id} u={u} me={me} onAct={act} />)}</tbody>
-          </table>
-        </div>
+        <>
+          <div className="segmented" role="group" aria-label="Filter by role">
+            {['all', 'owner', 'sub_admin', 'beta', 'user'].map((r) => (
+              <button key={r} type="button" className={roleFilter === r ? 'active' : ''} aria-pressed={roleFilter === r} onClick={() => setRoleFilter(r)}>
+                {r === 'all' ? 'All' : ROLE[r]} <span className="count mono">{users ? users.filter((u) => r === 'all' || u.role === r).length : ''}</span>
+              </button>
+            ))}
+          </div>
+          <div className="card table-scroll">
+            <table className="admin-table">
+              <thead><tr><th>User</th><th>Status</th><th>Role</th><th>Signed up</th><th>Last sign-in</th><th /></tr></thead>
+              <tbody>{users?.filter((u) => roleFilter === 'all' || u.role === roleFilter)
+                .map((u) => <UserRow key={u.id} u={u} me={me} onAct={act} onRole={setRole} busy={busy} />)}</tbody>
+            </table>
+          </div>
+        </>
       )}
+      {tab === 'features' && owner && <FeatureMatrix data={features} onToggle={toggle} busy={busy} />}
       {tab === 'blocked' && (
         <>
           <p className="muted small">Sign-ups that didn&apos;t confirm their email within 14 days. Unblock someone support has

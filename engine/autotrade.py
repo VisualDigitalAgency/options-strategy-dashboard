@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import cache, config, db, users, virtual
+from . import auth, cache, config, db, permissions, users, virtual
 
 log = logging.getLogger("theta.autotrade")
 
@@ -193,6 +193,9 @@ def start_scheduler(get_candidates) -> None:
                 uids = []
             for uid in uids:  # one user at a time: they share the screen and quotes, so NSE load stays flat
                 try:
+                    u = auth.active_user(uid)
+                    if not u or not permissions.allowed(u["role"], "autotrade"):  # the owner turned it off
+                        continue
                     s = get_settings(uid)
                     now = datetime.now(virtual.IST)
                     due = (s["enabled"] and virtual.market_open() and now.strftime("%H:%M") >= s["run_at"]
