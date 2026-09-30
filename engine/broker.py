@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
-from . import auth, broker_crypto, cache, config, data_fetch, db, virtual
+from . import auth, broker_crypto, cache, config, data_fetch, db, permissions, virtual
 from .brokers import registry
 from .brokers.base import BrokerOrderResult, BrokerSession
 
@@ -170,11 +170,11 @@ def get_margins(user_id: int) -> dict:
 
 
 def connectable_brokers(user_id: int) -> list[str]:
-    """Which brokers this specific user may connect right now (phase 1: admins only). The single
+    """Which brokers this specific user may connect right now (roles with live_trading). The single
     source of truth for "can this user connect broker X" — frontend components read this instead
     of each re-deriving role-and-broker checks locally."""
     user = auth.active_user(user_id)
-    return sorted(registry.CONNECTABLE) if user and user["role"] == "admin" else []
+    return sorted(registry.CONNECTABLE) if user and permissions.allowed(user["role"], "live_trading") else []
 
 
 def account_summary(user_id: int) -> dict:
@@ -274,6 +274,7 @@ def place_order(user_id: int, confirm_token: str) -> dict:
     broker. Redeems a one-time preview; places every leg as a SELL LIMIT order sequentially. Kite Connect has no atomic multi-leg order: if a leg fails
     after an earlier one already placed, this stops immediately and does not roll anything back —
     an automatic square-off would itself be a new, unconfirmed real-money order."""
+    permissions.require(auth.active_user(user_id), "live_trading")  # also checked at the RPC layer
     # Read-and-delete in one step: two concurrent confirms with the same token (a double click, a
     # retried request) must not both get the payload, or every leg would be sent twice.
     payload = cache.pop_json(f"broker_confirm:{confirm_token}")

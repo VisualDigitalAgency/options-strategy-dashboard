@@ -113,7 +113,7 @@ j = call("auth_verify_email", {"email": "two@test.example", "code": outbox[-1]["
 check("expired code refused", j["error"]["message"] == auth.BAD_CODE, j["error"])
 
 # 6. The admin only sees confirmed requests, and can't act on an unconfirmed one.
-admin = auth.users.create_user("boss@test.example", "Boss", role="admin", status="active")
+admin = auth.users.create_user("boss@test.example", "Boss", role="owner", status="active")
 listed = {u["email"] for u in auth.list_users()}
 check("admin list has the confirmed request, not the unconfirmed one",
       "new@test.example" in listed and "two@test.example" not in listed, listed)

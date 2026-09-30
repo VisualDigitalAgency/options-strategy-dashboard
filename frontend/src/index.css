@@ -1415,6 +1415,8 @@ td.out { color: var(--down-text); }
 .admin-table tr:last-child td { border-bottom: 0; }
 .admin-table .block { display: block; margin-top: 2px; }
 .admin-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.admin-tabs + .segmented { margin-bottom: 12px; }
+.feature-matrix td:not(:first-child), .feature-matrix th:not(:first-child) { text-align: center; }
 .admin-chip { margin-left: 8px; background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
 .st-pending { color: var(--warn); border-color: currentColor; }
 .st-active { color: var(--up-text); border-color: currentColor; }

@@ -7,6 +7,7 @@ import { dateTime, int, num, pct, pnlClass, rupee, rupee2, shortDate, signedRupe
 import SLModeSwitch, { slHelp } from '../components/SLModeSwitch'
 import { ConfirmDialog } from '../components/Modal'
 import AutoTradePanel from '../components/AutoTrade'
+import { useCan } from '../auth'
 import UpdatedTag from '../components/UpdatedTag'
 import PalettePicker from '../components/PalettePicker'
 import StatCard from '../components/StatCard'
@@ -25,6 +26,7 @@ function xirr(acct) {
 }
 
 export default function VirtualAccount() {
+  const autoOk = useCan('autotrade')
   const [acct, setAcct] = useState(null)
   const [orders, setOrders] = useState(null)
   const [closed, setClosed] = useState(null)
@@ -146,7 +148,7 @@ export default function VirtualAccount() {
         )}
       </section>
 
-      <AutoTradePanel onRun={load} />
+      {autoOk && <AutoTradePanel onRun={load} />}
 
       <PalettePicker />
 

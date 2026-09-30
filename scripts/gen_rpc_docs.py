@@ -25,7 +25,7 @@ TIERS = {  # server.TABLES kind -> (title, who may call, how the handler is call
     "account": ("Account", "signed in", "gets the request context"),
     "shared": ("Market data", "signed in; the same answer for every user", "gets the params only"),
     "user": ("User", "signed in; acts on the caller's own data", "gets the caller's `user_id` first"),
-    "admin": ("Admin", "signed in with the admin role", "gets the request context"),
+    "admin": ("Admin", "signed in, with the role feature listed in REQUIRES", "gets the request context"),
 }
 
 # Named in the method docstrings; the values come from the code.

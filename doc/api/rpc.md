@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-51 methods: 7 public, 3 account, 5 market data, 28 user, 8 admin.
+54 methods: 7 public, 3 account, 5 market data, 28 user, 11 admin.
 
 ## Tiers
 
@@ -14,7 +14,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | Account | signed in | gets the request context |
 | Market data | signed in; the same answer for every user | gets the params only |
 | User | signed in; acts on the caller's own data | gets the caller's `user_id` first |
-| Admin | signed in with the admin role | gets the request context |
+| Admin | signed in, with the role feature listed in REQUIRES | gets the request context |
 
 ## Index
 
@@ -69,6 +69,9 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_audit_log`](#admin_audit_log) | admin | The newest `limit` audit events (sign-ins, admin actions, broker events) with actor, target account and IP. |
 | [`admin_list_blocked`](#admin_list_blocked) | admin | Sign-ups not confirmed within CONFIRM_DAYS, newest first. |
 | [`admin_unblock_signup`](#admin_unblock_signup) | admin | Gives a blocked sign-up a fresh CONFIRM_DAYS and emails a new code. |
+| [`admin_set_role`](#admin_set_role) | admin | Changes an account's role to sub_admin, beta or user. |
+| [`admin_get_features`](#admin_get_features) | admin | Owner only: which features each role (sub_admin, beta, user) has, and the feature list. |
+| [`admin_set_feature`](#admin_set_feature) | admin | Owner only: turns one feature on or off for a role. |
 | [`broker_connect_url`](#broker_connect_url) | admin | Starts connecting the caller's Zerodha account: the Kite login URL and a one-time `state` to pass back to broker_exchange_token. |
 | [`broker_exchange_token`](#broker_exchange_token) | admin | Finishes connecting Zerodha: swaps Kite's one-time request_token for an access token, stored encrypted. |
 
@@ -591,7 +594,7 @@ Set by the server, never by the client: `user_id`.
 
 ## Admin methods
 
-Callable by: signed in with the admin role.
+Callable by: signed in, with the role feature listed in REQUIRES.
 
 ### `admin_list_users`
 
@@ -652,6 +655,38 @@ email failed. The person still confirms the email, then waits for approval.
 | Param | Type | Default |
 |---|---|---|
 | `target_id` | `int` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_set_role`
+
+Changes an account's role to sub_admin, beta or user. Only the owner grants or removes
+sub-admin; others move lower-ranked accounts between beta and user. Nobody can be made owner.
+
+| Param | Type | Default |
+|---|---|---|
+| `target_id` | `int` | required |
+| `role` | `str` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_get_features`
+
+Owner only: which features each role (sub_admin, beta, user) has, and the feature list.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_set_feature`
+
+Owner only: turns one feature on or off for a role. Applies on the role's next request.
+
+| Param | Type | Default |
+|---|---|---|
+| `role` | `str` | required |
+| `feature` | `str` | required |
+| `enabled` | `bool` | required |
 
 Set by the server, never by the client: `_ctx`.
 

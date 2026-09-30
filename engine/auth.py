@@ -29,7 +29,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlalchemy.exc import IntegrityError
 
-from . import cache, db, mail, users
+from . import cache, db, mail, permissions, users
 
 _ph = PasswordHasher(time_cost=3, memory_cost=64 * 1024, parallelism=2)
 _DUMMY_HASH = _ph.hash(secrets.token_hex(16))  # verify against this for unknown emails: same timing
@@ -506,7 +506,8 @@ def me(user_id: int) -> dict:
                   u=user_id)
     with db.tx(user_id) as c:
         prefs = c.one("SELECT theme, palette FROM user_prefs WHERE user_id=:u", u=user_id) or {}
-    return {**u, "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette")}}
+    return {**u, "features": permissions.features_for(u["role"]),
+            "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette")}}
 
 
 def active_user(user_id: int | None) -> dict | None:
@@ -579,12 +580,43 @@ def list_users() -> list[dict]:
     return rows
 
 
+def _check_rank(c, actor_id: int, target_id: int) -> str:
+    """Managers act only on accounts ranked below their own: a sub-admin never touches the owner or
+    another sub-admin. Returns the target's role."""
+    actor = c.value("SELECT role FROM users WHERE id=:u", u=actor_id)
+    target = c.value("SELECT role FROM users WHERE id=:u AND status <> 'unverified'", u=target_id)
+    if target is None:
+        raise AuthError("User not found")
+    if not permissions.outranks(actor, target):
+        raise AuthError("You can only manage accounts ranked below yours")
+    return target
+
+
+def set_role(actor_id: int, target_id: int, role: str, ip: str | None = None) -> dict:
+    """Owner: any account to sub_admin, beta or user. A sub-admin with manage_roles: beta <-> user
+    only. Nobody is made owner, and nobody changes their own role."""
+    if role not in ("sub_admin", "beta", "user"):
+        raise AuthError("Role must be sub_admin, beta or user")
+    if target_id == actor_id:
+        raise AuthError("You can't change your own role")
+    with db.tx() as c:
+        old = _check_rank(c, actor_id, target_id)
+        actor = c.value("SELECT role FROM users WHERE id=:u", u=actor_id)
+        if "sub_admin" in (role, old) and actor != "owner":
+            raise AuthError("Only the owner grants or removes sub-admin")
+        c.run("UPDATE users SET role=:r WHERE id=:u", r=role, u=target_id)
+    if old != role:
+        audit("role_changed", actor_id=actor_id, target_user_id=target_id, ip=ip, was=old, role=role)
+    return {"id": target_id, "role": role}
+
+
 def set_status(admin_id: int, target_id: int, status: str, ip: str | None = None) -> dict:
     if status not in STATUSES or status in ("pending", "unverified"):
         raise AuthError("Status must be active, rejected or disabled")
     if target_id == admin_id:
         raise AuthError("You can't change your own status")
     with db.tx() as c:
+        _check_rank(c, admin_id, target_id)
         old = c.value("SELECT status FROM users WHERE id=:u", u=target_id)
         if old is None or old == "unverified":  # not in the admin's list until the email is confirmed
             raise AuthError("User not found")
@@ -622,6 +654,7 @@ def reset_password(admin_id: int, target_id: int, ip: str | None = None) -> dict
     """One-time temporary password, shown to the admin once. The user must change it on sign-in."""
     temp = "-".join(secrets.token_urlsafe(4) for _ in range(3))
     with db.tx() as c:
+        _check_rank(c, admin_id, target_id)
         n = c.run("UPDATE users SET password_hash=:h, must_change_password=true WHERE id=:u",
                   h=hash_password(temp), u=target_id)
     if not n:

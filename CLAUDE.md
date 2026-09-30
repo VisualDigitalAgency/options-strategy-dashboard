@@ -45,7 +45,9 @@ The `web` target is Caddy serving `frontend/dist` and reverse-proxying `/rpc` an
 - `ACCOUNT_METHODS`: signed in; handler gets `ctx`.
 - `METHODS`: signed in; shared market data, called with params only.
 - `USER_METHODS`: signed in; the server passes `ctx.user_id` as the first positional argument.
-- `ADMIN_METHODS`: admin role; handler gets `ctx`.
+- `ADMIN_METHODS`: signed in; handler gets `ctx`. Every one needs a `REQUIRES` entry.
+
+`REQUIRES` maps a method to the feature its caller's role must have (`engine/permissions.py`), or `"owner"`; checked on every call. Roles are owner (exactly one) > sub_admin > beta, user; the owner toggles features per role in the `role_features` table (issue #46).
 
 `rpc_guard.validate` is the only trust boundary. It introspects the target function's signature: `_`-prefixed params and `user_id` can never be set by a client, and required params and basic annotation types are enforced (floats must be finite). Engine functions therefore need accurate type annotations. Wrappers must use `functools.wraps` (see `_then_refresh`) so validate still sees the real signature.
 

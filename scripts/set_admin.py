@@ -1,4 +1,4 @@
-"""Sets the admin's sign-in email and password.
+"""Sets the owner's (top admin's) sign-in email and password.
 
     python scripts/set_admin.py you@example.com          # asks for the password twice (hidden)
 
@@ -37,7 +37,7 @@ def main() -> int:
         return 1
 
     with db.tx() as c:
-        admin = c.one("SELECT id, email FROM users WHERE role='admin' ORDER BY id LIMIT 1")
+        admin = c.one("SELECT id, email FROM users WHERE role='owner'")
         taken = c.value("SELECT id FROM users WHERE email_canonical=:ce", ce=users.canonical_email(email))
     if admin is None:
         admin = {"id": users.bootstrap_local_user(), "email": users.LOCAL_EMAIL}

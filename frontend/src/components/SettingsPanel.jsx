@@ -3,10 +3,12 @@ import { Bot, X } from 'lucide-react'
 import { useBudget } from '../settings'
 import { rupee, signedRupee } from '../format'
 import { AutoTradeStatus, AutoTradeSwitch } from './AutoTrade'
+import { useCan } from '../auth'
 
 export default function SettingsPanel({ onClose }) {
   const { account, error, maxPct, setMaxPct, perTrade, capital, free, auto } = useBudget()
   const capped = capital && perTrade < (capital * maxPct) / 100
+  const autoOk = useCan('autotrade')
 
   return (
     <div className="settings" role="region" aria-label="Wallet">
@@ -39,7 +41,7 @@ export default function SettingsPanel({ onClose }) {
             amount on the <Link to="/virtual" onClick={onClose}>Virtual account</Link> page.
           </p>
         </div>
-        <div className="wallet-auto">
+        {autoOk && <div className="wallet-auto">
           <AutoTradeSwitch />
           <div>
             <b><Bot size={15} aria-hidden /> Auto-trade</b>
@@ -49,7 +51,7 @@ export default function SettingsPanel({ onClose }) {
               <Link to="/virtual#auto" onClick={onClose}>Settings and run log</Link>
             </p>
           </div>
-        </div>
+        </div>}
         <button className="icon-btn" onClick={onClose} aria-label="Close wallet">
           <X size={18} />
         </button>
