@@ -117,6 +117,8 @@ _STATUS_FIELDS = ("broker", "status", "broker_user_id", "connected_at", "token_e
 
 
 def status(user_id: int) -> dict:
+    """The user's latest broker connection: broker, status, broker user id, connection and token
+    expiry times. Never the tokens."""
     row = _latest_connection_row(user_id)
     if not row:
         return {"broker": None, "status": "disconnected"}
@@ -124,6 +126,7 @@ def status(user_id: int) -> dict:
 
 
 def disconnect(user_id: int) -> dict:
+    """Revokes the broker session and marks the connection disconnected."""
     row = _active_connection(user_id)
     if not row:
         raise ValueError("No broker is connected")
@@ -155,11 +158,13 @@ _EMPTY_MARGINS = {"available_margin": 0.0, "cash_margin": 0.0, "collateral_margi
 
 
 def get_positions(user_id: int) -> list[dict]:
+    """Real positions from the poller's last snapshot. Refused without an active connection."""
     _require_active(user_id)
     return (cache.get_json(f"broker_snap:{user_id}") or {}).get("positions", [])
 
 
 def get_margins(user_id: int) -> dict:
+    """Real margins from the poller's last snapshot. Refused without an active connection."""
     _require_active(user_id)
     return (cache.get_json(f"broker_snap:{user_id}") or {}).get("margins", _EMPTY_MARGINS)
 
@@ -265,8 +270,8 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
 
 
 def place_order(user_id: int, confirm_token: str) -> dict:
-    """The only function that calls the broker. Redeems a one-time preview; places every leg as a
-    SELL LIMIT order sequentially. Kite Connect has no atomic multi-leg order: if a leg fails
+    """Places a previewed order on the real broker account; the only function that calls the
+    broker. Redeems a one-time preview; places every leg as a SELL LIMIT order sequentially. Kite Connect has no atomic multi-leg order: if a leg fails
     after an earlier one already placed, this stops immediately and does not roll anything back —
     an automatic square-off would itself be a new, unconfirmed real-money order."""
     # Read-and-delete in one step: two concurrent confirms with the same token (a double click, a

@@ -1,5 +1,5 @@
 # Shortcuts for the server. Each line is a plain docker compose command you can run by hand.
-.PHONY: up down logs migrate ps admin secrets test lock
+.PHONY: up down logs migrate ps admin secrets test lock rpc-docs
 
 secrets:            ## random passwords into ./secrets (never overwrites)
 	python3 scripts/make_secrets.py
@@ -37,3 +37,6 @@ lock:               ## re-lock requirements.txt and requirements-dev.txt (with h
 	@printf '%s\n' "# Locked, hashed dependency set. Don't edit by hand: change requirements.in, then run" "#   make lock" "# (uv pip compile requirements.in --universal --python-version 3.12 --generate-hashes)." "" | cat - requirements.txt > requirements.tmp && mv requirements.tmp requirements.txt
 	uv pip compile requirements-dev.in -o requirements-dev.txt --universal --python-version 3.12 --generate-hashes --no-header -q
 	@printf '%s\n' "# Locked, hashed dev tools (not in the app image). Don't edit by hand: change requirements-dev.in, then run" "#   make lock" "" | cat - requirements-dev.txt > requirements.tmp && mv requirements.tmp requirements-dev.txt
+
+rpc-docs:           ## regenerate doc/api/rpc.md from the RPC method tables in server.py
+	python scripts/gen_rpc_docs.py

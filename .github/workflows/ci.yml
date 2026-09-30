@@ -133,6 +133,9 @@ jobs:
       # Before the database tests, so a lint error fails in seconds. Rules: ruff.toml.
       - name: Lint (ruff)
         run: ruff check . --output-format github
+      # Fails when doc/api/rpc.md is stale or an RPC method has no docstring (issue #98).
+      - name: RPC reference up to date
+        run: python scripts/gen_rpc_docs.py --check
       - name: Byte-compile
         run: python -m compileall -q server.py rpc_guard.py engine scripts migrations tests
       - name: Integration tests (fresh database per file)

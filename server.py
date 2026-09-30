@@ -165,6 +165,7 @@ def va_refresh_positions(user_id: int):
 
 
 def get_config():
+    """The screening thresholds the UI shows (engine/config.py) and the current Nifty 50 list."""
     return {
         "pcr_range": [config.PCR_MIN, config.PCR_MAX],
         "min_dte": config.MIN_DTE,
@@ -251,10 +252,15 @@ class Ctx:
 
 
 def auth_register(_ctx: Ctx, name: str, email: str, password: str):
+    """Requests an account and emails a 6-digit code to confirm the address; once confirmed, the
+    account waits for admin approval. At most SIGNUPS_PER_IP sign-ups per hour from one IP."""
     return auth.register(name, email, password, ip=_ctx.ip, device=_ctx.device)
 
 
 def auth_login(_ctx: Ctx, email: str, password: str):
+    """Signs in and sets the session cookie, with a new token every time. An unconfirmed account gets
+    error -32005 and a fresh code. Wrong passwords are limited per email and IP (FAILS_PER_PAIR) and
+    per IP (FAILS_PER_IP) within FAIL_WINDOW."""
     token, user = auth.login(email, password, ip=_ctx.ip, ua=_ctx.ua, device=_ctx.device)
     auth.end_session(_ctx.token)  # a fresh token on every sign-in: no session fixation
     _ctx.set_cookie = token
@@ -262,26 +268,36 @@ def auth_login(_ctx: Ctx, email: str, password: str):
 
 
 def auth_verify_email(_ctx: Ctx, email: str, code: str):
+    """Confirms the sign-up email with the emailed code (spaces are ignored). CODE_TRIES guesses per
+    code and VERIFY_PER_IP checks per IP in 15 minutes. An unknown email gets the same answer as a wrong code."""
     return auth.verify_email(email, code, ip=_ctx.ip)
 
 
 def auth_resend_code(_ctx: Ctx, email: str):
+    """Emails a new sign-up code: at most one per RESEND_GAP and CODES_PER_DAY a day. The answer is
+    the same for an unknown email."""
     return auth.resend_code(email, ip=_ctx.ip)
 
 
 def auth_forgot_password(_ctx: Ctx, email: str):
+    """Emails a password-reset link valid for RESET_TTL. The answer is the same whether or not the
+    email has an active account. One email per RESET_GAP per account, RESET_PER_IP requests per hour per IP."""
     return auth.request_password_reset(email, ip=_ctx.ip)
 
 
 def auth_reset_password(_ctx: Ctx, token: str, new_password: str):
+    """Sets a new password from the emailed reset token. The token works once, and every session of
+    the account is ended."""
     return auth.confirm_password_reset(token, new_password, ip=_ctx.ip)
 
 
 def auth_me(_ctx: Ctx):
+    """The signed-in user with their saved theme and palette, or null when signed out."""
     return auth.me(_ctx.user_id) if _ctx.user else None
 
 
 def auth_logout(_ctx: Ctx):
+    """Ends this session and clears the session cookie."""
     if _ctx.user:
         auth.audit("logout", actor_id=_ctx.user_id, target_user_id=_ctx.user_id, ip=_ctx.ip)
     auth.end_session(_ctx.token)
@@ -290,34 +306,49 @@ def auth_logout(_ctx: Ctx):
 
 
 def auth_change_password(_ctx: Ctx, current_password: str, new_password: str):
+    """Changes the password and clears the temporary-password flag. Other sessions are signed out;
+    this one stays."""
     return auth.change_password(_ctx.user_id, current_password, new_password, _ctx.token, ip=_ctx.ip)
 
 
 def prefs_set(_ctx: Ctx, theme: str | None = None, palette: str | None = None):
+    """Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps
+    its value. Returns the saved prefs."""
     return auth.set_prefs(_ctx.user_id, theme, palette)
 
 
 def admin_list_users(_ctx: Ctx):
+    """Every account past email confirmation, waiting requests first. Each lists the other accounts
+    that share its browser or network."""
     return auth.list_users()
 
 
 def admin_set_status(_ctx: Ctx, target_id: int, status: str):
+    """Approves (active), rejects or disables an account. Any status but active signs the user out
+    everywhere. Refused for the caller's own account."""
     return auth.set_status(_ctx.user_id, target_id, status, ip=_ctx.ip)
 
 
 def admin_list_blocked(_ctx: Ctx):
+    """Sign-ups not confirmed within CONFIRM_DAYS, newest first."""
     return auth.list_blocked()
 
 
 def admin_unblock_signup(_ctx: Ctx, target_id: int):
+    """Gives a blocked sign-up a fresh CONFIRM_DAYS and emails a new code. `sent` is false when the
+    email failed. The person still confirms the email, then waits for approval."""
     return auth.unblock_signup(_ctx.user_id, target_id, ip=_ctx.ip)
 
 
 def admin_reset_password(_ctx: Ctx, target_id: int):
+    """Issues a one-time temporary password, returned once. The user is signed out everywhere and
+    must set a new password on their next sign-in."""
     return auth.reset_password(_ctx.user_id, target_id, ip=_ctx.ip)
 
 
 def admin_audit_log(_ctx: Ctx, limit: int = 100):
+    """The newest `limit` audit events (sign-ins, admin actions, broker events) with actor, target
+    account and IP."""
     with db.tx() as c:
         return c.all("SELECT l.id, l.ts, l.action, host(l.ip) AS ip, l.detail, a.email AS actor, t.email AS target "
                      "FROM audit_log l LEFT JOIN users a ON a.id = l.actor_id "
@@ -330,10 +361,14 @@ def admin_audit_log(_ctx: Ctx, limit: int = 100):
 
 
 def broker_connect_url(_ctx: Ctx):
+    """Starts connecting the caller's Zerodha account: the Kite login URL and a one-time `state` to
+    pass back to broker_exchange_token."""
     return broker.connect_url(_ctx.user_id)
 
 
 def broker_exchange_token(_ctx: Ctx, request_token: str, state: str):
+    """Finishes connecting Zerodha: swaps Kite's one-time request_token for an access token, stored
+    encrypted. `state` must be the one broker_connect_url returned. One active connection per user."""
     return broker.exchange_token(_ctx.user_id, request_token, state)
 
 

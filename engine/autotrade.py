@@ -25,6 +25,7 @@ RUN_LOCK_TTL = 900  # a run takes a minute or two; the lock expires on its own i
 
 
 def get_settings(user_id: int) -> dict:
+    """The user's auto-trade settings, the next scheduled run, and whether a run is in progress."""
     with db.tx(user_id) as c:
         s = c.one("SELECT enabled, run_at, min_pop, reserve_pct, max_trade_pct, last_run_date "
                   "FROM autotrade_settings WHERE user_id=:u", u=user_id)
@@ -37,6 +38,8 @@ def get_settings(user_id: int) -> dict:
 
 def set_settings(user_id: int, enabled: bool | None = None, run_at: str | None = None, min_pop: float | None = None,
                  reserve_pct: float | None = None, max_trade_pct: float | None = None) -> dict:
+    """Changes auto-trade settings; an omitted field keeps its value. run_at is HH:MM from 09:15 to
+    15:29 IST, min_pop 50-99, reserve_pct 0-90, max_trade_pct 1-100. Returns the updated settings."""
     kw = {"enabled": enabled, "run_at": run_at, "min_pop": min_pop, "reserve_pct": reserve_pct,
           "max_trade_pct": max_trade_pct}
     changes = {k: v for k, v in kw.items() if v is not None}
@@ -62,6 +65,7 @@ def set_settings(user_id: int, enabled: bool | None = None, run_at: str | None =
 
 
 def get_runs(user_id: int, limit: int = 20) -> list[dict]:
+    """Past auto-trade runs, newest first, with what each placed."""
     with db.tx(user_id) as c:
         return c.all("SELECT id, ts, trigger, placed, summary FROM autotrade_runs WHERE user_id=:u "
                      "ORDER BY id DESC LIMIT :n", u=user_id, n=limit)
