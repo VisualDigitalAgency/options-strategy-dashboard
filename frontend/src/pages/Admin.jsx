@@ -15,7 +15,15 @@ const ACTION = {
   email_code_sent: 'Sign-up code emailed', email_verified: 'Confirmed email', email_verify_failed: 'Wrong sign-up code',
   mail_failed: 'Email failed to send', signup_unblocked: 'Unblocked sign-up',
   password_reset: 'Temporary password issued', admin_password_set: 'Admin password set', sqlite_import: 'Data imported',
+  password_reset_requested: 'Password reset requested', password_reset_self: 'Reset own password',
+  broker_connected: 'Broker connected', broker_disconnected: 'Broker disconnected',
+  broker_order_placed: 'Real order placed', broker_order_failed: 'Real order failed',
+  broker_order_unknown: 'Real order: outcome unknown',
+  broker_sl_alert_installed: 'Stop-loss alert set', broker_sl_alert_cancelled: 'Stop-loss alert removed',
+  broker_sl_alert_failed: 'Stop-loss alert failed',
 }
+// An event added later without a label reads as words, not as its raw key.
+const actionLabel = (a) => ACTION[a] ?? a.charAt(0).toUpperCase() + a.slice(1).replaceAll('_', ' ')
 
 // What each button does, in the words the confirm dialog uses.
 const CONFIRM = {
@@ -35,7 +43,7 @@ function UserRow({ u, me, onAct }) {
         <b>{u.name}</b>{u.role === 'admin' && <span className="chip admin-chip">Admin</span>}
         <span className="muted small block">{u.email}</span>
       </td>
-      <td><span className={`chip st-${u.status}`}>{STATUS[u.status]}</span>
+      <td data-label="Status"><span className={`chip st-${u.status}`}>{STATUS[u.status]}</span>
         {u.must_change_password && <span className="muted small block">Temporary password</span>}
         {u.links.map((l) => (
           <span key={l.kind + l.user_id} className={`dup-flag ${l.kind}`}
@@ -43,9 +51,9 @@ function UserRow({ u, me, onAct }) {
             <AlertTriangle size={13} aria-hidden /> Same {l.kind} as {l.name}
           </span>
         ))}</td>
-      <td className="mono small">{dateTime(u.created_at)}</td>
-      <td className="mono small">{u.last_login_at ? dateTime(u.last_login_at) : '—'}</td>
-      <td>
+      <td className="mono small" data-label="Signed up">{dateTime(u.created_at)}</td>
+      <td className="mono small" data-label="Last sign-in">{u.last_login_at ? dateTime(u.last_login_at) : '—'}</td>
+      <td className="admin-act-cell">
         <div className="admin-actions">
           {self ? <span className="muted small">You</span> : (
             <>
@@ -169,7 +177,7 @@ export default function Admin() {
       </header>
       {error && !pending && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
 
-      <div className="tab-line" role="tablist">
+      <div className="tab-line admin-tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'users'} className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>
           Users {users && <span className="muted">{users.length}</span>}
         </button>
@@ -200,8 +208,8 @@ export default function Admin() {
                 {blocked?.map((b) => (
                   <tr key={b.id}>
                     <td><b>{b.name}</b><span className="muted small block">{b.email}</span></td>
-                    <td className="mono small">{dateTime(b.created_at)}</td>
-                    <td><div className="admin-actions">
+                    <td className="mono small" data-label="Signed up">{dateTime(b.created_at)}</td>
+                    <td className="admin-act-cell"><div className="admin-actions">
                       <button className="btn small ghost" disabled={busy} onClick={() => unblock(b)}>
                         <UserCheck size={15} aria-hidden /> Unblock and resend code
                       </button>
@@ -215,16 +223,16 @@ export default function Admin() {
       )}
       {tab === 'log' && (
         <div className="card table-scroll">
-          <table className="admin-table">
+          <table className="admin-table admin-log">
             <thead><tr><th>When</th><th>What</th><th>Who</th><th>Account</th><th>IP</th></tr></thead>
             <tbody>
               {log?.map((e) => (
                 <tr key={e.id} className={e.action.endsWith('failed') || e.action === 'login_blocked' ? 'warn-row' : ''}>
                   <td className="mono small">{dateTime(e.ts)}</td>
-                  <td>{ACTION[e.action] || e.action}</td>
-                  <td className="small">{e.actor || '—'}</td>
-                  <td className="small">{e.target || '—'}</td>
-                  <td className="mono small">{e.ip || '—'}</td>
+                  <td>{actionLabel(e.action)}</td>
+                  <td className="small" data-label="Who">{e.actor || '—'}</td>
+                  <td className="small" data-label="Account">{e.target || '—'}</td>
+                  <td className="mono small" data-label="IP">{e.ip || '—'}</td>
                 </tr>
               ))}
             </tbody>

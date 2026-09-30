@@ -1426,14 +1426,35 @@ td.out { color: var(--down-text); }
 @media (max-width: 767px) {
   .auth-card { padding: 22px 18px 20px; }
   .auth-title { font-size: 21px; }
-  .admin-table th:nth-child(3), .admin-table td:nth-child(3), .admin-table th:nth-child(4), .admin-table td:nth-child(4) { display: none; }
-  .admin-actions { justify-content: flex-start; }
 }
 @media (max-width: 419px) {
   .user-btn { width: 36px; height: 36px; font-size: 12px; }
 }
 .dup-flag { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12.5px; color: var(--warn); }
 .dup-flag.browser { color: var(--down-text); font-weight: 600; }
+/* Tablets and phones: each row stacks inside the card (title, then label/value lines, then actions),
+   so the table never widens the page. */
+@media (max-width: 1023px) {
+  .admin-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .admin-table, .admin-table tbody, .admin-table tr, .admin-table td { display: block; width: 100%; }
+  /* The card already pads its content: rows only need vertical rhythm. */
+  .admin-table tr { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .admin-table tr:first-child { padding-top: 0; }
+  .admin-table tr:last-child { padding-bottom: 0; border-bottom: 0; }
+  .admin-table td, .admin-table tr:last-child td { padding: 3px 0; border: 0; overflow-wrap: break-word; }
+  /* A value too long for the line (a long email) drops below its label instead of breaking mid-word. */
+  .admin-table td[data-label] { display: flex; flex-wrap: wrap; gap: 0 12px; justify-content: space-between; align-items: baseline; text-align: right; }
+  .admin-table td[data-label]::before { content: attr(data-label); flex: none; color: var(--text-muted); font-size: 13px; font-family: var(--font); }
+  .admin-table td[data-label='Status'] > .dup-flag, .admin-table td[data-label='Status'] > .block { flex-basis: 100%; justify-content: flex-end; margin-top: 2px; }
+  .admin-table tbody td:first-child { padding-bottom: 6px; }
+  .admin-log tbody td:first-child { color: var(--text-muted); padding-bottom: 0; }
+  .admin-log tbody td:nth-child(2) { font-weight: 600; padding-bottom: 6px; }
+  .admin-table tr td.admin-act-cell { padding-top: 10px; }
+  .admin-actions { justify-content: flex-start; }
+  .admin-tabs { overflow-x: auto; scrollbar-width: none; }
+  .admin-tabs button { white-space: nowrap; }
+  .admin-actions .btn { flex: 1 1 auto; min-height: 44px; justify-content: center; }
+}
 
 /* ---------- Broker connect ---------- */
 .broker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }

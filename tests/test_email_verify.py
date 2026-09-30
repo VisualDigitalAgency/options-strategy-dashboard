@@ -195,5 +195,9 @@ importlib.reload(mail)  # undoes the fake send
 mail.send("x@test.example", "s", "t")
 check("log backend is the default", mail.backend() == "log")
 
+# The admin activity log shows the bare address, not Postgres inet's "/32" (issue #101).
+ips = [e["ip"] for e in server.admin_audit_log(None) if e["ip"]]
+check("audit log IPs have no prefix length", ips and all("/" not in ip for ip in ips), ips[:3])
+
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)
