@@ -1,0 +1,9 @@
+# Python lint (issue: ruff check in CI). Run `ruff check .` before pushing; CI runs the same.
+# Default rule set (pyflakes + pycodestyle errors), with two house-style exceptions.
+target-version = "py312"
+
+[lint]
+ignore = [
+  "E741",  # `l` for a leg/level in comprehensions is the house style
+  "E731",  # named lambdas are used on purpose, mostly for test stubs
+]

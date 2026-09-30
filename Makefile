@@ -32,6 +32,8 @@ test:               ## run the backend integration tests in Docker
 	docker run -d --rm --name theta-test-redis --network $(TEST_NET) redis:7-alpine >/dev/null
 	docker run --rm --network $(TEST_NET) -e DB_HOST=theta-test-pg -e OWNER_DB_PASSWORD=test-owner 	  -e DB_APP_PASSWORD=test-app -e REDIS_URL=redis://theta-test-redis:6379/0 	  -v "$(CURDIR)/tests:/app/tests:ro" theta-desk-test python tests/run.py; 	status=$$?; docker rm -f theta-test-pg theta-test-redis >/dev/null; docker network rm $(TEST_NET) >/dev/null; exit $$status
 
-lock:               ## re-lock requirements.txt (with hashes) from requirements.in; needs uv
+lock:               ## re-lock requirements.txt and requirements-dev.txt (with hashes) from the .in files; needs uv
 	uv pip compile requirements.in -o requirements.txt --universal --python-version 3.12 --generate-hashes --no-header -q
 	@printf '%s\n' "# Locked, hashed dependency set. Don't edit by hand: change requirements.in, then run" "#   make lock" "# (uv pip compile requirements.in --universal --python-version 3.12 --generate-hashes)." "" | cat - requirements.txt > requirements.tmp && mv requirements.tmp requirements.txt
+	uv pip compile requirements-dev.in -o requirements-dev.txt --universal --python-version 3.12 --generate-hashes --no-header -q
+	@printf '%s\n' "# Locked, hashed dev tools (not in the app image). Don't edit by hand: change requirements-dev.in, then run" "#   make lock" "" | cat - requirements-dev.txt > requirements.tmp && mv requirements.tmp requirements-dev.txt

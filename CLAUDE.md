@@ -42,6 +42,7 @@ npm --prefix frontend run lint          # oxlint
 npm --prefix frontend run build
 npm --prefix frontend test              # UI tests (happy-dom), frontend/tests/*.test.jsx
 make test                               # backend integration tests in throwaway Postgres + Redis containers
+ruff check .                            # Python lint (rules in ruff.toml; install: pip install --require-hashes -r requirements-dev.txt)
 ```
 
 Backend tests are plain scripts in `tests/test_*.py`. Each prints PASS/FAIL lines and exits non-zero on failure. `tests/run.py` gives every file a fresh, migrated database and flushes Redis. It needs `DB_HOST`, `OWNER_DB_PASSWORD`, `DB_APP_PASSWORD` and `REDIS_URL`. To run a single file: `python tests/run.py test_pivots.py`. Market data is stubbed in `tests/support.py`. `LIVE_DATA=1` adds a real yfinance check.

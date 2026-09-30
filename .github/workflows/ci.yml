@@ -129,7 +129,10 @@ jobs:
         with:
           python-version: "3.12"  # same as the Dockerfile
           cache: pip
-      - run: pip install --require-hashes -r requirements.txt
+      - run: pip install --require-hashes -r requirements.txt -r requirements-dev.txt
+      # Before the database tests, so a lint error fails in seconds. Rules: ruff.toml.
+      - name: Lint (ruff)
+        run: ruff check . --output-format github
       - name: Byte-compile
         run: python -m compileall -q server.py rpc_guard.py engine scripts migrations tests
       - name: Integration tests (fresh database per file)

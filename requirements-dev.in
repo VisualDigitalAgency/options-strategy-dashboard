@@ -1,0 +1,2 @@
+# Dev and CI tools, kept out of the app image. Lock with `make lock`.
+ruff==0.15.8
