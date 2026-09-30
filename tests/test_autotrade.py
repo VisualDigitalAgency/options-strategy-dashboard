@@ -4,7 +4,7 @@ cycles screened for one stock, it opens at most one: the best-scoring cycle at l
 import sys
 from datetime import date
 
-from engine import autotrade, config, db, users, virtual
+from engine import autotrade, config, db, users
 from support import EXP, SYM, stub
 
 stub(False)  # market closed: orders rest as open limit orders

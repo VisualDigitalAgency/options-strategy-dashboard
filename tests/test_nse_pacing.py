@@ -58,7 +58,8 @@ check("jitter bounded", max(gaps) <= 0.15 + 0.05, gaps)
 check("one cookie fetch for all threads", len(homepage) == 1, len(homepage))
 
 # ---- a rejected response: back off, fresh cookies, retry once
-stamps.clear(); homepage.clear()
+stamps.clear()
+homepage.clear()
 plan = [Resp(403, "")]
 out = data_fetch._nse_get("https://x/api", {})
 check("retry succeeds", out == {"ok": 1}, out)

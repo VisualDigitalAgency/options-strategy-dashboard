@@ -221,7 +221,7 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
     """Prices every leg (all SELL) and checks the total margin required against the broker's own
     real available funds — never against the virtual account. Returns a one-time confirm_token;
     nothing is sent to the broker until broker_place_order redeems it."""
-    row = _require_active(user_id)
+    _require_active(user_id)
     if not legs:
         raise ValueError("At least one leg is required")
     lot = data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry))
