@@ -1,0 +1,29 @@
+{
+  "title": "Why sell options: time decay and its risks",
+  "level": 1,
+  "order": 2,
+  "summary": "How theta pays the seller, why sellers win often, and why one bad move can still sink them.",
+  "minutes": 5,
+  "questions": [
+    {"q": "Which part of an OTM option's premium is time value?",
+     "options": ["None of it", "Half of it", "All of it", "Only the part above ₹1"],
+     "answer": 2,
+     "why": "An OTM option has no intrinsic value, so its whole premium is time value."},
+    {"q": "Theta is:",
+     "options": ["The option's sensitivity to the stock price", "The daily loss of time value", "The margin required", "The lot size"],
+     "answer": 1,
+     "why": "Theta measures how much time value an option loses per day."},
+    {"q": "For an option seller, the maximum gain on a naked short is:",
+     "options": ["Unlimited", "The premium collected", "Twice the premium", "The strike price"],
+     "answer": 1,
+     "why": "The seller can never keep more than the premium received."},
+    {"q": "A seller wins 9 months out of 10 but the 10th month's loss is 12 months of premium. Overall they:",
+     "options": ["Made money", "Broke even", "Lost money", "Can't tell"],
+     "answer": 2,
+     "why": "9 months of gains minus 12 months of gains is a net loss. Win rate alone isn't enough."},
+    {"q": "Time decay speeds up:",
+     "options": ["Far from expiry", "Close to expiry", "Only on Mondays", "Never; it is constant"],
+     "answer": 1,
+     "why": "Time value falls faster as expiry approaches."}
+  ]
+}

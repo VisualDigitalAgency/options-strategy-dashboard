@@ -1,0 +1,29 @@
+{
+  "title": "What is an option?",
+  "level": 1,
+  "order": 1,
+  "summary": "Calls, puts, strike, expiry, premium and lot size, with a worked example of selling a call.",
+  "minutes": 6,
+  "questions": [
+    {"q": "Who receives the premium when an option is traded?",
+     "options": ["The buyer", "The seller", "The exchange", "Nobody until expiry"],
+     "answer": 1,
+     "why": "The buyer pays the premium and the seller receives it up front."},
+    {"q": "A call seller makes the full premium if, at expiry, the stock is:",
+     "options": ["Above the strike", "Below the strike", "Exactly 10% above the strike", "Anywhere"],
+     "answer": 1,
+     "why": "A call below its strike expires worthless, so the seller keeps everything."},
+    {"q": "Lot size 500, premium ₹6. How much does the seller receive for one lot?",
+     "options": ["₹6", "₹500", "₹3,000", "₹30,000"],
+     "answer": 2,
+     "why": "₹6 × 500 shares = ₹3,000."},
+    {"q": "INFY is at ₹1,500. Which of these calls is out of the money?",
+     "options": ["1,400 CE", "1,450 CE", "1,500 CE", "1,650 CE"],
+     "answer": 3,
+     "why": "A call is OTM when its strike is above the stock price."},
+    {"q": "What happens to an in-the-money stock option left open at expiry in India?",
+     "options": ["It expires worthless", "It settles by physical delivery of shares", "It rolls to next month", "The exchange cancels it"],
+     "answer": 1,
+     "why": "Stock options settle by physical delivery, which is why Theta Desk exits 7 days before expiry."}
+  ]
+}

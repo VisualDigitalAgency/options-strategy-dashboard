@@ -1,0 +1,29 @@
+{
+  "title": "Reading the payoff chart",
+  "level": 3,
+  "order": 7,
+  "summary": "Expiry and pre-expiry payoff lines, breakevens, 1σ and 2σ bands, risk : reward and probability of profit.",
+  "minutes": 6,
+  "questions": [
+    {"q": "On a payoff chart, the breakevens are where the line:",
+     "options": ["Is highest", "Crosses zero profit", "Touches the strike", "Is flattest"],
+     "answer": 1,
+     "why": "Breakevens are the stock prices where profit is exactly zero."},
+    {"q": "The expiry payoff of a short strangle looks like:",
+     "options": ["A V shape", "A flat-topped hill", "A straight rising line", "A flat line"],
+     "answer": 1,
+     "why": "Flat at the full credit between the strikes, falling on both sides."},
+    {"q": "Roughly how often should a stock finish inside its 1σ expected move?",
+     "options": ["32%", "50%", "68%", "95%"],
+     "answer": 2,
+     "why": "About 68% for 1σ and 95% for 2σ."},
+    {"q": "On Theta Desk, the 'risk' in risk : reward means:",
+     "options": ["The absolute worst-case loss", "The expiry loss after a 2σ move against you", "The margin blocked", "The premium"],
+     "answer": 1,
+     "why": "A naked short has no fixed maximum, so a 2σ move is used as the realistic bad case."},
+    {"q": "A trade shows 90% POP and a 2σ loss of 8× the premium. It is:",
+     "options": ["Safe because POP is high", "Still dangerous: read POP next to the risk", "Guaranteed profit", "Impossible"],
+     "answer": 1,
+     "why": "High POP with a large tail loss can still lose money over time."}
+  ]
+}

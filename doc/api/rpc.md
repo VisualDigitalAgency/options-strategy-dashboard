@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-54 methods: 7 public, 3 account, 5 market data, 30 user, 9 admin.
+58 methods: 9 public, 3 account, 5 market data, 32 user, 9 admin.
 
 ## Tiers
 
@@ -27,6 +27,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`auth_resend_code`](#auth_resend_code) | public | Emails a new sign-up code: at most one per RESEND_GAP and CODES_PER_DAY a day. |
 | [`auth_forgot_password`](#auth_forgot_password) | public | Emails a password-reset link valid for RESET_TTL. |
 | [`auth_reset_password`](#auth_reset_password) | public | Sets a new password from the emailed reset token. |
+| [`lessons_list`](#lessons_list) | public | Every lesson in the learning path (title, level, order, summary, minutes, question count). |
+| [`lessons_get`](#lessons_get) | public | One lesson's body and quiz questions (never the answers), plus the previous and next lesson. |
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
 | [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
@@ -51,6 +53,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`va_set_sl_mode`](#va_set_sl_mode) | user | Sets the stop-loss mode (auto, alert or off) of one short position, or the account default for new positions when position_id is omitted. |
 | [`va_dismiss_alert`](#va_dismiss_alert) | user | Clears a position's stop-loss alert. |
 | [`va_reset`](#va_reset) | user | Deletes every order and position and restarts the virtual account with `starting_capital` (₹10,000 to ₹1,000 crore). |
+| [`lesson_submit_quiz`](#lesson_submit_quiz) | user | Scores one attempt. |
+| [`lesson_progress`](#lesson_progress) | user | The caller's quiz record per lesson: attempts, best score, when it was passed, and when a failed quiz can be retaken. |
 | [`va_get_autotrade`](#va_get_autotrade) | user | The user's auto-trade settings, the next scheduled run, and whether a run is in progress. |
 | [`va_set_autotrade`](#va_set_autotrade) | user | Changes auto-trade settings; an omitted field keeps its value. |
 | [`va_autotrade_runs`](#va_autotrade_runs) | user | Past auto-trade runs, newest first, with what each placed. |
@@ -196,6 +200,26 @@ the account is ended.
 |---|---|---|
 | `token` | `str` | required |
 | `new_password` | `str` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `lessons_list`
+
+Every lesson in the learning path (title, level, order, summary, minutes, question count).
+Public, so lesson pages can be read and shared without an account.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `lessons_get`
+
+One lesson's body and quiz questions (never the answers), plus the previous and next
+lesson. Public.
+
+| Param | Type | Default |
+|---|---|---|
+| `slug` | `str` | required |
 
 Set by the server, never by the client: `_ctx`.
 
@@ -465,6 +489,28 @@ Deletes every order and position and restarts the virtual account with `starting
 | Param | Type | Default |
 |---|---|---|
 | `starting_capital` | `float` | `1000000` |
+
+Set by the server, never by the client: `user_id`.
+
+### `lesson_submit_quiz`
+
+Scores one attempt. Returns the score, whether it passed, and per question whether it was
+right with the explanation. A failed attempt locks the quiz for RETRY_HOURS; after a pass the
+quiz can be retaken freely, but only the first pass counts.
+
+| Param | Type | Default |
+|---|---|---|
+| `slug` | `str` | required |
+| `answers` | `list` | required |
+
+Set by the server, never by the client: `user_id`.
+
+### `lesson_progress`
+
+The caller's quiz record per lesson: attempts, best score, when it was passed, and when a
+failed quiz can be retaken.
+
+No params.
 
 Set by the server, never by the client: `user_id`.
 
