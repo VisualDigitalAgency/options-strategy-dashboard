@@ -1,6 +1,6 @@
 // Event badge: next event + date on one chip, risky tone, details on hover and on tap (without
 // following the surrounding link), screener hides AGMs/board meetings. Market calendar page: events
-// grouped by expiry cycle, held-stock tags, filter tabs, search, holidays.
+// grouped by expiry cycle, held-stock tags, filter tabs, search, holidays, economic calendar widget.
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 
 GlobalRegistrator.register({ width: 1280, height: 900 })
@@ -101,6 +101,9 @@ await act(async () => {
 check('search filters by symbol', rows().length === 1 && rows()[0].textContent.includes('INFY'), rows().length)
 const hol = [...document.querySelectorAll('[aria-label="Trading holidays"] li')]
 check('holidays listed, weekend marked', hol.length === 2 && hol[1].classList.contains('weekend') && hol[1].textContent.includes('Weekend'))
+
+const econ = document.querySelector('.econ-cal iframe')
+check('economic calendar widget: sandboxed TradingView frame, India & US', econ?.getAttribute('sandbox')?.includes('allow-scripts') && econ.src.startsWith('https://www.tradingview-widget.com/embed-widget/events/') && decodeURIComponent(econ.src).includes('"countryFilter":"in,us"'), econ?.src)
 
 await act(async () => root.unmount())
 process.exit(ok ? 0 : 1)
