@@ -20,7 +20,6 @@ COPY requirements.txt .
 RUN pip install --require-hashes -r requirements.txt
 COPY server.py rpc_guard.py alembic.ini ./
 COPY engine/ engine/
-COPY content/ content/
 COPY migrations/ migrations/
 COPY scripts/ scripts/
 # Non-root. engine/cache (SPAN files, last screen) is a volume shared by api and worker.

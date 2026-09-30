@@ -18,7 +18,7 @@ import requests
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from engine import auth, autotrade, broker, cache, config, data_fetch, db, lessons, market_calendar, permissions, risk_rules, span, users, virtual
+from engine import auth, autotrade, broker, cache, config, data_fetch, db, market_calendar, permissions, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -291,18 +291,6 @@ def auth_reset_password(_ctx: Ctx, token: str, new_password: str):
     return auth.confirm_password_reset(token, new_password, ip=_ctx.ip)
 
 
-def lessons_list(_ctx: Ctx):
-    """Every lesson in the learning path (title, level, order, summary, minutes, question count).
-    Public, so lesson pages can be read and shared without an account."""
-    return lessons.list_lessons()
-
-
-def lessons_get(_ctx: Ctx, slug: str):
-    """One lesson's body and quiz questions (never the answers), plus the previous and next
-    lesson. Public."""
-    return lessons.get_lesson(slug)
-
-
 def auth_me(_ctx: Ctx):
     """The signed-in user with their saved theme and palette, or null when signed out."""
     return auth.me(_ctx.user_id) if _ctx.user else None
@@ -415,8 +403,7 @@ def broker_exchange_token(user_id: int, request_token: str, state: str):
 
 PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me,
                   "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code,
-                  "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password,
-                  "lessons_list": lessons_list, "lessons_get": lessons_get}
+                  "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password}
 
 ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set}
 
@@ -446,9 +433,6 @@ USER_METHODS = {
     "va_set_sl_mode": _then_refresh(virtual.set_sl_mode),
     "va_dismiss_alert": _then_refresh(virtual.dismiss_alert),
     "va_reset": _then_refresh(virtual.reset),
-    # Learning path: quizzes need an account (answers are checked server-side).
-    "lesson_submit_quiz": lessons.submit_quiz,
-    "lesson_progress": lessons.progress,
     # Auto-trade (virtual account only)
     "va_get_autotrade": autotrade.get_settings,
     "va_set_autotrade": autotrade.set_settings,
