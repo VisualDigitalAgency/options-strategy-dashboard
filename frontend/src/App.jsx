@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, CalendarDays, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -22,6 +22,8 @@ const Admin = lazy(() => import('./pages/Admin'))
 const Broker = lazy(() => import('./pages/Broker'))
 const BrokerAccount = lazy(() => import('./pages/BrokerAccount'))
 const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
+const Learn = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Learn })))
+const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
 
 const NAV = [
   { to: '/', label: 'Screener', icon: LayoutGrid, end: true },
@@ -29,6 +31,7 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar' },
   { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
   { to: '/broker', label: 'Broker', icon: Plug },
+  { to: '/learn', label: 'Learn', icon: GraduationCap },
 ]
 
 
@@ -218,6 +221,8 @@ function SignedIn() {
             <Route path="/broker" element={lazyPage(Broker)} />
             <Route path="/broker/account" element={lazyPage(BrokerAccount)} />
             <Route path="/broker/zerodha/callback" element={lazyPage(BrokerCallback)} />
+            <Route path="/learn" element={lazyPage(Learn)} />
+            <Route path="/learn/:slug" element={lazyPage(Lesson)} />
             <Route path="/account/password" element={<ChangePassword />} />
             {can(user, 'manage_users') && <Route path="/admin" element={lazyPage(Admin)} />}
             <Route path="/login" element={<Navigate to="/" replace />} />
@@ -232,6 +237,28 @@ function SignedIn() {
   )
 }
 
+// Lessons are public, so search and shared links land on real content with a way in.
+function PublicShell({ children }) {
+  return (
+    <>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <Link to="/learn" className="brand" aria-label="Theta Desk lessons">
+            <DialMark />
+            <span className="wordmark">Theta Desk</span>
+          </Link>
+          <div className="public-bar-actions">
+            <ThemeToggle />
+            <Link to="/login" className="btn ghost small">Sign in</Link>
+            <Link to="/register" className="btn primary small">Join free</Link>
+          </div>
+        </div>
+      </header>
+      <main className="page">{children}</main>
+    </>
+  )
+}
+
 function SignedOut() {
   const { pathname, search } = useLocation()
   const here = pathname + search
@@ -241,6 +268,8 @@ function SignedOut() {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/learn" element={<PublicShell>{lazyPage(Learn)}</PublicShell>} />
+      <Route path="/learn/:slug" element={<PublicShell>{lazyPage(Lesson)}</PublicShell>} />
       <Route path="*" element={<Navigate to={here === '/' ? '/login' : `/login?next=${encodeURIComponent(here)}`} replace />} />
     </Routes>
   )

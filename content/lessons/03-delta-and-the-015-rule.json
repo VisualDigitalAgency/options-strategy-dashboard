@@ -1,0 +1,29 @@
+{
+  "title": "Delta, and why Theta Desk sells below 0.15",
+  "level": 1,
+  "order": 3,
+  "summary": "Delta as price sensitivity and as a rough probability, and the trade-off behind the 0.15 rule.",
+  "minutes": 5,
+  "questions": [
+    {"q": "A call has delta 0.20. If the stock rises ₹10, the call's premium rises by about:",
+     "options": ["₹0.20", "₹2", "₹10", "₹20"],
+     "answer": 1,
+     "why": "0.20 × ₹10 = ₹2."},
+    {"q": "Roughly, a 0.12 delta option has what chance of expiring in the money?",
+     "options": ["1.2%", "12%", "50%", "88%"],
+     "answer": 1,
+     "why": "Delta, ignoring sign, approximates the probability of finishing ITM."},
+    {"q": "Why does Theta Desk only sell strikes with |delta| < 0.15?",
+     "options": ["They pay the biggest premium", "A normal month's move rarely reaches them", "They need no margin", "They can't lose money"],
+     "answer": 1,
+     "why": "Low-delta strikes are far enough away that typical moves don't reach them. They can still lose."},
+    {"q": "Compared with a 0.30 delta strike, a 0.10 delta strike pays:",
+     "options": ["More premium", "Less premium", "The same premium", "No premium"],
+     "answer": 1,
+     "why": "Further away means less likely to pay out, so buyers pay less for it."},
+    {"q": "Your short put's delta rose from 0.12 to 0.35. This means:",
+     "options": ["The trade is getting safer", "The stock moved towards your strike and risk has grown", "Nothing important", "The option expired"],
+     "answer": 1,
+     "why": "Rising delta on a short means the strike is getting closer and more likely to finish ITM."}
+  ]
+}

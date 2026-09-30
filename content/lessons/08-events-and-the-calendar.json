@@ -1,0 +1,29 @@
+{
+  "title": "Events: why the Market Calendar matters to sellers",
+  "level": 3,
+  "order": 8,
+  "summary": "Results gaps, IV crush, dividends and corporate actions, market-wide events, and how to use the Market Calendar.",
+  "minutes": 5,
+  "questions": [
+    {"q": "Why can't a stop-loss protect a short option through a results gap?",
+     "options": ["Stop-losses are disabled on results day", "The price jumps overnight, past the stop, before any trade can happen", "Results days have no trading", "The exchange cancels stops"],
+     "answer": 1,
+     "why": "The first trade after the gap is already beyond the stop level."},
+    {"q": "Implied volatility usually does what after results are announced?",
+     "options": ["Rises sharply", "Drops sharply (IV crush)", "Stays the same", "Goes to zero"],
+     "answer": 1,
+     "why": "The uncertainty is resolved, so IV and premiums fall."},
+    {"q": "A dividend record date before expiry is mainly a risk for:",
+     "options": ["Short puts far OTM", "Short calls close to the money", "Nobody", "Long puts"],
+     "answer": 1,
+     "why": "An ITM or near-ITM call may be exercised early to capture the dividend."},
+    {"q": "After a stock split, your option contract's strike and lot size:",
+     "options": ["Stay the same", "Are adjusted, keeping the position's value equivalent", "Are cancelled", "Double in value"],
+     "answer": 1,
+     "why": "The exchange adjusts the contract so the position's value is unchanged."},
+    {"q": "You hold a strangle and results are announced for next week, before expiry. The best time to decide what to do is:",
+     "options": ["During the results announcement", "Before the event", "After expiry", "Never; always hold"],
+     "answer": 1,
+     "why": "Decide calmly before the event, not during a gap."}
+  ]
+}

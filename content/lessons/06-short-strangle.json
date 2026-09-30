@@ -1,0 +1,29 @@
+{
+  "title": "The short strangle",
+  "level": 2,
+  "order": 6,
+  "summary": "Selling a call and a put together: breakevens, when it fits, what goes wrong, and how it's managed.",
+  "minutes": 6,
+  "questions": [
+    {"q": "A short strangle sells:",
+     "options": ["Two calls", "An OTM call and an OTM put", "An ATM call and ATM put", "A call and buys a put"],
+     "answer": 1,
+     "why": "A strangle sells one OTM call and one OTM put on the same stock and expiry."},
+    {"q": "Sell the 1,100 CE for ₹4 and the 900 PE for ₹6. The upper breakeven is:",
+     "options": ["₹1,100", "₹1,104", "₹1,110", "₹1,090"],
+     "answer": 2,
+     "why": "Call strike + total credit = 1,100 + (4 + 6) = ₹1,110."},
+    {"q": "Same trade: the lower breakeven is:",
+     "options": ["₹900", "₹894", "₹890", "₹910"],
+     "answer": 2,
+     "why": "Put strike − total credit = 900 − 10 = ₹890."},
+    {"q": "Which situation makes a strangle a poor fit?",
+     "options": ["No events before expiry", "Quarterly results due before expiry", "Sideways price action", "Normal implied volatility"],
+     "answer": 1,
+     "why": "Results can gap the stock past a strike overnight."},
+    {"q": "Why does a strangle often need little more margin than one leg?",
+     "options": ["Calls need no margin", "SPAN offsets the two legs, since both can't lose at once", "The broker waives it", "Premium covers the margin"],
+     "answer": 1,
+     "why": "The stock can only move one way, so the combined worst case is close to one leg's."}
+  ]
+}

@@ -61,6 +61,7 @@ Live: https://theta.connectbiomedical.com (sign-in required; new users confirm t
 - [Run locally](#run-locally)
 - [Tests](#tests)
 - [Features](#features)
+- [Learn](#learn-lessons-and-quizzes)
 - [Roles & features](#roles--features)
 - [Rules](#rules-edit-in-engineconfigpy) · [Trade metrics](#trade-metrics) · [Strategy lab](#strategy-lab-stock-detail-page) · [Portfolio & virtual account](#portfolio--virtual-account) · [Pri[...]
 - [Layout](#layout)
@@ -130,6 +131,15 @@ DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://lo
 | **Admin** (`/admin`, roles with *manage users*) | Approve, reject or disable users, issue temporary passwords, change roles, sign-in activity log with client IPs. The owner also gets **Roles & features** |
 
 Accounts: every page needs a sign-in. New users request access on `/register` and start as pending with ₹10,00,000 of virtual capital.
+
+## Learn (lessons and quizzes)
+
+Short lessons for option sellers, from what an option is to managing a short strangle, at `/learn`. Reading is public (no account needed, so lessons can be shared); the quiz at the end of each lesson needs a free account.
+
+- Content is plain files in `content/lessons/`: `NN-slug.md` for the text (headings, lists, **bold** and *italic* only) and `NN-slug.json` for the title, level, summary and quiz. Changes go through pull requests like code.
+- Quizzes are marked on the server, and answers never reach the browser. 80% passes. After a failed attempt the quiz locks for 24 hours, and the right answers are shown only on a pass.
+- A pass is recorded once per lesson (`lesson_progress`). The learning path's XP ledger (#122) will award lesson XP from it.
+- Every lesson carries an "educational, not investment advice" note.
 
 ## Roles & features
 
