@@ -1,33 +1,41 @@
-A **payoff chart** shows your profit or loss (up the side) for every possible stock price (along the bottom). It is the fastest way to see what a trade can do before you place it.
+> Think of a map that shows, for every place the price could end up, whether you win or lose and by how much. That map is a **payoff chart**.
 
-## At expiry
+Left to right is the stock price. Up means profit, down means loss. The flat line in the middle is ₹0.
 
-On the expiry line, an option is worth only its intrinsic value, so the chart is made of straight lines:
+## Selling a call
 
-- **Short call**: flat at +premium below the strike, then falling one-for-one above it.
-- **Short put**: flat at +premium above the strike, then falling one-for-one below it.
-- **Short strangle**: flat at +total credit between the two strikes, falling on both sides. It looks like a flat-topped hill.
+::visual payoff-short-call
 
-Where the line crosses zero are the **breakevens**.
+Flat at your fee while the price stays **below** your strike. Above it, the line slides down: every rupee higher costs you more.
 
-## Before expiry
+## Selling a put
 
-Theta Desk's Strategy lab also draws the curve for any day before expiry, using Black–Scholes at today's implied volatility. That curve is smoother and lower than the expiry line, because the option still has time value you would have to pay to buy it back. As days pass, it bends up towards the expiry line: that is theta working for you.
+::visual payoff-short-put
 
-## 1σ and 2σ moves
+Flat at your fee while the price stays **above** your strike. Below it, the line slides down.
 
-The shaded bands show the **expected move** by expiry, from the options' implied volatility:
+## Breakevens
 
-- About **68%** of the time the stock should finish inside **1σ**.
-- About **95%** of the time inside **2σ**.
+Where the line crosses ₹0 is a **breakeven**. On one side you win, on the other you lose.
 
-A well-placed strangle has both strikes outside the 1σ band. If a strike sits inside 1σ, the market expects the stock to reach it more than a third of the time.
+## Before the end date
 
-## Risk : reward on Theta Desk
+Theta Desk's Strategy lab also draws the line for any day before expiry. That line is lower and smoother, because the option still has "hope" (time value) you'd have to pay to buy it back. Each day it bends closer to the final line. That's the ice cube melting in your favour.
 
-- **Reward** = the premium collected.
-- **Risk** = the expiry loss after a 2σ move against you. A naked short has no fixed maximum loss, so a 2σ move is used as a realistic bad case, not the worst case.
+## How far the price usually moves: 1σ and 2σ
 
-## Probability of profit (POP)
+::visual sigma-bands
 
-POP is the model's chance the stock ends between the breakevens at expiry. A high POP is good, but always read it next to the risk: a 90% POP trade whose 2σ loss is 8× the premium is still dangerous.
+- About **68** months in 100, the price ends inside the **1σ** band.
+- About **95** months in 100, inside the **2σ** band.
+
+A good strangle has both strikes outside 1σ. A strike inside 1σ gets reached more than 1 month in 3.
+
+## Risk and reward on Theta Desk
+
+- **Reward** = the fee you collect.
+- **Risk** = what you'd lose if the price made a 2σ move against you. A plain sold option has no fixed worst case, so a 2σ move is used as a realistic bad month.
+
+## Chance of profit (POP)
+
+POP is the chance the price ends between your breakevens. High is good, but always look at the risk next to it. A 90% POP trade that can lose 8 fees in a bad month is still dangerous.
