@@ -31,7 +31,9 @@ def _side(r, side: str, spot: float, dte: int) -> dict | None:
             delta = round(greeks_sr.bs_delta(spot, float(r["strikePrice"]), max(dte, 1), iv, side), 4)
         except (ValueError, ZeroDivisionError):
             pass
-    return {"ltp": ltp, "bid": bid, "ask": ask, "iv": iv, "oi": int(r[f"{side}_OI"]), "delta": delta}
+    chg = r.get(f"{side}_OI_CHG")
+    return {"ltp": ltp, "bid": bid, "ask": ask, "iv": iv, "oi": int(r[f"{side}_OI"]),
+            "oi_chg": None if chg is None or pd.isna(chg) else int(chg), "delta": delta}
 
 
 def chain(symbol: str, expiry: str | None = None) -> dict:

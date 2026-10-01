@@ -1959,8 +1959,13 @@ img.brand-logo { object-fit: contain; }
 .chart-legend .lg-dot { border-top: 2px dotted var(--text-muted); }
 .chart-legend .lg-band { height: 10px; border: 0; background: color-mix(in srgb, var(--accent) 18%, transparent); }
 @media (max-width: 1023px) {
-  .chain-iv, .chain-oi { display: none; }
+  .chain-iv { display: none; }
 }
+/* OI change (#154): rising = sellers writing (red), falling = buyers covering (blue) */
+.chain-oi .oi-chg { position: relative; display: block; font-size: 11px; font-weight: 600; }
+.oi-chg.up { color: var(--sell-text); }
+.oi-chg.down { color: var(--buy-text); }
+.oi-legend { margin: 0 0 8px; }
 .builder-held .held-leg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .builder-held .held-leg .leg-px { margin-left: auto; }
 .builder-held .held-leg.is-sell .side-pill { color: var(--sell-text); }

@@ -28,7 +28,7 @@ st = stats([L('CE', 1100, 'BUY', 5)], 1000, 100)
 check('long call: debit, unlimited profit, loss = premium', st.net === -500 && st.maxProfit === Infinity && st.maxLoss === -500, st)
 
 // 2. Page.
-const strike = (k, cd, pd) => ({ strike: k, CE: { bid: 5, ask: 5.2, ltp: 5.1, iv: 20, oi: 1000, delta: cd }, PE: { bid: 4, ask: 4.2, ltp: 4.1, iv: 20, oi: 1000, delta: pd } })
+const strike = (k, cd, pd) => ({ strike: k, CE: { bid: 5, ask: 5.2, ltp: 5.1, iv: 20, oi: 1000, oi_chg: 250, delta: cd }, PE: { bid: 4, ask: 4.2, ltp: 4.1, iv: 20, oi: 1000, oi_chg: -300, delta: pd } })
 const chain = {
   symbol: 'SBIN', expiry: '2026-12-29', expiries: ['2026-11-24', '2026-12-29'], spot: 1000, dte: 20, lot_size: 100,
   rows: [800, 850, 900, 950, 1000, 1050, 1100, 1150, 1200].map((k) => strike(k, Math.max(0.02, 0.5 - (k - 1000) / 500), -Math.max(0.02, 0.5 - (1000 - k) / 500))),
@@ -64,6 +64,9 @@ await settle(80)
 const text = () => document.body.textContent
 const btn = (t) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === t || b.getAttribute('aria-label') === t)
 check('chain loaded for the stock in the URL', calls.some((c) => c.method === 'builder_chain' && c.params.symbol === 'SBIN') && !!document.querySelector('.chain-table'))
+check('OI rising shows red (sellers), falling blue (buyers)', document.querySelector('td.chain-oi.ce .oi-chg.up')?.textContent === '+250'
+  && document.querySelector('td.chain-oi.pe .oi-chg.down')?.textContent === '−300')
+check('OI legend explains the colours', document.querySelector('.oi-legend')?.textContent.includes('sellers'))
 check('free account: buy rule explained up front', text().includes('until Level 6'))
 
 await act(async () => btn('Iron condor').click())
@@ -74,7 +77,7 @@ check('warnings: DTE and results, never blocking', text().includes('20 days to e
 check('margin from the preview', text().includes('12,345'))
 check('payoff chart drawn', !!document.querySelector('.chart'))
 check('levels fetched for the stock', calls.some((c) => c.method === 'builder_levels' && c.params.symbol === 'SBIN'))
-check('chain shows IV and OI columns', [...document.querySelectorAll('.chain-cols th')].filter((t) => /^(IV|OI)$/.test(t.textContent)).length === 4)
+check('chain shows IV and OI columns', [...document.querySelectorAll('.chain-cols th')].filter((t) => /^(IV|OI chg)$/.test(t.textContent)).length === 4)
 check('analysis: probability of profit, return on margin, vega, 1σ move', ['Probability of profit', 'Return on margin', 'Vega / IV pt', '1σ move by expiry'].every((t) => text().includes(t)))
 check('rule check lists rows and a count to review', !!document.querySelector('.builder-score') && /\d+ to review/.test(text()))
 check('rule check: a sold strike in the S/R zone is flagged', text().includes('resistance zone at 1110'))
