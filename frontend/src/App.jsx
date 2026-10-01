@@ -42,7 +42,8 @@ const NAV = [
   { to: '/virtual', label: 'Virtual account', icon: PiggyBank },
   { to: '/capital', label: 'Earn capital', icon: Coins },
   { to: '/coins', label: 'Coins', icon: CircleDollarSign },
-  { to: '/store', label: 'Coin store', icon: ShoppingCart, feature: 'coin_store', hidden: true }, // hidden, not locked, while the owner keeps it off (#175)
+  // Hidden while the owner keeps it off for the role; locked below Level 4 once it's on (#175).
+  { to: '/store', label: 'Coin store', icon: ShoppingCart, feature: 'coin_store', hidden: true, lock: 'Unlocks at Level 4' },
   { to: '/broker', label: 'Broker', icon: Plug, feature: 'live_trading', lock: 'By invitation', open: true },
   { to: '/learn', label: 'Learn', icon: GraduationCap },
   { to: '/progress', label: 'Progress', icon: Trophy, badge: true },
@@ -220,7 +221,7 @@ function Sidebar({ sb }) {
         <ul>
           {/* Locked items stay in the menu with what unlocks them (#165); a level lock leads to Progress.
               `open` pages (Broker) still show their preview while locked. */}
-          {NAV.filter((n) => !n.hidden || can(user, n.feature)).map(({ to, label, icon: Icon, end, badge, pro, feature, lock, open }) => {
+          {NAV.filter((n) => !n.hidden || can(user, n.feature) || user?.level_locked?.[n.feature]).map(({ to, label, icon: Icon, end, badge, pro, feature, lock, open }) => {
             const locked = feature && !can(user, feature)
             return (
             <li key={to}>
