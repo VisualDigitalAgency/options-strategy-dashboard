@@ -18,7 +18,7 @@ import requests
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, broker, cache, config, data_fetch, db, lessons, market_calendar, permissions, risk_rules, span, users, virtual
+from engine import app_settings, auth, autotrade, broker, cache, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -472,6 +472,8 @@ USER_METHODS = {
     # Learning path: quizzes need an account (answers are checked server-side).
     "lesson_submit_quiz": lessons.submit_quiz,
     "lesson_progress": lessons.progress,
+    "progress_get": progress.evaluate,
+    "progress_history": progress.history,
     # Auto-trade (virtual account only)
     "va_get_autotrade": autotrade.get_settings,
     "va_set_autotrade": autotrade.set_settings,

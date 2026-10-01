@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from . import cache, config, data_fetch, db, greeks_sr, pivots, pricing, risk_rules, span, users
+from . import cache, config, data_fetch, db, greeks_sr, pivots, pricing, progress, risk_rules, span, users
 
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: Windows Python has no tz database
 SL_MODES = ("auto", "alert", "off")
@@ -324,13 +324,14 @@ def _lock_account(c, user_id) -> None:
     c.value("SELECT 1 FROM accounts WHERE user_id=:u FOR UPDATE", u=user_id)
 
 
-def _close_row(c, user_id, pid, price, realized) -> None:
+def _close_row(c, user_id, pid, price, realized, reason) -> None:
     c.run("UPDATE positions SET qty=0, status='closed', closed_at=now(), exit_price=:p,"
           " realized_pnl=realized_pnl+:r WHERE id=:i AND user_id=:u", p=price, r=realized, i=pid, u=user_id)
+    progress.record_close(c, user_id, pid, reason)  # learning-path trade log and XP (#122), same transaction
 
 
 def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, lot, reason, note, sl_mode,
-                 limit=None):
+                 limit=None, entry_delta=None):
     """Nets the trade into the open position for this contract and records the order."""
     signed = qty if action == "BUY" else -qty
     row = c.one("SELECT * FROM positions WHERE user_id=:u AND status='open' AND symbol=:s AND expiry=:e"
@@ -342,9 +343,9 @@ def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, l
                   "on": str((_today() + timedelta(days=config.SL_GRACE_DAYS)).date()) if signed < 0 else None}
             pid = c.value(
                 "INSERT INTO positions (user_id, symbol, expiry, side, strike, qty, avg_price, lot_size,"
-                " sl_mode, sl_price, sl_activates_on) VALUES (:u,:s,:e,:sd,:k,:q,:p,:lot,:m,:sp,:on) RETURNING id",
-                u=user_id, s=symbol, e=expiry, sd=side, k=strike, q=signed, p=price, lot=lot,
-                m=sl["mode"], sp=sl["price"], on=sl["on"])
+                " sl_mode, sl_price, sl_activates_on, entry_delta) VALUES (:u,:s,:e,:sd,:k,:q,:p,:lot,:m,:sp,:on,:d)"
+                " RETURNING id", u=user_id, s=symbol, e=expiry, sd=side, k=strike, q=signed, p=price, lot=lot,
+                m=sl["mode"], sp=sl["price"], on=sl["on"], d=entry_delta if signed < 0 else None)
         else:
             new_qty = row["qty"] + signed
             avg = (row["avg_price"] * abs(row["qty"]) + price * qty) / abs(new_qty)
@@ -360,12 +361,12 @@ def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, l
         new_qty = row["qty"] + signed
         pid = row["id"]
         if new_qty == 0:
-            _close_row(c, user_id, pid, price, realized)
+            _close_row(c, user_id, pid, price, realized, reason)
         elif (new_qty > 0) == (row["qty"] > 0):
             c.run("UPDATE positions SET qty=:q, realized_pnl=realized_pnl+:r WHERE id=:i AND user_id=:u",
                   q=new_qty, r=realized, i=pid, u=user_id)
         else:  # position flipped sides: close the old one, open the remainder fresh
-            _close_row(c, user_id, pid, price, realized)
+            _close_row(c, user_id, pid, price, realized, reason)
             flip = abs(new_qty)
             _apply_trade(c, user_id, symbol, expiry, side, strike, action, flip, price, lot, reason, note, sl_mode, limit)
             qty -= flip
@@ -416,7 +417,7 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         px = _touch(q, l["action"]) if now else limit
         fills.append({**l, "strike": float(l["strike"]), "qty": int(l["lots"]) * lot, "limit": limit,
                       "price": px, "fills_now": now, "bid": q["bid"], "ask": q["ask"], "ltp": q["ltp"],
-                      "spot": q["spot"]})
+                      "spot": q["spot"], "iv": q["iv"]})
     if not market_open():
         notes.add("Market closed: the order waits and fills in the next session if the price is reached")
     elif not all(f["fills_now"] for f in fills):
@@ -477,6 +478,17 @@ def place_order(user_id: int, symbol: str, expiry: str, legs: list[dict], sl_mod
     return execute_order(user_id, p, sl_mode, reason="manual", allow_waiting=confirm_waiting)
 
 
+def _entry_delta(expiry: str, f: dict) -> float | None:
+    """|delta| of a sell at fill time, from the quote's IV, for the learning-path XP rules (#122)."""
+    if f["action"] != "SELL" or not f.get("iv") or not f.get("spot"):
+        return None
+    dte = max((pd.Timestamp(expiry) - _today()).days, 1)
+    try:
+        return round(abs(greeks_sr.bs_delta(f["spot"], f["strike"], dte, f["iv"], f["side"])), 4)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
 def execute_order(user_id: int, p: dict, sl_mode: str | None = None, reason: str = "manual",
                   extra_note: str | None = None, allow_waiting: bool = True) -> dict:
     """Books a preview produced by preview_order. In-process only (auto-trade, place_order):
@@ -505,7 +517,7 @@ def execute_order(user_id: int, p: dict, sl_mode: str | None = None, reason: str
         for f in p["fills"]:
             if f["fills_now"]:
                 _apply_trade(c, user_id, symbol, expiry, f["side"], f["strike"], f["action"], f["qty"], f["price"],
-                             p["lot_size"], reason, note, mode, f["limit"])
+                             p["lot_size"], reason, note, mode, f["limit"], entry_delta=_entry_delta(expiry, f))
             else:
                 opened.append(c.value(
                     "INSERT INTO pending_orders (user_id, symbol, expiry, side, strike, action, qty, lot_size,"

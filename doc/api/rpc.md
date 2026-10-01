@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-61 methods: 9 public, 4 account, 5 market data, 32 user, 11 admin.
+63 methods: 9 public, 4 account, 5 market data, 34 user, 11 admin.
 
 ## Tiers
 
@@ -56,6 +56,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`va_reset`](#va_reset) | user | Deletes every order and position and restarts the virtual account with `starting_capital` (₹10,000 to ₹1,000 crore). |
 | [`lesson_submit_quiz`](#lesson_submit_quiz) | user | Scores one attempt. |
 | [`lesson_progress`](#lesson_progress) | user | The caller's quiz record per lesson: attempts, best score, when it was passed, and when a failed quiz can be retaken. |
+| [`progress_get`](#progress_get) | user | Scores any newly passed lessons, moves up one level if every check passes, and returns the user's progress: level, XP, the next level's checks with live values, and gate metrics. |
+| [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
 | [`va_get_autotrade`](#va_get_autotrade) | user | The user's auto-trade settings, the next scheduled run, and whether a run is in progress. |
 | [`va_set_autotrade`](#va_set_autotrade) | user | Changes auto-trade settings; an omitted field keeps its value. |
 | [`va_autotrade_runs`](#va_autotrade_runs) | user | Past auto-trade runs, newest first, with what each placed. |
@@ -528,6 +530,25 @@ The caller's quiz record per lesson: attempts, best score, when it was passed, a
 failed quiz can be retaken.
 
 No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `progress_get`
+
+Scores any newly passed lessons, moves up one level if every check passes, and returns the
+user's progress: level, XP, the next level's checks with live values, and gate metrics.
+
+No params.
+
+Set by the server, never by the client: `user_id`, `_now`.
+
+### `progress_history`
+
+The newest XP ledger entries: points, reason and what they were for.
+
+| Param | Type | Default |
+|---|---|---|
+| `limit` | `int` | `50` |
 
 Set by the server, never by the client: `user_id`.
 

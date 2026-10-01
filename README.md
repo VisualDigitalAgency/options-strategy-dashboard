@@ -62,6 +62,7 @@ Live: https://theta.connectbiomedical.com (sign-in required; new users confirm t
 - [Tests](#tests)
 - [Features](#features)
 - [Learn](#learn-lessons-and-quizzes)
+- [Levels and XP](#levels-and-xp)
 - [Roles & features](#roles--features)
 - [Rules](#rules-edit-in-engineconfigpy) · [Trade metrics](#trade-metrics) · [Strategy lab](#strategy-lab-stock-detail-page) · [Portfolio & virtual account](#portfolio--virtual-account) · [Pri[...]
 - [Layout](#layout)
@@ -140,6 +141,24 @@ Short lessons for option sellers, from what an option is to managing a short str
 - Quizzes are marked on the server, and answers never reach the browser. 80% passes. After a failed attempt the quiz locks for 24 hours, and the right answers are shown only on a pass.
 - A pass is recorded once per lesson (`lesson_progress`). The learning path's XP ledger (#122) will award lesson XP from it.
 - Every lesson carries an "educational, not investment advice" note.
+
+## Levels and XP
+
+Users climb Level 1 (Learner) to Level 10 (Theta Master) by paper-trading with discipline (#120). Engine: `engine/progress.py`; thresholds in `engine/config.py`.
+
+- **Trade log:** every closed virtual leg is copied to `trade_results` when it closes (a strangle is two legs). A virtual-account reset deletes orders and positions but not this log or any XP.
+- **XP** (append-only `xp_ledger`, each event scores once):
+
+  | Event | XP |
+  |---|---|
+  | Short leg closed with its stop-loss on and sold below 0.15 delta | +20 |
+  | Short leg closed with the stop-loss off | −30 |
+  | Short leg sold at 0.15 delta or more | −20 |
+  | Profitable short leg | +5, at most +100 a month |
+  | Lesson quiz passed (first time) | +10 |
+
+  Legs opened and closed within 5 minutes score nothing. Delta is saved when a sell fills at once; a limit order that fills later has no saved delta and earns no delta-based XP either way.
+- **Levelling up** from level n needs all of: total XP ≥ 100 × n², the minimum days at the level, and the level's gate, measured on legs closed since reaching the level or the last reset, whichever is later. One level at a time, checked nightly and whenever the user opens their progress. Gates for Levels 6+ need data the app doesn't record yet, so they show "Not available yet".
 
 ## Roles & features
 
