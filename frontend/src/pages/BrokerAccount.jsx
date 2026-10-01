@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { rpc } from '../rpc'
 import RealAccountView from '../components/RealAccountView'
+import { useTitle } from '../brand'
 
 /** Real Zerodha account: funds/margin and open positions exactly as the broker reports them —
  *  unlike the virtual account, this is not simulated, so figures come straight from the worker's
@@ -29,7 +30,8 @@ export default function BrokerAccount() {
     }
   }, [])
 
-  useEffect(() => { document.title = 'Real account · Theta Desk'; load() }, [load])
+  useTitle('Real account')
+  useEffect(() => { load() }, [load])
 
   return (
     <div className="detail">

@@ -1,5 +1,5 @@
 {
-  "title": "Delta, and why Theta Desk sells below 0.15",
+  "title": "Delta, and why we sell below 0.15",
   "level": 1,
   "order": 3,
   "summary": "Delta as price sensitivity and as a rough probability, and the trade-off behind the 0.15 rule.",
@@ -13,7 +13,7 @@
      "options": ["1.2%", "12%", "50%", "88%"],
      "answer": 1,
      "why": "Delta, ignoring sign, approximates the probability of finishing ITM."},
-    {"q": "Why does Theta Desk only sell strikes with |delta| < 0.15?",
+    {"q": "Why does the app only sell strikes with |delta| < 0.15?",
      "options": ["They pay the biggest premium", "A normal month's move rarely reaches them", "They need no margin", "They can't lose money"],
      "answer": 1,
      "why": "Low-delta strikes are far enough away that typical moves don't reach them. They can still lose."},

@@ -1,5 +1,5 @@
 /*
- * Theta Desk: a watch dial for selling time.
+ * The look: a watch dial for selling time.
  * Dial navy, brass hands, lume for profit, crimson for loss. Brass is reserved for premium,
  * theta and the one primary action, so it keeps meaning something.
  */
@@ -547,7 +547,7 @@ td.out { color: var(--down-text); }
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: scale(0.97) translateY(6px); } }
 
-/* ---------- Theta Desk identity ---------- */
+/* ---------- Brand identity ---------- */
 .dial-mark { width: 28px; height: 28px; flex: none; }
 .dm-ring { fill: none; stroke: var(--border-strong); stroke-width: 1.5; }
 .dm-curve { fill: none; stroke: var(--primary); stroke-width: 1.8; stroke-linecap: round; }
@@ -1664,3 +1664,11 @@ td.out { color: var(--down-text); }
 .share-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .invite-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .invite-row input { flex: 1; min-width: 0; }
+
+/* Branding (issue #133): owner's name and logo settings */
+.brand-settings { margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.brand-settings h3 { margin: 0; }
+.brand-preview { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); }
+.brand-settings .field input { width: 100%; max-width: 320px; font-family: inherit; }
+img.brand-logo { object-fit: contain; }
+.favicon-preview { width: 32px; height: 32px; image-rendering: auto; }

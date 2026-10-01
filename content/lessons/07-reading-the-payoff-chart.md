@@ -20,7 +20,7 @@ Where the line crosses ₹0 is a **breakeven**. On one side you win, on the othe
 
 ## Before the end date
 
-Theta Desk's Strategy lab also draws the line for any day before expiry. That line is lower and smoother, because the option still has "hope" (time value) you'd have to pay to buy it back. Each day it bends closer to the final line. That's the ice cube melting in your favour.
+The Strategy lab also draws the line for any day before expiry. That line is lower and smoother, because the option still has "hope" (time value) you'd have to pay to buy it back. Each day it bends closer to the final line. That's the ice cube melting in your favour.
 
 ## How far the price usually moves: 1σ and 2σ
 
@@ -31,7 +31,7 @@ Theta Desk's Strategy lab also draws the line for any day before expiry. That li
 
 A good strangle has both strikes outside 1σ. A strike inside 1σ gets reached more than 1 month in 3.
 
-## Risk and reward on Theta Desk
+## Risk and reward here
 
 - **Reward** = the fee you collect.
 - **Risk** = what you'd lose if the price made a 2σ move against you. A plain sold option has no fixed worst case, so a 2σ move is used as a realistic bad month.

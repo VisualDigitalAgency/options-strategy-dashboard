@@ -1,4 +1,4 @@
-# Theta Desk: docker compose up -d   (first: python scripts/make_secrets.py, and copy .env.example to .env)
+# docker compose up -d   (first: python scripts/make_secrets.py, and copy .env.example to .env)
 # Only Caddy (web) publishes ports. Postgres and Redis sit on an internal network with no internet access.
 
 x-app: &app
@@ -11,6 +11,7 @@ x-app: &app
     REDIS_HOST: redis
     REDIS_PASSWORD_FILE: /run/secrets/redis_password
     ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+    APP_NAME: ${APP_NAME:-}
     MAIL_BACKEND: ${MAIL_BACKEND:-log}
     MAIL_FROM: ${MAIL_FROM:-}
     RESEND_API_KEY: ${RESEND_API_KEY:-}
@@ -86,6 +87,7 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+      APP_NAME: ${APP_NAME:-}
       TRUST_PROXY: "1"
       ALLOWED_ORIGINS: ${PUBLIC_URL:-https://${DOMAIN}}
       TZ: Asia/Kolkata
@@ -114,6 +116,7 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+      APP_NAME: ${APP_NAME:-}
       TZ: Asia/Kolkata
       BROKER_ENC_KEY_FILE: /run/secrets/broker_enc_key
       BROKER_ENC_KEY_PREVIOUS: ${BROKER_ENC_KEY_PREVIOUS:-}

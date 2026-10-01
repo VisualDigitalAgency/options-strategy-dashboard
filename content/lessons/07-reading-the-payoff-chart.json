@@ -17,7 +17,7 @@
      "options": ["32%", "50%", "68%", "95%"],
      "answer": 2,
      "why": "About 68% for 1σ and 95% for 2σ."},
-    {"q": "On Theta Desk, the 'risk' in risk : reward means:",
+    {"q": "Here, the 'risk' in risk : reward means:",
      "options": ["The absolute worst-case loss", "The expiry loss after a 2σ move against you", "The margin blocked", "The premium"],
      "answer": 1,
      "why": "A naked short has no fixed maximum, so a 2σ move is used as the realistic bad case."},

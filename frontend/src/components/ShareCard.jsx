@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Copy, Download, Share2, X } from 'lucide-react'
 import { rpc } from '../rpc'
+import { useBrand } from '../brand'
 
 // Share dialog for an achievement card (issue #126). The card is made on the server when the user
 // asks for a link, so its preview never changes afterwards; % return is off unless ticked.
@@ -11,6 +12,7 @@ export default function ShareCard({ kind, refNo, label, onClose }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const { name: appName } = useBrand()
 
   const make = async () => {
     setBusy(true); setError(null)
@@ -19,7 +21,7 @@ export default function ShareCard({ kind, refNo, label, onClose }) {
     finally { setBusy(false) }
   }
   const url = slug ? `${window.location.origin}/c/${slug}` : ''
-  const text = `${label} on Theta Desk, learning option selling with paper trading.`
+  const text = `${label} on ${appName}, learning option selling with paper trading.`
   const enc = encodeURIComponent
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); setCopied(true) } catch { /* clipboard blocked */ }
@@ -47,7 +49,7 @@ export default function ShareCard({ kind, refNo, label, onClose }) {
               <a className="btn" href={`https://wa.me/?text=${enc(`${text} ${url}`)}`} target="_blank" rel="noreferrer">WhatsApp</a>
               <a className="btn" href={`https://x.com/intent/post?text=${enc(text)}&url=${enc(url)}`} target="_blank" rel="noreferrer">X</a>
               <a className="btn" href={`https://t.me/share/url?url=${enc(url)}&text=${enc(text)}`} target="_blank" rel="noreferrer">Telegram</a>
-              <a className="btn" href={`/c/${slug}.png`} download={`theta-desk-${kind}-${refNo}.png`}><Download size={15} aria-hidden /> Image</a>
+              <a className="btn" href={`/c/${slug}.png`} download={`${kind}-${refNo}.png`}><Download size={15} aria-hidden /> Image</a>
               <button className="btn" onClick={copy}><Copy size={15} aria-hidden /> {copied ? 'Copied' : 'Copy link'}</button>
             </div>
           </>

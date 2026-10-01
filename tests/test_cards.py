@@ -81,7 +81,7 @@ check("page has its own CSP allowing the image", "img-src 'self'" in r.headers["
 r = app.get(f"/c/{b['slug']}.png")
 check("PNG preview 1200x630", r.status_code == 200 and r.mimetype == "image/png" and r.data[:8] == b"\x89PNG\r\n\x1a\n"
       and int.from_bytes(r.data[16:20], "big") == 1200 and int.from_bytes(r.data[20:24], "big") == 630)
-check("image cached as immutable", "immutable" in r.headers["Cache-Control"])
+check("image cached, not immutable (it follows the brand, #133)", "max-age" in r.headers["Cache-Control"] and "immutable" not in r.headers["Cache-Control"])
 check("unknown card is a 404", app.get("/c/nope").status_code == 404 and app.get("/c/nope.png").status_code == 404)
 with db.tx() as c:
     c.run("UPDATE users SET nickname='<b>x</b>' WHERE id=:u", u=other)

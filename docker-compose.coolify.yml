@@ -27,6 +27,7 @@ x-app: &app
     REDIS_HOST: redis
     REDIS_PASSWORD: ${REDIS_PASSWORD}
     ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+    APP_NAME: ${APP_NAME:-}
     MAIL_BACKEND: ${MAIL_BACKEND:-log}
     MAIL_FROM: ${MAIL_FROM:-}
     RESEND_API_KEY: ${RESEND_API_KEY:-}
@@ -99,6 +100,7 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+      APP_NAME: ${APP_NAME:-}
       TRUST_PROXY: "1"
       ALLOWED_ORIGINS: ${PUBLIC_URL:-https://${DOMAIN}}
       TZ: Asia/Kolkata
@@ -126,6 +128,7 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@theta.local}
+      APP_NAME: ${APP_NAME:-}
       TZ: Asia/Kolkata
       BROKER_ENC_KEY: ${BROKER_ENC_KEY}
       BROKER_ENC_KEY_PREVIOUS: ${BROKER_ENC_KEY_PREVIOUS:-}

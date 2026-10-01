@@ -3,18 +3,19 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { Eye, EyeOff, Hourglass, MailCheck } from 'lucide-react'
 import { useAuth } from '../auth'
 import { rpc, UNVERIFIED } from '../rpc'
-import DialMark from '../components/DialMark'
 import { SHOW_KEY as BROKER_POPUP_KEY } from '../components/BrokerOnboarding'
+import { Logo, useBrand } from '../brand'
 
 const MIN = 10
 
 function Shell({ title, lede, children, foot }) {
+  const { name } = useBrand()
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <Link to="/login" className="brand auth-brand" aria-label="Theta Desk">
-          <DialMark />
-          <span className="wordmark">Theta Desk</span>
+        <Link to="/login" className="brand auth-brand" aria-label={name}>
+          <Logo />
+          <span className="wordmark">{name}</span>
         </Link>
         <h1 className="auth-title">{title}</h1>
         {lede && <p className="auth-lede">{lede}</p>}

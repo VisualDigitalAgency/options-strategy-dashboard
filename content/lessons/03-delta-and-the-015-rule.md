@@ -16,7 +16,7 @@ Ignore the minus sign, and delta is roughly the chance the option ends in the mo
 
 It is a forecast, not a promise. It changes every day as the price and the market's mood change.
 
-## Theta Desk's rule: sell below 0.15
+## Our rule: sell below 0.15
 
 The screener only picks lines with delta below 0.15. That puts your line far enough away that a normal month's move doesn't reach it. Among those lines, it picks one many traders are using (high open interest) that is easy to trade.
 

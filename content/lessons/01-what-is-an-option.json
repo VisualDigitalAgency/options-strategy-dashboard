@@ -24,6 +24,6 @@
     {"q": "What happens to an in-the-money stock option left open at expiry in India?",
      "options": ["It expires worthless", "It settles by physical delivery of shares", "It rolls to next month", "The exchange cancels it"],
      "answer": 1,
-     "why": "Stock options settle by physical delivery, which is why Theta Desk exits 7 days before expiry."}
+     "why": "Stock options settle by physical delivery, which is why the app exits 7 days before expiry."}
   ]
 }
