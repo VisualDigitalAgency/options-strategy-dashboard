@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-81 methods: 15 public, 4 account, 7 market data, 39 user, 16 admin.
+82 methods: 15 public, 4 account, 7 market data, 40 user, 16 admin.
 
 ## Tiers
 
@@ -61,11 +61,12 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`va_exit_group`](#va_exit_group) | user | Closes every open leg in one stock and expiry, the same way as exit_position. |
 | [`va_set_sl_mode`](#va_set_sl_mode) | user | Sets the stop-loss mode (auto, alert or off) of one short position, or the account default for new positions when position_id is omitted. |
 | [`va_dismiss_alert`](#va_dismiss_alert) | user | Clears a position's stop-loss alert. |
-| [`va_reset`](#va_reset) | user | Deletes every order and position and restarts the virtual account with `starting_capital` (₹10,000 to ₹1,000 crore). |
+| [`va_reset`](#va_reset) | user | Deletes every order and position and restarts the virtual account with its base capital (₹2 lakh for accounts made since #47) plus every capital grant earned. |
 | [`lesson_submit_quiz`](#lesson_submit_quiz) | user | Scores one attempt. |
 | [`lesson_progress`](#lesson_progress) | user | The caller's quiz record per lesson: attempts, best score, when it was passed, and when a failed quiz can be retaken. |
 | [`progress_get`](#progress_get) | user | Scores any newly passed lessons, moves up one level if every check passes, and returns the user's progress: level, XP, the next level's checks with live values, and gate metrics. |
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
+| [`capital_status`](#capital_status) | user | The task list for the Earn capital page: each task's reward, how often it pays, how many times it has paid, and where to do it; the level rewards; and the grant history. |
 | [`card_create`](#card_create) | user | Makes (or reuses) a share card for a level reached or a course finished and returns its slug. |
 | [`strategy_save`](#strategy_save) | user | Saves the builder's current strategy under `name`, replacing one with the same name. |
 | [`strategy_list`](#strategy_list) | user | The user's strategies, newest first; `expired` is true once the expiry date has passed (IST). |
@@ -601,12 +602,11 @@ Set by the server, never by the client: `user_id`.
 
 ### `va_reset`
 
-Deletes every order and position and restarts the virtual account with `starting_capital`
-(₹10,000 to ₹1,000 crore).
+Deletes every order and position and restarts the virtual account with its base capital
+(₹2 lakh for accounts made since #47) plus every capital grant earned. The amount is never the
+caller's choice: capital only grows by completing tasks (engine/capital.py).
 
-| Param | Type | Default |
-|---|---|---|
-| `starting_capital` | `float` | `1000000` |
+No params.
 
 Set by the server, never by the client: `user_id`.
 
@@ -648,6 +648,15 @@ The newest XP ledger entries: points, reason and what they were for.
 | Param | Type | Default |
 |---|---|---|
 | `limit` | `int` | `50` |
+
+Set by the server, never by the client: `user_id`.
+
+### `capital_status`
+
+The task list for the Earn capital page: each task's reward, how often it pays, how many times
+it has paid, and where to do it; the level rewards; and the grant history.
+
+No params.
 
 Set by the server, never by the client: `user_id`.
 

@@ -310,7 +310,9 @@ def evaluate(user_id: int, _now: datetime | None = None) -> dict:
     if up:
         auth.audit("level_up", actor_id=None, target_user_id=user_id, level=up)
     _maybe_beta(user_id, snap["level"])
-    return {**snap, "leveled_up": up}
+    from . import capital  # capital reads IST from here
+    grants = capital.evaluate(user_id)  # task milestones (#47): pays whatever is newly done
+    return {**snap, "leveled_up": up, "capital_grants": grants}
 
 
 def final_ready(user_id: int) -> bool:

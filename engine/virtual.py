@@ -679,18 +679,17 @@ def dismiss_alert(user_id: int, position_id: int) -> dict:
     return {"ok": True}
 
 
-def reset(user_id: int, starting_capital: float = config.STARTING_CAPITAL) -> dict:
-    """Deletes every order and position and restarts the virtual account with `starting_capital`
-    (₹10,000 to ₹1,000 crore)."""
-    if not 10_000 <= starting_capital <= 10_000_000_000:  # the NaN-safe form: NaN fails both bounds
-        raise ValueError("Starting capital must be from ₹10,000 to ₹1,000 crore")
+def reset(user_id: int) -> dict:
+    """Deletes every order and position and restarts the virtual account with its base capital
+    (₹2 lakh for accounts made since #47) plus every capital grant earned. The amount is never the
+    caller's choice: capital only grows by completing tasks (engine/capital.py)."""
     with _lock, db.tx(user_id) as c:
         _lock_account(c, user_id)
         c.run("DELETE FROM orders WHERE user_id=:u", u=user_id)
         c.run("DELETE FROM pending_orders WHERE user_id=:u", u=user_id)
         c.run("DELETE FROM positions WHERE user_id=:u", u=user_id)
-        c.run("UPDATE accounts SET starting_capital=:cap, created_at=now() WHERE user_id=:u",
-              cap=starting_capital, u=user_id)
+        c.run("UPDATE accounts SET starting_capital = base_capital + (SELECT COALESCE(SUM(amount), 0) "
+              "FROM capital_grants WHERE user_id=:u), created_at=now() WHERE user_id=:u", u=user_id)
     return get_account(user_id)
 
 

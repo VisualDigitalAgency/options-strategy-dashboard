@@ -190,7 +190,7 @@ export function Lesson() {
         <section className="card quiz-cta">
           <h2>Take the quiz and practise for free</h2>
           <p>Create a free account to take this quiz, track your progress through the levels, and practise
-            option selling on a ₹10 lakh paper-trading account with live NSE prices.</p>
+            option selling on a ₹2 lakh paper-trading account with live NSE prices.</p>
           <div className="quiz-cta-actions">
             <Link to="/register" className="btn primary">Join free</Link>
             <Link to={`/login?next=${encodeURIComponent(`/learn/${lesson.slug}`)}`} className="btn ghost">Sign in</Link>

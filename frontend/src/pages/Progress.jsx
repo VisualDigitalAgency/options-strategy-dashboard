@@ -65,7 +65,7 @@ function LevelLadder() {
       )}
       <section className="card quiz-cta">
         <h2>Start at Level 1 for free</h2>
-        <p>Create a free account to trade on a ₹10 lakh virtual account, take the lesson quizzes and track your climb.</p>
+        <p>Create a free account to trade on a ₹2 lakh virtual account (earn more as you go), take the lesson quizzes and track your climb.</p>
         <div className="quiz-cta-actions">
           <Link to="/register" className="btn primary">Join free</Link>
           <Link to="/login?next=%2Fprogress" className="btn ghost">Sign in</Link>

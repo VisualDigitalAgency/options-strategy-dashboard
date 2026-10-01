@@ -220,7 +220,7 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
         <p key={n} className="notice"><Info size={16} aria-hidden /> {n}</p>
       ))}
       {preview && !preview.sufficient && (
-        <p className="form-error" role="alert">Not enough virtual funds. Exit a position or reset the account with more capital.</p>
+        <p className="form-error" role="alert">Not enough virtual funds. Exit a position, or earn more capital by completing tasks.</p>
       )}
       {illiquid.length > 0 && (
         <div className="alert warn-alert" role="alert">

@@ -30,7 +30,7 @@ def create_user(email: str, name: str, role: str = "user", status: str = "pendin
                       "VALUES (:e, :ce, :n, :r, :s, CAST(:ip AS inet)) RETURNING id",
                       e=email.strip().lower(), ce=canonical_email(email), n=name, r=role, s=status, ip=ip)
     with db.tx(uid) as c:
-        c.run("INSERT INTO accounts (user_id, starting_capital) VALUES (:u, :cap)",
+        c.run("INSERT INTO accounts (user_id, starting_capital, base_capital) VALUES (:u, :cap, :cap)",
               u=uid, cap=config.STARTING_CAPITAL)
         c.run("INSERT INTO autotrade_settings (user_id) VALUES (:u)", u=uid)
     return uid

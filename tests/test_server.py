@@ -40,7 +40,7 @@ for label, body in (("NaN", '{"starting_capital": NaN}'), ("Infinity", '{"starti
     j = r.get_json()
     check(f"reset {label} refused", j.get("error", {}).get("code") == -32602, j.get("error"))
 s, j = call("va_reset", {"starting_capital": 1e15}, token)
-check("reset 1e15 refused", j.get("error", {}).get("code") == -32000, j.get("error"))
+check("reset never takes a chosen capital (#47)", j.get("error", {}).get("code") == -32602, j.get("error"))
 s, j = call("calc_margin", {"symbol": "SBIN", "expiry": EXP,
                             "legs": [{"side": "PE", "strike": float("inf")}]}, token)
 check("Infinity strike refused", j is not None and j.get("error", {}).get("code") in (-32602, -32603), j and j.get("error"))
