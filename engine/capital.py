@@ -102,10 +102,14 @@ def evaluate(user_id: int) -> list[dict]:
                     c.run("UPDATE accounts SET starting_capital = starting_capital + :a WHERE user_id=:u", a=amt, u=user_id)
                     paid.setdefault(task, set()).add(ref)
                     new.append({"task": task, "ref": ref, "amount": amt, "label": _label(task, ref)})
+    from . import coins  # coins builds on this module's task checks
+    coins.evaluate(user_id)  # the same events pay coins too (#47)
     return new
 
 
 def _label(task: str, ref: str) -> str:
+    if task == "coins":
+        return "Exchanged coins"
     return f"Reach Level {ref}" if task == "level" else LABELS[task]
 
 

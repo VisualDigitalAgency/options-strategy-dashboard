@@ -270,7 +270,7 @@ Every account can build its own strategy (#137); free accounts land here, since 
 
 ## Portfolio & virtual account
 
-Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹2 lakh. More capital is earned only by completing tasks and reaching levels (**Earn capital** page, `engine/capital.py`, amounts in `config.CAPITAL_TASKS` / `LEVEL_CAPITAL`); each task pays once and never counts as profit. A reset from **Virtual account** restarts with the base plus everything earned; the amount can't be chosen. Accounts made before this change keep ₹10 lakh as their base.
+Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹2 lakh. More capital is earned only by completing tasks and reaching levels (**Earn capital** page, `engine/capital.py`, amounts in `config.CAPITAL_TASKS` / `LEVEL_CAPITAL`); each task pays once and never counts as profit. A reset from **Virtual account** restarts with the base plus everything earned; the amount can't be chosen. Accounts made before this change keep ₹10 lakh as their base. **Coins** (`engine/coins.py`, **Coins** page) are a second reward on top: the same tasks and levels in coins (`config.COIN_TASKS` / `COIN_LEVEL`), plus 2 coins per disciplined profitable short leg (stop-loss on, delta below 0.15, held 7+ days, ₹500+ profit, at most 10 a month) and 10 coins per 250 XP. Coins exchange one way into virtual capital at ₹100 each; an exchange is booked as a capital grant, so it survives a reset and never counts as profit.
 
 | Feature | Behaviour |
 |---|---|
