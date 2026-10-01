@@ -114,8 +114,8 @@ CAPITAL_TASKS = {
     "share_card": (25_000, 2),       # share a level-up or course card (once per kind)
 }
 # Reaching level n adds this much (#47).
-LEVEL_CAPITAL = {2: 100_000, 3: 150_000, 4: 200_000, 5: 250_000, 6: 500_000, 7: 500_000, 8: 500_000,
-                 9: 500_000, 10: 500_000}
+LEVEL_CAPITAL = {2: 25_000, 3: 25_000, 4: 25_000, 5: 50_000, 6: 50_000, 7: 50_000, 8: 100_000,
+                 9: 100_000, 10: 100_000}
 
 
 # ---------- learning path (#120, #122) ----------
