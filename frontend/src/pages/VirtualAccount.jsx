@@ -213,7 +213,7 @@ export default function VirtualAccount() {
                 </tbody>
               </table>
             ) : (
-              <p className="empty">{orders ? 'No orders yet. Place a virtual order from any setup in the screener.' : 'Loading…'}</p>
+              <p className="empty">{orders ? <>No orders yet. <Link to="/builder">Build your first trade</Link> to start.</> : 'Loading…'}</p>
             )
           )}
           {tab === 'closed' && (

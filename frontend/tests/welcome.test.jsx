@@ -40,7 +40,7 @@ document.body.replaceChildren(Object.assign(document.createElement('div'), { id:
 await act(async () => createRoot(document.getElementById('r')).render(h(MemoryRouter, null, h(AuthProvider, null, h(Welcome)))))
 await tick()
 check('greets by first name and names Level 1', document.body.textContent.includes('Welcome, Asha') && document.body.textContent.includes('Level 1'))
-check('button disabled until 3 characters', button().disabled)
+check('a suggested nickname is filled in, so the button is ready (#167)', !button().disabled)
 const box = document.querySelector('input[type=checkbox]')
 check('leaderboard opt-in starts ticked', box.checked)
 await act(async () => type('taken'))

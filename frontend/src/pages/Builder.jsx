@@ -5,6 +5,7 @@ import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
 import { useTitle } from '../brand'
+import GettingStarted from '../components/GettingStarted'
 import { int, num, rupee, rupee2, shortDate, todayIso } from '../format'
 import { BuilderPayoff } from '../components/Charts'
 import { bsGreeks, sdRange } from '../bs'
@@ -423,6 +424,7 @@ export default function Builder() {
   return (
     <div className={`builder-page${legs.length ? ' has-dock' : ''}`}>
       {join && <JoinPrompt onClose={() => setJoin(false)} />}
+      <GettingStarted />
       <header className="builder-hero">
         <div>
           <h1 className="page-title"><Wrench size={20} aria-hidden /> Strategy builder</h1>

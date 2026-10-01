@@ -329,7 +329,8 @@ def lessons_get(_ctx: Ctx, slug: str):
 def app_info(_ctx: Ctx):
     """The app's name and logo version (null while the built-in mark is used), and the pages a
     signed-out visitor may open (`reader_pages`). Public; every page loads it."""
-    return {**brand.info(), "reader_pages": app_settings.reader_pages()}
+    return {**brand.info(), "reader_pages": app_settings.reader_pages(),
+            "auto_approve": app_settings.get("auto_approve")}  # sign-up copy: instant or waits for approval
 
 
 # Reader (#163): the builder for signed-out visitors. Every new stock/expiry is an NSE call from the
