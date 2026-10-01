@@ -136,6 +136,9 @@ jobs:
       # Fails when doc/api/rpc.md is stale or an RPC method has no docstring (issue #98).
       - name: RPC reference up to date
         run: python scripts/gen_rpc_docs.py --check
+      # The owner renames the app at runtime (issue #133); its name lives in engine/brand.py only.
+      - name: No hard-coded app name
+        run: python scripts/check_brand.py
       - name: Byte-compile
         run: python -m compileall -q server.py rpc_guard.py engine scripts migrations tests
       - name: Integration tests (fresh database per file)

@@ -60,8 +60,18 @@ check("bootstrap never adds a second owner", users.bootstrap_local_user() == own
 # 2. Seeded defaults match the old behaviour; me() carries the features.
 check("owner has every feature", set(O("auth_me")["result"]["features"]) == set(permissions.FEATURES))
 check("sub-admin starts without live trading",
-      set(S("auth_me")["result"]["features"]) == {"manage_users", "manage_roles", "autotrade", "market_calendar"})
-check("user starts with autotrade and the calendar", set(U("auth_me")["result"]["features"]) == {"autotrade", "market_calendar"})
+      set(S("auth_me")["result"]["features"]) == {"manage_users", "manage_roles", "screener", "autotrade", "market_calendar"})
+check("beta has the screener", "screener" in B("auth_me")["result"]["features"])
+# Pro (#136): a plain user has no screener, so no auto-trade either (it trades the screen's picks).
+check("user starts with the calendar only", set(U("auth_me")["result"]["features"]) == {"market_calendar"})
+r = U("get_screened_candidates")
+check("user can't read the screen", r.get("error", {}).get("code") == server.FORBIDDEN, r)
+r = U("get_trade_detail", {"symbol": "SBIN"})
+check("user can't open a stock analysis", r.get("error", {}).get("code") == server.FORBIDDEN, r)
+O("admin_set_override", {"target_id": plain, "feature": "screener", "mode": "grant"})
+check("granting Pro brings the screener and auto-trade", {"screener", "autotrade"} <= set(U("auth_me")["result"]["features"]))
+O("admin_set_override", {"target_id": plain, "feature": "screener", "mode": "clear"})
+check("removing Pro takes both away", not {"screener", "autotrade"} & set(U("auth_me")["result"]["features"]))
 
 # 3. Admin methods follow manage_users, not a hard-coded role.
 check("sub-admin lists users", ok(S("admin_list_users")))

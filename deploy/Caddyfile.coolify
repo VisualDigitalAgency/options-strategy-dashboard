@@ -45,8 +45,9 @@
 			header_up X-Forwarded-For {vars.visitor_ip}
 		}
 	}
-	# Public share cards (#126): server-rendered so link previews work.
-	handle /c/* {
+	# Public share cards (#126) and the uploaded logo and favicon (#133) come from the API.
+	@served_by_api path /c/* /brand/*
+	handle @served_by_api {
 		reverse_proxy api:8000 {
 			header_up X-Forwarded-For {vars.visitor_ip}
 		}

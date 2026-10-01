@@ -34,4 +34,4 @@ If you win 9 months out of 10, but the 10th month loses as much as 12 months of 
 3. Always have a stop-loss, and follow it.
 4. Don't hold through known events like results.
 
-Theta Desk's levels reward these habits. Profit is nice, but good habits are what move you up.
+Your levels here reward these habits. Profit is nice, but good habits are what move you up.

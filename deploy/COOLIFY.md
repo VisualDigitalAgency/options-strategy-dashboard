@@ -19,7 +19,7 @@ pack, compose file `/docker-compose.coolify.yml`, branch `main`.
 ## Deploy steps
 
 1. **Push** the fixes to `main` (Coolify builds from `git@github.com:VisualDigitalAgency/options-strategy-dashboard.git`).
-2. **Rotate the database passwords** in Coolify → theta-desk → Environment Variables, because the owner password was exposed during debugging. Set `DB_OWNER_PASSWORD` and `DB_APP_PASSWORD` to new values (`python -c "import secrets; print(secrets.token_hex(24))"`). Keep `REDIS_PASSWORD`, `DOMAIN=theta.connectbiomedical.com`, `PUBLIC_URL=https://theta.connectbiomedical.com` and `ADMIN_EMAIL`. Each variable appears twice (preview and production); set the production one.
+2. **Rotate the database passwords** in Coolify → theta-desk → Environment Variables, because the owner password was exposed during debugging. Set `DB_OWNER_PASSWORD` and `DB_APP_PASSWORD` to new values (`python -c "import secrets; print(secrets.token_hex(24))"`). Keep `REDIS_PASSWORD`, `DOMAIN=theta.connectbiomedical.com`, `PUBLIC_URL=https://theta.connectbiomedical.com` and `ADMIN_EMAIL` (`APP_NAME` is optional: the first-start app name, later changed under Admin → Branding). Each variable appears twice (preview and production); set the production one.
 3. **Assign the domain**: Coolify → theta-desk → Configuration → the `web` service → Domains: `https://theta.connectbiomedical.com`. Leave the others (api, worker, migrate, postgres, redis) blank.
 4. **Reset the database volume.** It holds no users (checked: `users` = 0), so nothing is lost:
    ```bash

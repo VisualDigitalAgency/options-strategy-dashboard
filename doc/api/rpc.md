@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-67 methods: 9 public, 4 account, 5 market data, 36 user, 13 admin.
+71 methods: 10 public, 4 account, 6 market data, 36 user, 15 admin.
 
 ## Tiers
 
@@ -29,6 +29,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`auth_reset_password`](#auth_reset_password) | public | Sets a new password from the emailed reset token. |
 | [`lessons_list`](#lessons_list) | public | Every lesson in the learning path (title, level, order, summary, minutes, question count). |
 | [`lessons_get`](#lessons_get) | public | One lesson's body and quiz questions (never the answers), plus the previous and next lesson. |
+| [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used). |
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
 | [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
@@ -38,6 +39,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`get_config`](#get_config) | market data | The screening thresholds the UI shows (engine/config.py) and the current Nifty 50 list. |
 | [`get_market_calendar`](#get_market_calendar) | market data | NSE trading holidays and Nifty 50 corporate events, from the worker's daily copy, plus the expiry dates the last screen covered (the calendar groups events by expiry cycle). |
 | [`calc_margin`](#calc_margin) | market data | SPAN + exposure for SHORT legs [{side, strike}] at `lots` lots, ignoring existing positions. |
+| [`builder_chain`](#builder_chain) | market data | Strategy builder (#137): one stock's option chain for `expiry` (YYYY-MM-DD; default the first at least 30 days out) with deltas, lot size, the open expiries, results/dividend dates before expiry and the rules the page warns about. |
 | [`va_get_account`](#va_get_account) | user | Account figures from the cached snapshot; realised P&L and cash always read fresh from the DB. |
 | [`va_refresh_positions`](#va_refresh_positions) | user | Re-price now, at most every REPRICE_EVERY seconds per user; otherwise the cached snapshot. |
 | [`va_get_positions`](#va_get_positions) | user | Cached snapshot, re-priced by the monitor thread; never waits on NSE. |
@@ -84,6 +86,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_get_features`](#admin_get_features) | admin | Owner only: which features each role (sub_admin, beta, user) has, and the feature list. |
 | [`admin_set_feature`](#admin_set_feature) | admin | Owner only: turns one feature on or off for a role. |
 | [`admin_get_settings`](#admin_get_settings) | admin | Owner only: the app switches (such as auto_approve) with their values and descriptions. |
+| [`admin_set_brand_name`](#admin_set_brand_name) | admin | Owner only: renames the app everywhere it is shown (pages, emails, share cards). |
+| [`admin_reset_logo`](#admin_reset_logo) | admin | Owner only: drops the uploaded logo and favicon and goes back to the built-in ones. |
 | [`admin_get_overrides`](#admin_get_overrides) | admin | Owner only: one account's per-user feature overrides (grant or deny). |
 | [`admin_set_override`](#admin_set_override) | admin | Owner only: grant or deny one feature for one account, or `clear` to go back to its role and level. |
 | [`admin_set_setting`](#admin_set_setting) | admin | Owner only: changes one app switch. |
@@ -236,6 +240,15 @@ lesson. Public.
 
 Set by the server, never by the client: `_ctx`.
 
+### `app_info`
+
+The app's name and logo version (null while the built-in mark is used). Public; every page
+loads it to show the brand.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
 ## Account methods
 
 Callable by: signed in.
@@ -334,6 +347,17 @@ SPAN + exposure for SHORT legs [{side, strike}] at `lots` lots, ignoring existin
 | `expiry` | `str` | required |
 | `legs` | `list` | required |
 | `lots` | `int` | `1` |
+
+### `builder_chain`
+
+Strategy builder (#137): one stock's option chain for `expiry` (YYYY-MM-DD; default the
+first at least 30 days out) with deltas, lot size, the open expiries, results/dividend dates
+before expiry and the rules the page warns about. Shares the 60 s quote cache with orders.
+
+| Param | Type | Default |
+|---|---|---|
+| `symbol` | `str` | required |
+| `expiry` | `str \| None` | `null` |
 
 ## User methods
 
@@ -827,6 +851,25 @@ Set by the server, never by the client: `_ctx`.
 ### `admin_get_settings`
 
 Owner only: the app switches (such as auto_approve) with their values and descriptions.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_set_brand_name`
+
+Owner only: renames the app everywhere it is shown (pages, emails, share cards). Audited.
+
+| Param | Type | Default |
+|---|---|---|
+| `name` | `str` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_reset_logo`
+
+Owner only: drops the uploaded logo and favicon and goes back to the built-in ones. Audited.
+Uploading a logo is POST /brand/logo (see doc/api/README.md).
 
 No params.
 

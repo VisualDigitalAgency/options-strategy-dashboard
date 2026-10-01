@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { rpc } from '../rpc'
-import DialMark from '../components/DialMark'
+import { Logo, useBrand } from '../brand'
 
 /** Where Zerodha's login redirects back to (KITE_REDIRECT_URL must point here exactly). Reads
  *  the one-time request_token from the query string and exchanges it server-side — the API
@@ -10,6 +10,7 @@ import DialMark from '../components/DialMark'
 export default function BrokerCallback() {
   const { search } = useLocation()
   const nav = useNavigate()
+  const { name: appName } = useBrand()
   const [state, setState] = useState('working') // working | done | error
   const [error, setError] = useState(null)
 
@@ -50,7 +51,7 @@ export default function BrokerCallback() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="brand auth-brand"><DialMark /><span className="wordmark">Theta Desk</span></div>
+        <div className="brand auth-brand"><Logo /><span className="wordmark">{appName}</span></div>
         {state === 'working' && <p className="auth-lede">Connecting your Zerodha account…</p>}
         {state === 'done' && (
           <p className="auth-done"><CheckCircle2 size={20} aria-hidden /> Connected. Taking you back…</p>

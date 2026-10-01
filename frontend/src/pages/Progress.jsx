@@ -5,6 +5,7 @@ import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
 import ShareCard from '../components/ShareCard'
+import { useTitle } from '../brand'
 
 // Learning-path progress (issue #126): level, XP bar, the next level's checks and the XP ledger.
 // The checks are the gate output itself, so the page always matches what evaluate() decides.
@@ -46,8 +47,8 @@ export default function Progress() {
   const [invite, setInvite] = useState(null)
   const [copied, setCopied] = useState(false)
 
+  useTitle('My progress')
   useEffect(() => {
-    document.title = 'My progress · Theta Desk'
     rpc('progress_get').then((r) => {
       setP(r)
       const seen = seenLevel()

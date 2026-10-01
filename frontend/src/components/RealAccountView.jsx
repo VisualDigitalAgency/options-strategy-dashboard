@@ -109,7 +109,7 @@ export default function RealAccountView({ summary, positions, stops, error, head
           <header className="card-head"><h2>Stop losses at your broker</h2></header>
           <p className="muted small">
             From day 15 of a filled leg, a Kite alert buys it back if its price reaches the premium you sold at.
-            The alert sits at Zerodha, so it works even when Theta Desk is offline.
+            The alert sits at Zerodha, so it works even when this app is offline.
           </p>
           <div className="table-scroll">
             <table className="legs history">

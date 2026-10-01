@@ -1,6 +1,6 @@
 """Zerodha (Kite Connect) adapter — the first (and, for phase 1, only) connectable broker.
 
-One Kite Connect app is registered by the Theta Desk operator (KITE_API_KEY/KITE_API_SECRET,
+One Kite Connect app is registered by the app operator (KITE_API_KEY/KITE_API_SECRET,
 read like the DB/Redis passwords via engine.settings.secret()). Each user logs into THEIR OWN
 Zerodha account through that one app's OAuth-style redirect, so only the per-user access token
 needs to be stored (encrypted) — the api key/secret are operator-level, not per-user.
@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from kiteconnect import KiteConnect
 from kiteconnect.exceptions import DataException, KiteException, NetworkException
 
-from .. import settings
+from .. import brand, settings
 from .base import BrokerAdapter, BrokerOrderResult, BrokerSession
 
 log = logging.getLogger("theta.brokers.zerodha")
@@ -154,7 +154,7 @@ class ZerodhaAdapter(BrokerAdapter):
                        "stoploss": 0, "trailing_stoploss": 0, "iceberg_legs": 0, "market_protection": 0},
         }]}
         data = self._alerts_client(session)._post("alerts.create", params={
-            "name": f"Theta Desk stop {tradingsymbol}"[:50], "type": "ato",
+            "name": f"{tradingsymbol} stop · {brand.name()}"[:50], "type": "ato",
             "lhs_exchange": "NFO", "lhs_tradingsymbol": tradingsymbol, "lhs_attribute": "LastTradedPrice",
             "operator": ">=", "rhs_type": "constant", "rhs_constant": round(trigger_price, 2),
             "basket": json.dumps(basket)})

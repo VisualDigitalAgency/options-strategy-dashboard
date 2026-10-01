@@ -12,6 +12,7 @@ import PivotLevels from '../components/PivotLevels'
 import SLModeSwitch from '../components/SLModeSwitch'
 import RealAccountView from '../components/RealAccountView'
 import { ConfirmDialog } from '../components/Modal'
+import { useTitle } from '../brand'
 
 const POLL_MS = 30000
 
@@ -365,9 +366,9 @@ export default function Portfolio() {
     else loadReal()
   }
 
+  useTitle('Portfolio')
   useEffect(() => {
     alive.current = true
-    document.title = 'Portfolio · Theta Desk'
     ;(async () => {
       // One cheap check decides both the default view and whether "Real" is even selectable —
       // the same call the Broker/connect-banner pages already make.

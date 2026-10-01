@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { GraduationCap } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
-import DialMark from '../components/DialMark'
+import { Logo } from '../brand'
 
 // First-login onboarding (#121): a public nickname and the leaderboard choice, then Level 1.
 // Shown once, until the account has a nickname.
@@ -32,7 +32,7 @@ export default function Welcome() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-brand"><DialMark /></div>
+        <div className="auth-brand"><Logo /></div>
         <h1 className="auth-title">Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</h1>
         <p className="auth-lede">You start at <b>Level 1 · Learner</b> with a ₹10 lakh paper-trading account. Pick a
           nickname: it's the only name other people ever see.</p>

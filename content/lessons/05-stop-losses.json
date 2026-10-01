@@ -2,10 +2,10 @@
   "title": "Stop-losses for short options",
   "level": 2,
   "order": 5,
-  "summary": "Theta Desk's day-15 stop-loss, why missed stop-losses end accounts, and the profit and time exits.",
+  "summary": "The day-15 stop-loss, why missed stop-losses end accounts, and the profit and time exits.",
   "minutes": 5,
   "questions": [
-    {"q": "When does Theta Desk's stop-loss start working on a short leg?",
+    {"q": "When does the app's stop-loss start working on a short leg?",
      "options": ["From day 1", "From day 15", "Only in the last week", "Never"],
      "answer": 1,
      "why": "No stop-loss for the first 15 days, then buy back at the original premium."},
@@ -21,7 +21,7 @@
      "options": ["Reducing risk", "Selling more of it, which increases risk at the worst time", "Buying a hedge", "Closing the trade"],
      "answer": 1,
      "why": "Adding to a loser doubles exposure exactly when the position is going wrong."},
-    {"q": "Why does Theta Desk close a group once 90% of the premium has decayed?",
+    {"q": "Why does the app close a group once 90% of the premium has decayed?",
      "options": ["The exchange requires it", "The last 10% isn't worth holding the full risk for", "Margin becomes zero", "To pay lower tax"],
      "answer": 1,
      "why": "Almost all the reward is already booked while the risk is still there."}

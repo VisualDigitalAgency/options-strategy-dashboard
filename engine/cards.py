@@ -27,7 +27,7 @@ class CardError(ValueError):
 def _payload(c, user_id: int, kind: str, ref: int, show_return: bool) -> dict:
     nick = c.value("SELECT nickname FROM users WHERE id=:u", u=user_id)
     level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
-    out = {"kind": kind, "name": nick or "A Theta Desk trader"}
+    out = {"kind": kind, "name": nick}
     if kind == "level":
         if not 1 <= ref <= level:
             raise CardError("You haven't reached that level")
@@ -73,11 +73,13 @@ def owner(slug: str) -> int:
         return c.value("SELECT user_id FROM share_cards WHERE slug=:s", s=slug)
 
 
-def headline(p: dict) -> tuple[str, str]:
-    """(big line, small line) for a card, shared by the image and the page."""
+def headline(p: dict, app: str) -> tuple[str, str]:
+    """(big line, small line) for a card, shared by the image and the page. `app` is the app's
+    current name, so a rename shows on old cards too."""
+    who = p["name"] or f"A {app} trader"
     if p["kind"] == "level":
-        return f"Level {p['level']} · {p['title']}", f"{p['name']} reached Level {p['level']} on Theta Desk"
-    return f"Level {p['course']} course complete", f"{p['name']} passed all {p['lessons']} lessons on Theta Desk"
+        return f"Level {p['level']} · {p['title']}", f"{who} reached Level {p['level']} on {app}"
+    return f"Level {p['course']} course complete", f"{who} passed all {p['lessons']} lessons on {app}"
 
 
 @lru_cache(maxsize=8)
@@ -85,13 +87,19 @@ def _font(size: int):
     return ImageFont.load_default(size=size)
 
 
-def png(p: dict, site: str) -> bytes:
-    """The 1200×630 preview image."""
+def png(p: dict, site: str, app: str, logo: bytes | None = None) -> bytes:
+    """The 1200×630 preview image. `logo` is the owner's uploaded logo as PNG, if any."""
     img = Image.new("RGB", (W, H), "#0f1720")
     d = ImageDraw.Draw(img)
     d.rectangle((0, 0, 14, H), fill="#2bb673")
-    d.text((70, 60), "Theta Desk", font=_font(40), fill="#e6edf3", stroke_width=1, stroke_fill="#e6edf3")
-    big, small = headline(p)
+    x = 70
+    if logo:
+        with Image.open(io.BytesIO(logo)) as mark:
+            mark = mark.convert("RGBA").resize((64, 64), Image.Resampling.LANCZOS)
+            img.paste(mark, (70, 50), mark)
+        x = 150
+    d.text((x, 60), app, font=_font(40), fill="#e6edf3", stroke_width=1, stroke_fill="#e6edf3")
+    big, small = headline(p, app)
     d.text((70, 210), big, font=_font(76), fill="#ffffff", stroke_width=2, stroke_fill="#ffffff")
     d.text((70, 320), small, font=_font(34), fill="#9fb0c0")
     if "return_pct" in p:

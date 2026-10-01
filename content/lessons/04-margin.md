@@ -6,7 +6,7 @@ A buyer can only lose the fee they paid. A seller can lose much more. So sellers
 
 ## The two parts of the deposit
 
-- **SPAN margin**: the exchange imagines 16 bad days (price jumps, fear spikes) and locks the worst loss. Theta Desk reads the exchange's own daily file to work this out.
+- **SPAN margin**: the exchange imagines 16 bad days (price jumps, fear spikes) and locks the worst loss. The app reads the exchange's own daily file to work this out.
 - **Exposure margin**: a small extra cushion on top.
 
 **Total margin = SPAN + exposure.** For one lot of a Nifty 50 stock this is often ₹1 lakh or more, to earn a fee of a few thousand rupees.

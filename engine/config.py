@@ -74,6 +74,7 @@ NSE_RETRY_BACKOFF_SECONDS = 3     # wait before the one retry after a rejected/e
 SL_GRACE_DAYS = 15           # no SL active before this many days into the trade
 TIME_EXIT_DTE = 7            # close every leg once fewer than this many days remain: stock options
                              # settle by physical delivery, and NSE delivery margins climb into expiry
+LONG_SL_PCT = 50             # a bought leg with no sell to protect closes once its value falls this % (#137)
 PROFIT_TARGET_DECAY_PCT = 90  # close the whole group once this % of the premium collected has decayed
 SL_TARGET = "original_premium"  # breakeven-style SL from day 15 onward
 # Real (broker) legs: on day SL_GRACE_DAYS a Kite ATO alert is installed that buys the leg back when
@@ -117,5 +118,5 @@ QUICK_FLIP_MINUTES = 5   # legs opened and closed faster than this score nothing
 
 # Features each level unlocks (#123), on top of the role's own toggles. A key that isn't in
 # engine/permissions.FEATURES yet (the feature hasn't shipped) is ignored until it exists.
-LEVEL_FEATURES = {2: ("option_builder",), 4: ("leaderboard",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
+LEVEL_FEATURES = {4: ("leaderboard",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
 BETA_LEVEL = 6           # reaching this level moves a `user` to `beta`, once; never higher

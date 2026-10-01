@@ -13,7 +13,8 @@ Hard rules that no toggle overrides:
 
 A user's features (#123) = their role's toggles + what their level unlocks (config.LEVEL_FEATURES),
 then the owner's per-user overrides: a deny removes a feature, a grant adds one. Levels never unlock
-NEVER_BY_LEVEL features: real trading and admin powers are only ever given by the owner.
+NEVER_BY_LEVEL features: real trading, admin powers and Pro (the screener, #136) are only ever given
+by the owner.
 """
 
 from . import config, db
@@ -26,12 +27,16 @@ FEATURES = {
     "manage_users": "Admin page: approve, disable and reset passwords of lower-ranked accounts; activity log",
     "manage_roles": "Move lower-ranked accounts between Beta and User",
     "live_trading": "Connect a real broker and place real orders (manual confirm only)",
-    "autotrade": "Auto-trade on the virtual account",
+    "screener": "Pro: the screener and its stock analysis pages",
+    "autotrade": "Auto-trade on the virtual account (needs the screener)",
     "market_calendar": "Market Calendar page",
+    "hedges": "Buy option legs on their own in the strategy builder (Level 6 unlock); without it a buy must protect a sell",
 }
 
 
-NEVER_BY_LEVEL = frozenset({"live_trading", "manage_users", "manage_roles"})
+NEVER_BY_LEVEL = frozenset({"live_trading", "manage_users", "manage_roles", "screener"})
+# Features that mean nothing without another: auto-trade places the screen's picks.
+NEEDS = {"autotrade": "screener"}
 
 
 class Forbidden(ValueError):
@@ -58,6 +63,7 @@ def user_features(user_id: int, role: str | None) -> list[str]:
         for o in c.all("SELECT feature, mode FROM user_feature_overrides WHERE user_id=:u", u=user_id):
             if o["feature"] in FEATURES:
                 (got.add if o["mode"] == "grant" else got.discard)(o["feature"])
+    got -= {f for f, need in NEEDS.items() if need not in got}
     return [f for f in FEATURES if f in got]
 
 

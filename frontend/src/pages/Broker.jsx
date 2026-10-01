@@ -6,6 +6,7 @@ import { BROKERS } from '../brokers'
 import BrokerCard from '../components/BrokerCard'
 import { ConfirmDialog } from '../components/Modal'
 import { rupee } from '../format'
+import { useTitle } from '../brand'
 
 export default function Broker() {
   const [summary, setSummary] = useState(null)
@@ -21,7 +22,8 @@ export default function Broker() {
     }
   }, [])
 
-  useEffect(() => { document.title = 'Broker · Theta Desk'; load() }, [load])
+  useTitle('Broker')
+  useEffect(() => { load() }, [load])
 
   const connectable = summary?.connectable ?? []
 
@@ -60,7 +62,7 @@ export default function Broker() {
           <p className="lede">
             {connectable.length
               ? 'Zerodha is connectable now, real money and all — every order still needs your explicit confirmation. Other brokers are previews for now.'
-              : "Real-broker trading isn't switched on for your account yet. This is a preview of the brokers Theta Desk will support for placing real orders."}
+              : "Real-broker trading isn't switched on for your account yet. This is a preview of the brokers we plan to support for placing real orders."}
           </p>
         </div>
       </header>

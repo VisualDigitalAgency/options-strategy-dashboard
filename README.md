@@ -158,7 +158,7 @@ Users climb Level 1 (Learner) to Level 10 (Theta Master) by paper-trading with d
   | Lesson quiz passed (first time) | +10 |
 
   Legs opened and closed within 5 minutes score nothing. Delta is saved when a sell fills at once; a limit order that fills later has no saved delta and earns no delta-based XP either way.
-- **Unlocks (#123):** a user's features are their role's toggles, plus what their level unlocks (`LEVEL_FEATURES` in `engine/config.py`: option builder at 2, leaderboard at 4, saved strategies and alerts at 5, hedges at 6, each starting to work once that feature ships), then the owner's per-user overrides (Admin → Roles & features → Per-user overrides: Default / Grant / Deny). Levels never grant real trading or admin powers.
+- **Unlocks (#123):** a user's features are their role's toggles, plus what their level unlocks (`LEVEL_FEATURES` in `engine/config.py`: leaderboard at 4, saved strategies and alerts at 5, hedges (buy legs on their own in the strategy builder) at 6, each starting to work once that feature ships), then the owner's per-user overrides (Admin → Roles & features → Per-user overrides: Default / Grant / Deny). Levels never grant real trading or admin powers.
 - **Level 6 → Beta:** a *User* who reaches Level 6 becomes *Beta* automatically. This happens once and is logged. If the owner moves them back to User, that sticks. Nothing is ever promoted automatically beyond Beta.
 - **Levelling up** from level n needs all of: total XP ≥ 100 × n², the minimum days at the level, and the level's gate, measured on legs closed since reaching the level or the last reset, whichever is later. One level at a time, checked nightly and whenever the user opens their progress. Gates for Levels 6+ need data the app doesn't record yet, so they show "Not available yet".
 - **My progress page (`/progress`, #126):** level, an XP bar towards the next level, that level's checks with live values (straight from the gate, so the page always matches), days left at the level, and the XP history. A level reached since the browser last saw one puts a dot on the Progress tab and shows a one-time level-up screen.
@@ -186,7 +186,8 @@ A change applies on that person's next click; their menu updates when they reloa
 | manage users | The Admin page: approve, disable, reset passwords, activity log | Sub-admin |
 | manage roles | Moving accounts between Beta and User | Sub-admin |
 | live trading | Connecting Zerodha and placing real orders (manual confirm only) | nobody but the owner |
-| autotrade | Auto-trade on the virtual account (the scheduler skips roles without it) | everyone |
+| screener (**Pro**, #136) | The screener, stock analysis pages and Strategy lab | Sub-admin, Beta; Users via a per-user grant |
+| autotrade | Auto-trade on the virtual account (the scheduler skips roles without it). Needs *screener*, since it trades the screen's picks | everyone with the screener |
 | market calendar | The Market Calendar page | everyone |
 
 Rules no toggle can change: a manager only acts on accounts ranked below their own (a Sub-admin
@@ -194,6 +195,11 @@ never touches the Owner or another Sub-admin); only the Owner grants or removes 
 auto-trade never places real orders. Every role change and toggle is in the activity log. The
 server enforces all of it (`REQUIRES` in `server.py`, `engine/permissions.py`); the UI only hides
 what would be refused.
+
+**Pro (#136).** The screener is a paid feature. There is no billing yet: the owner turns Pro on for an
+account under Admin → Per-user overrides → *screener* → Grant (Deny or Default takes it away). Levels
+never grant Pro. Accounts without it see a Pro page in place of the screener and lose auto-trade.
+Every account that existed when Pro shipped was granted it, so nobody lost the screener that day.
 
 Upgrading from before roles: the first admin becomes the Owner and any other admins become
 Sub-admins, who lose real trading until the owner turns *live trading* on for Sub-admin.
@@ -239,6 +245,17 @@ Sub-admins, who lose real trading until the owner turns *live trading* on for Su
 | Risk : reward | Reward = premium collected. Risk = expiry loss after a 2σ move against you (a naked short has no fixed max loss) |
 | 1σ / 2σ | Expected move by expiry, spot × e^(±nσ√t) from the legs' IV; shaded on both payoff charts. Each strike shows how many σ it sits from spot |
 | Margin | Real SPAN + exposure for the chosen strikes (`calc_margin` RPC) |
+
+## Strategy builder (`/builder`)
+
+Every account can build its own strategy (#137); free accounts land here, since the screener is Pro (#136).
+
+- Pick any Nifty 50 stock and expiry; legs come from the live option chain (bid/ask and delta per strike, S to sell, B to buy) or a template: short strangle, short straddle, iron condor, bull put spread, bear call spread.
+- While you edit: payoff at expiry, credit or debit, max profit and loss (net short calls show as unlimited), breakevens, net delta and theta, and the margin the order needs (from `va_preview_order`).
+- The screening rules are **warnings only**: under 30 days to expiry, a sold strike at |delta| ≥ 0.15, results or a dividend before expiry.
+- **Bought legs.** Buying a leg on its own unlocks at Level 6 (`hedges`). Before that a buy must protect a sell in the same order or position: same type (CE/PE), further out of the money than a sold strike, and no more lots than sold on that side. The server enforces this in `va_place_order`; buying back a short is always allowed.
+- A long blocks the premium paid as margin. With no short left in its group, a long has its own stop at `LONG_SL_PCT` (50%) below what was paid, live at once, judged on the mid and sold at the bid (auto or alert, like the short stop). Hedge longs close with their group.
+- Orders go to the virtual account. Saving strategies (Level 5) comes later.
 
 ## Portfolio & virtual account
 
@@ -292,6 +309,10 @@ docker compose exec api python scripts/set_admin.py you@example.com
 ```
 
 Point the domain's DNS A record at the server first: Caddy fetches the certificate on start. To try it on a laptop, use `DOMAIN=localhost`, `HTTPS_PORT=8443`, `PUBLIC_URL=https://localhost:8443` [...]
+
+## Branding (name, logo, favicon)
+
+The app's name and logo are not in the code (issue #133). The owner sets them under **Admin → Features & settings → Branding**: the name (1–40 characters) and a logo (PNG or WebP, up to 1 MB). No other role can change them, whatever features it has. The server re-encodes every upload to PNG and makes the favicon (32 px) and home-screen icon (180 px) from it; SVG and other formats are refused. Until a logo is uploaded, the built-in dial mark and `/favicon.svg` are used. The name shows on every page and tab title, in emails, the default sender, share cards and Zerodha alert names. `APP_NAME` sets the name on a fresh install; the owner's setting overrides it. The domain stays the `PUBLIC_URL`/`DOMAIN` env vars, since a wrong value would lock everyone out. `scripts/check_brand.py` (run in CI) fails if the name is hard-coded anywhere else: read it from `engine/brand.py` or `useBrand()` in `frontend/src/brand.jsx`.
 
 ## Known limits
 

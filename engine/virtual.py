@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from . import cache, config, data_fetch, db, greeks_sr, pivots, pricing, progress, risk_rules, span, users
+from . import cache, config, data_fetch, db, greeks_sr, permissions, pivots, pricing, progress, risk_rules, span, users
 
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: Windows Python has no tz database
 SL_MODES = ("auto", "alert", "off")
@@ -170,17 +170,20 @@ def _exposure_pct(symbol: str) -> float:
 
 
 def group_margin(symbol: str, expiry: str, legs: list[dict], spot: float) -> dict:
-    """legs: [{side, strike, qty}] signed. Returns SPAN + exposure on short legs."""
+    """legs: [{side, strike, qty, price?}] signed. Returns SPAN + exposure on short legs, plus the
+    premium paid for long legs (`price`, else `avg_price`), which a buyer pays up front (#137). With
+    no short leg the premium is all a long position blocks."""
     legs = [l for l in legs if l["qty"] != 0]
-    if not legs:
-        return {"span": 0.0, "exposure": 0.0, "total": 0.0}
+    paid = round(sum(l["qty"] * float(l.get("price") or l.get("avg_price") or 0) for l in legs if l["qty"] > 0), 2)
+    if not any(l["qty"] < 0 for l in legs):
+        return {"span": 0.0, "exposure": 0.0, "premium_paid": paid, "total": paid}
     span.load(risk_rules.get_universe())
     sp = span.scan_risk_positions(symbol, pd.Timestamp(expiry).strftime("%Y%m%d"), legs)
     if sp is None:
         raise ValueError(f"{symbol} {expiry} contract not found in NSE SPAN file")
     pct = _exposure_pct(symbol)
     exposure = sum(spot * -l["qty"] * pct / 100 for l in legs if l["qty"] < 0)
-    return {"span": sp, "exposure": round(exposure, 2), "total": round(sp + exposure, 2)}
+    return {"span": sp, "exposure": round(exposure, 2), "premium_paid": paid, "total": round(sp + exposure + paid, 2)}
 
 
 # ---------- queries ----------
@@ -219,8 +222,8 @@ def _strategy_label(legs: list[dict]) -> str:
 
 
 def _sl_status(r: dict, today: pd.Timestamp) -> str:
-    if r["qty"] > 0:
-        return "n/a"
+    if r["qty"] > 0 and r["sl_price"] is None:
+        return "n/a"  # a long held before #137 has no stop of its own
     if r["sl_mode"] == "off":
         return "off"
     if r["sl_alert_at"]:
@@ -339,8 +342,11 @@ def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, l
     realized, pid = 0.0, None
     if row is None or (row["qty"] > 0) == (signed > 0):
         if row is None:
-            sl = {"mode": sl_mode if signed < 0 else "off", "price": price if signed < 0 else None,
-                  "on": str((_today() + timedelta(days=config.SL_GRACE_DAYS)).date()) if signed < 0 else None}
+            # A short's stop is its sale price from day SL_GRACE_DAYS; a long's is LONG_SL_PCT of what
+            # was paid, live at once, and only acts while the group has no short (run_checks).
+            sl = ({"mode": sl_mode, "price": price, "on": str((_today() + timedelta(days=config.SL_GRACE_DAYS)).date())}
+                  if signed < 0 else
+                  {"mode": sl_mode, "price": _long_stop(price), "on": str(_today().date())})
             pid = c.value(
                 "INSERT INTO positions (user_id, symbol, expiry, side, strike, qty, avg_price, lot_size,"
                 " sl_mode, sl_price, sl_activates_on, entry_delta) VALUES (:u,:s,:e,:sd,:k,:q,:p,:lot,:m,:sp,:on,:d)"
@@ -350,7 +356,7 @@ def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, l
             new_qty = row["qty"] + signed
             avg = (row["avg_price"] * abs(row["qty"]) + price * qty) / abs(new_qty)
             # Adding to a short raises the collected premium, so the breakeven SL moves with it.
-            sl_price = avg if new_qty < 0 else row["sl_price"]
+            sl_price = avg if new_qty < 0 else _long_stop(avg)
             c.run("UPDATE positions SET qty=:q, avg_price=:a, sl_price=:sp WHERE id=:i AND user_id=:u",
                   q=new_qty, a=avg, sp=sl_price, i=row["id"], u=user_id)
             pid = row["id"]
@@ -432,6 +438,7 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         "premium": round(premium, 2), **_margin_impact(user_id, symbol, expiry, existing, fills),
         "sl_mode_default": default_sl, "notes": sorted(notes), "market_open": market_open(),
         "waiting": waiting, "illiquid": illiquid,
+        "buy_rule": _buy_rule(user_id, existing, fills),
     }
 
 
@@ -446,18 +453,67 @@ def _waiting(c, user_id: int, symbol: str, expiry: str) -> list[dict]:
 def _margin_impact(user_id: int, symbol: str, expiry: str, existing: list[dict], fills: list[dict]) -> dict:
     """Margin the group needs after `fills`, against what the account has free right now."""
     spot = fills[0]["spot"]
-    before = [{"side": r["side"], "strike": r["strike"], "qty": r["qty"]} for r in existing]
-    after = {(b["side"], b["strike"]): b["qty"] for b in before}
-    for f in fills:
-        k = (f["side"], f["strike"])
-        after[k] = after.get(k, 0) + (f["qty"] if f["action"] == "BUY" else -f["qty"])
-    after_legs = [{"side": s, "strike": k, "qty": q} for (s, k), q in after.items()]
+    before = [{"side": r["side"], "strike": r["strike"], "qty": r["qty"], "price": r["avg_price"]} for r in existing]
+    after_legs = _after(before, fills)
     m_before = group_margin(symbol, expiry, before, spot)["total"]
     m_after = group_margin(symbol, expiry, after_legs, spot)
     change = round(m_after["total"] - m_before, 2)
     available = get_account(user_id)["available_margin"]
     return {"margin_after": m_after, "margin_change": change, "available_margin": available,
             "sufficient": change <= available}
+
+
+def _long_stop(price: float) -> float:
+    return round(price * (100 - config.LONG_SL_PCT) / 100, 2)
+
+
+def _after(before: list[dict], fills: list[dict]) -> list[dict]:
+    """The group's legs once `fills` book: signed qty per contract, and for a long its average cost."""
+    after = {(b["side"], b["strike"]): dict(b) for b in before}
+    for f in fills:
+        k = (f["side"], f["strike"])
+        signed = f["qty"] if f["action"] == "BUY" else -f["qty"]
+        a = after.setdefault(k, {"side": f["side"], "strike": f["strike"], "qty": 0, "price": 0.0})
+        new = a["qty"] + signed
+        if signed > 0 and new > 0:  # buying into a long (or flipping to one) adds cost at the fill
+            held = max(a["qty"], 0)
+            a["price"] = (a["price"] * held + f["price"] * (new - held)) / new
+        a["qty"] = new
+    return [a for a in after.values() if a["qty"] != 0]
+
+
+def _buy_rule(user_id: int, existing: list[dict], fills: list[dict]) -> str | None:
+    """Why this order's buy legs aren't allowed, or None (#137). With `hedges` (Level 6) any buy is
+    fine. Without it, a long may only protect a sell in the same group: same option type, further
+    out of the money than a short, and no more long than short on that side. An order that adds no
+    long (buying back a short) is always fine, even if it leaves a hedge on its own."""
+    before = {(r["side"], r["strike"]): r["qty"] for r in existing}
+    after = {(l["side"], l["strike"]): l["qty"] for l in _after(
+        [{"side": r["side"], "strike": r["strike"], "qty": r["qty"], "price": r["avg_price"]} for r in existing], fills)}
+    if not any(q > max(before.get(k, 0), 0) for k, q in after.items()):
+        return None
+    with db.tx() as c:
+        role = c.value("SELECT role FROM users WHERE id=:u", u=user_id)
+    if "hedges" in permissions.user_features(user_id, role):
+        return None
+    legs = _after([{"side": r["side"], "strike": r["strike"], "qty": r["qty"], "price": r["avg_price"]}
+                   for r in existing], fills)
+    for side in ("CE", "PE"):
+        longs = [l for l in legs if l["side"] == side and l["qty"] > 0]
+        shorts = [l for l in legs if l["side"] == side and l["qty"] < 0]
+        if not longs:
+            continue
+        if not shorts:
+            return (f"Buying a {side} on its own unlocks at Level 6. Until then a bought leg must protect "
+                    f"a sold {side} in the same order or position")
+        nearest = min(s["strike"] for s in shorts) if side == "CE" else max(s["strike"] for s in shorts)
+        bad = [l for l in longs if (l["strike"] <= nearest if side == "CE" else l["strike"] >= nearest)]
+        if bad:
+            return (f"The bought {bad[0]['strike']:g} {side} must be further out of the money than the sold "
+                    f"{nearest:g} {side} to protect it (any strike unlocks at Level 6)")
+        if sum(l["qty"] for l in longs) > -sum(s["qty"] for s in shorts):
+            return f"Buy no more {side} than you sell; more unlocks at Level 6"
+    return None
 
 
 def _insufficient(m: dict) -> ValueError:
@@ -472,6 +528,8 @@ def place_order(user_id: int, symbol: str, expiry: str, legs: list[dict], sl_mod
     second click never doubles the trade by accident. A leg on an illiquid strike (wide spread, thin
     OI, stale last trade) needs `confirm_illiquid`: the ticket shows why before asking."""
     p = preview_order(user_id, symbol, expiry, legs)
+    if p["buy_rule"]:
+        raise ValueError(p["buy_rule"])
     if p["illiquid"] and not confirm_illiquid:
         bad = "; ".join(f"{i['strike']:g} {i['side']}: {i['reason']}" for i in p["illiquid"])
         raise ValueError(f"Illiquid strike ({bad}). Confirm to place anyway")
@@ -855,6 +913,36 @@ def run_checks(user_id: int) -> dict:
                                                {r["id"]: buyback})
                 except Exception:
                     pass  # a leg had no quote; retry on the next pass
+            else:
+                with db.tx(user_id) as c:
+                    c.run("UPDATE positions SET sl_alert_at=now() WHERE id=:i AND user_id=:u", i=r["id"], u=user_id)
+                alerted.append(r["id"])
+            break
+
+        # Rule 4 (#137): with no short left to protect, a bought leg is a bet on its own; it closes
+        # once its value falls LONG_SL_PCT below what was paid, judged on the mid, sold at the bid.
+        if shorts:
+            continue
+        for r in legs:
+            if r["qty"] <= 0 or r["sl_price"] is None or r["sl_mode"] == "off" or r["sl_alert_at"]:
+                continue
+            try:
+                q = quote(symbol, expiry, r["side"], r["strike"])
+            except Exception:
+                continue
+            if not pricing.has_book(q["bid"], q["ask"]):
+                continue
+            fair = pricing.mid(q["bid"], q["ask"])
+            if fair > r["sl_price"]:
+                continue
+            trigger = (f"{r['strike']:g} {r['side']} mid {fair:.2f} (bid {q['bid']:.2f}), "
+                       f"stop {r['sl_price']:.2f} = {config.LONG_SL_PCT}% below the {r['avg_price']:.2f} paid")
+            if r["sl_mode"] == "auto":
+                try:
+                    exited += _exit_group_rows(user_id, symbol, expiry, "sl_auto",
+                                               f"Long stop loss: {trigger}; all legs closed", {r["id"]: q["bid"]})
+                except Exception:
+                    pass
             else:
                 with db.tx(user_id) as c:
                     c.run("UPDATE positions SET sl_alert_at=now() WHERE id=:i AND user_id=:u", i=r["id"], u=user_id)

@@ -4,7 +4,7 @@ You sell a far-away call (the top fence) and a far-away put (the bottom fence) o
 
 ::visual payoff-strangle
 
-## How Theta Desk builds it
+## How we build it
 
 - Sell a call above the price and a put below it, both with delta below 0.15.
 - You collect two fees, so the total is bigger than one leg alone.

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Bot, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -9,13 +9,15 @@ import SettingsPanel from './components/SettingsPanel'
 import ThemeToggle from './components/ThemeToggle'
 import DetailSkeleton from './components/DetailSkeleton'
 import Overview from './pages/Overview'
-import DialMark from './components/DialMark'
 import { AuthProvider, can, useAuth } from './auth'
 import { markSeen, seenLevel } from './levelSeen'
 import { ChangePassword, ForgotPassword, Login, Register, ResetPassword } from './pages/AuthPages'
 import BrokerOnboarding from './components/BrokerOnboarding'
+import { Logo, useBrand } from './brand'
 
 const StockDetail = lazy(() => import('./pages/StockDetail'))
+const ProUpsell = lazy(() => import('./pages/ProUpsell'))
+const Builder = lazy(() => import('./pages/Builder'))
 const Portfolio = lazy(() => import('./pages/Portfolio'))
 const VirtualAccount = lazy(() => import('./pages/VirtualAccount'))
 const MarketCalendar = lazy(() => import('./pages/MarketCalendar'))
@@ -29,7 +31,8 @@ const Welcome = lazy(() => import('./pages/Welcome'))
 const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
 
 const NAV = [
-  { to: '/', label: 'Screener', icon: LayoutGrid, end: true },
+  { to: '/', label: 'Screener', icon: LayoutGrid, end: true, pro: true },
+  { to: '/builder', label: 'Builder', icon: Wrench },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar' },
   { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
@@ -141,6 +144,7 @@ function TopBar() {
   const clock = useMarketClock()
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
+  const { name } = useBrand()
   // A level reached since this browser last celebrated one lights a dot on Progress (issue #126).
   const seen = seenLevel()
   if (seen === null && user?.level) markSeen(user.level)
@@ -149,20 +153,21 @@ function TopBar() {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <Link to="/" className="brand" aria-label="Theta Desk home">
-          <DialMark />
-          <span className="wordmark">Theta Desk</span>
+        <Link to="/" className="brand" aria-label={`${name} home`}>
+          <Logo />
+          <span className="wordmark">{name}</span>
         </Link>
         <nav className="main-nav" aria-label="Main">
-          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end, badge }) => (
+          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end, badge, pro }) => (
             <NavLink
               key={to}
-              to={to}
+              to={pro && !can(user, 'screener') ? '/pro' : to}
               end={end}
               className={({ isActive }) => (isActive || (to === '/' && pathname.startsWith('/stock/')) ? 'active' : '')}
             >
               <Icon size={16} aria-hidden />{' '}
               {short ? <><span className="nav-full">{label}</span><span className="nav-short" aria-hidden>{short}</span></> : label}
+              {pro && !can(user, 'screener') && <span className="pro-tag">Pro</span>}
               {badge && levelUp && <span className="nav-dot" role="status" aria-label="New level reached" />}
             </NavLink>
           ))}
@@ -201,7 +206,7 @@ const lazyPage = (Page) => (
 function Splash() {
   return (
     <div className="auth-page" aria-busy="true">
-      <DialMark />
+      <Logo />
     </div>
   )
 }
@@ -218,13 +223,16 @@ function SignedIn() {
   if (!user.nickname) return lazyPage(Welcome) // first login (#121): nickname + leaderboard choice
   return (
     <SettingsProvider>
-      <ScreenProvider>
+      <ScreenProvider enabled={can(user, 'screener')}>
         <TopBar />
         <BrokerOnboarding />
         <main className="page">
           <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/stock/:symbol" element={lazyPage(StockDetail)} />
+            {/* Free accounts land on their own strategy builder; the screener is Pro (#136, #137). */}
+            <Route path="/" element={can(user, 'screener') ? <Overview /> : <Navigate to="/builder" replace />} />
+            <Route path="/builder" element={lazyPage(Builder)} />
+            <Route path="/pro" element={lazyPage(ProUpsell)} />
+            {can(user, 'screener') && <Route path="/stock/:symbol" element={lazyPage(StockDetail)} />}
             <Route path="/portfolio" element={lazyPage(Portfolio)} />
             {can(user, 'market_calendar') && <Route path="/calendar" element={lazyPage(MarketCalendar)} />}
             <Route path="/virtual" element={lazyPage(VirtualAccount)} />
@@ -250,13 +258,14 @@ function SignedIn() {
 
 // Lessons are public, so search and shared links land on real content with a way in.
 function PublicShell({ children }) {
+  const { name } = useBrand()
   return (
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <Link to="/learn" className="brand" aria-label="Theta Desk lessons">
-            <DialMark />
-            <span className="wordmark">Theta Desk</span>
+          <Link to="/learn" className="brand" aria-label={`${name} lessons`}>
+            <Logo />
+            <span className="wordmark">{name}</span>
           </Link>
           <div className="public-bar-actions">
             <ThemeToggle />
