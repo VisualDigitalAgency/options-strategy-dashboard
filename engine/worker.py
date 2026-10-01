@@ -19,7 +19,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import autotrade, cache, config, market_calendar, users, virtual
+from . import autotrade, cache, config, market_calendar, progress, users, virtual
 from .batch import FORCE, ScreenJob
 from .brokers.poller import start_poller as start_broker_poller
 
@@ -82,6 +82,24 @@ def start_screen_refresher(job: ScreenJob) -> None:
             time.sleep(5)
 
     threading.Thread(target=loop, daemon=True, name="screen-refresher").start()
+
+
+def start_progress_evaluator() -> None:
+    """Learning-path levels (#122): every active user once a night, after the session (18:00 IST).
+    Levels also update whenever a user opens their progress, so this only catches the quiet ones."""
+    def loop():
+        done = None
+        while True:
+            now = datetime.now(virtual.IST)
+            if now.hour >= 18 and done != now.date():
+                try:
+                    log.info("progress: %s users levelled up", progress.evaluate_all())
+                except Exception:
+                    log.exception("progress evaluation failed")
+                done = now.date()
+            time.sleep(600)
+
+    threading.Thread(target=loop, daemon=True, name="progress-evaluator").start()
 
 
 def start_calendar_refresher() -> None:
@@ -150,6 +168,7 @@ def main() -> None:
     job = ScreenJob()
     start_screen_refresher(job)
     start_calendar_refresher()
+    start_progress_evaluator()
     virtual.start_monitor()
     autotrade.start_scheduler(lambda: fresh_screen(job))
     start_broker_poller()

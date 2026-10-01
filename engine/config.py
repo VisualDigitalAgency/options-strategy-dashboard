@@ -100,3 +100,17 @@ POSITIONS_REFRESH_OFF_SECONDS = 900     # every 15 min outside market hours
 
 # New virtual accounts start with this much capital (₹10,00,000); editable per user on reset.
 STARTING_CAPITAL = 1_000_000
+
+
+# ---------- learning path (#120, #122) ----------
+# Leaving level n needs: total XP >= 100 * n^2, MIN_DAYS at the level, and the level's gate (engine/progress.py).
+LEVEL_TITLES = {1: "Learner", 2: "Apprentice", 3: "Seller", 4: "Disciplined", 5: "Consistent",
+                6: "Risk manager", 7: "Strategist", 8: "Expert", 9: "Master", 10: "Theta Master"}
+LEVEL_MIN_DAYS = {1: 60, 2: 60, 3: 60, 4: 90, 5: 90, 6: 90, 7: 90, 8: 90, 9: 90}
+XP_TRADE_OK = 20         # short leg closed with its stop-loss on and sold below DELTA_MAX_ABS
+XP_NO_SL = -30           # short leg closed with the stop-loss off
+XP_HIGH_DELTA = -20      # short leg sold at |delta| >= DELTA_MAX_ABS
+XP_PROFIT_BONUS = 5      # per profitable leg, capped per calendar month
+XP_PROFIT_CAP = 100
+XP_LESSON = 10           # per lesson quiz passed (first pass only)
+QUICK_FLIP_MINUTES = 5   # legs opened and closed faster than this score nothing
