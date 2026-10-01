@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-71 methods: 10 public, 4 account, 6 market data, 36 user, 15 admin.
+72 methods: 11 public, 4 account, 6 market data, 36 user, 15 admin.
 
 ## Tiers
 
@@ -30,6 +30,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`lessons_list`](#lessons_list) | public | Every lesson in the learning path (title, level, order, summary, minutes, question count). |
 | [`lessons_get`](#lessons_get) | public | One lesson's body and quiz questions (never the answers), plus the previous and next lesson. |
 | [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used). |
+| [`leaderboard_get`](#leaderboard_get) | public | Monthly paper-trading leaderboard (no sign-in needed). |
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
 | [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
@@ -246,6 +247,17 @@ The app's name and logo version (null while the built-in mark is used). Public; 
 loads it to show the brand.
 
 No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `leaderboard_get`
+
+Monthly paper-trading leaderboard (no sign-in needed). `month` is "YYYY-MM"; omitted, it is
+the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
+
+| Param | Type | Default |
+|---|---|---|
+| `month` | `str \| None` | `null` |
 
 Set by the server, never by the client: `_ctx`.
 

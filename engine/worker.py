@@ -19,7 +19,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import autotrade, cache, config, market_calendar, progress, users, virtual
+from . import autotrade, cache, config, leaderboard, market_calendar, progress, users, virtual
 from .batch import FORCE, ScreenJob
 from .brokers.poller import start_poller as start_broker_poller
 
@@ -102,6 +102,25 @@ def start_progress_evaluator() -> None:
     threading.Thread(target=loop, daemon=True, name="progress-evaluator").start()
 
 
+def start_leaderboard_finalizer() -> None:
+    """Monthly leaderboard (#125): freezes the month just ended, from the 1st (IST) on. Checked every
+    10 minutes, so a worker that was down on the 1st catches up when it returns."""
+    def loop():
+        done = None
+        while True:
+            month = leaderboard.previous_month()
+            if done != month:
+                try:
+                    if month not in leaderboard.finalized_months():
+                        log.info("leaderboard: %s rows for %s", leaderboard.finalize(month), month)
+                    done = month
+                except Exception:
+                    log.exception("leaderboard finalize failed")
+            time.sleep(600)
+
+    threading.Thread(target=loop, daemon=True, name="leaderboard-finalizer").start()
+
+
 def start_calendar_refresher() -> None:
     """Holidays and corporate events, once a day outside the market window (a few paced NSE calls)."""
     def loop():
@@ -169,6 +188,7 @@ def main() -> None:
     start_screen_refresher(job)
     start_calendar_refresher()
     start_progress_evaluator()
+    start_leaderboard_finalizer()
     virtual.start_monitor()
     autotrade.start_scheduler(lambda: fresh_screen(job))
     start_broker_poller()

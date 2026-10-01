@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Circle, Clock, Copy, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Circle, Clock, Copy, Medal, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
@@ -46,6 +46,7 @@ export default function Progress() {
   const [share, setShare] = useState(null)
   const [invite, setInvite] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [optBusy, setOptBusy] = useState(false)
 
   useTitle('My progress')
   useEffect(() => {
@@ -143,6 +144,19 @@ export default function Progress() {
               <p className="muted small">Your share cards carry this link too.</p>
             </section>
           )}
+
+          <section className="card">
+            <div className="card-head"><h2><Medal size={16} aria-hidden /> Leaderboard</h2>
+              <Link to="/leaderboard" className="muted small">See the board</Link></div>
+            <label className="check-row">
+              <input type="checkbox" checked={!!user?.leaderboard_opt_in} disabled={optBusy} onChange={async (e) => {
+                setOptBusy(true)
+                try { await rpc('profile_set', { leaderboard_opt_in: e.target.checked }); await refresh() } catch { /* stays as it was */ }
+                setOptBusy(false)
+              }} />
+              Show me on the monthly paper-trading leaderboard (nickname only)
+            </label>
+          </section>
 
           <section className="card">
             <div className="card-head"><h2>XP history</h2></div>
