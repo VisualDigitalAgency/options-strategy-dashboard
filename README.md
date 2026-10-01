@@ -186,7 +186,8 @@ A change applies on that person's next click; their menu updates when they reloa
 | manage users | The Admin page: approve, disable, reset passwords, activity log | Sub-admin |
 | manage roles | Moving accounts between Beta and User | Sub-admin |
 | live trading | Connecting Zerodha and placing real orders (manual confirm only) | nobody but the owner |
-| autotrade | Auto-trade on the virtual account (the scheduler skips roles without it) | everyone |
+| screener (**Pro**, #136) | The screener, stock analysis pages and Strategy lab | Sub-admin, Beta; Users via a per-user grant |
+| autotrade | Auto-trade on the virtual account (the scheduler skips roles without it). Needs *screener*, since it trades the screen's picks | everyone with the screener |
 | market calendar | The Market Calendar page | everyone |
 
 Rules no toggle can change: a manager only acts on accounts ranked below their own (a Sub-admin
@@ -194,6 +195,11 @@ never touches the Owner or another Sub-admin); only the Owner grants or removes 
 auto-trade never places real orders. Every role change and toggle is in the activity log. The
 server enforces all of it (`REQUIRES` in `server.py`, `engine/permissions.py`); the UI only hides
 what would be refused.
+
+**Pro (#136).** The screener is a paid feature. There is no billing yet: the owner turns Pro on for an
+account under Admin → Per-user overrides → *screener* → Grant (Deny or Default takes it away). Levels
+never grant Pro. Accounts without it see a Pro page in place of the screener and lose auto-trade.
+Every account that existed when Pro shipped was granted it, so nobody lost the screener that day.
 
 Upgrading from before roles: the first admin becomes the Owner and any other admins become
 Sub-admins, who lose real trading until the owner turns *live trading* on for Sub-admin.

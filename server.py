@@ -561,6 +561,7 @@ REQUIRES = {
     "broker_preview_order": "live_trading", "broker_place_order": "live_trading",
     "va_set_autotrade": "autotrade", "va_autotrade_run_now": "autotrade",
     "get_market_calendar": "market_calendar",
+    "get_screened_candidates": "screener", "get_trade_detail": "screener",
 }
 assert set(ADMIN_METHODS) <= set(REQUIRES), "every admin method needs a REQUIRES entry"
 
