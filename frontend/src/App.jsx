@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Bot, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -11,6 +11,7 @@ import DetailSkeleton from './components/DetailSkeleton'
 import Overview from './pages/Overview'
 import DialMark from './components/DialMark'
 import { AuthProvider, can, useAuth } from './auth'
+import { markSeen, seenLevel } from './levelSeen'
 import { ChangePassword, ForgotPassword, Login, Register, ResetPassword } from './pages/AuthPages'
 import BrokerOnboarding from './components/BrokerOnboarding'
 
@@ -23,6 +24,7 @@ const Broker = lazy(() => import('./pages/Broker'))
 const BrokerAccount = lazy(() => import('./pages/BrokerAccount'))
 const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
 const Learn = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Learn })))
+const Progress = lazy(() => import('./pages/Progress'))
 const Welcome = lazy(() => import('./pages/Welcome'))
 const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
 
@@ -33,6 +35,7 @@ const NAV = [
   { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
   { to: '/broker', label: 'Broker', icon: Plug },
   { to: '/learn', label: 'Learn', icon: GraduationCap },
+  { to: '/progress', label: 'Progress', icon: Trophy, badge: true },
 ]
 
 
@@ -138,6 +141,10 @@ function TopBar() {
   const clock = useMarketClock()
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
+  // A level reached since this browser last celebrated one lights a dot on Progress (issue #126).
+  const seen = seenLevel()
+  if (seen === null && user?.level) markSeen(user.level)
+  const levelUp = seen !== null && user?.level > seen
 
   return (
     <header className="topbar">
@@ -147,7 +154,7 @@ function TopBar() {
           <span className="wordmark">Theta Desk</span>
         </Link>
         <nav className="main-nav" aria-label="Main">
-          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end }) => (
+          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -156,6 +163,7 @@ function TopBar() {
             >
               <Icon size={16} aria-hidden />{' '}
               {short ? <><span className="nav-full">{label}</span><span className="nav-short" aria-hidden>{short}</span></> : label}
+              {badge && levelUp && <span className="nav-dot" role="status" aria-label="New level reached" />}
             </NavLink>
           ))}
         </nav>
@@ -225,6 +233,7 @@ function SignedIn() {
             <Route path="/broker/zerodha/callback" element={lazyPage(BrokerCallback)} />
             <Route path="/learn" element={lazyPage(Learn)} />
             <Route path="/learn/:slug" element={lazyPage(Lesson)} />
+            <Route path="/progress" element={lazyPage(Progress)} />
             <Route path="/account/password" element={<ChangePassword />} />
             {can(user, 'manage_users') && <Route path="/admin" element={lazyPage(Admin)} />}
             <Route path="/login" element={<Navigate to="/" replace />} />

@@ -183,6 +183,7 @@ def _snapshot(c, user_id: int, now: datetime) -> dict:
                    "ok": days >= config.LEVEL_MIN_DAYS[level], "value": days},
                   *_gate(level, trades, c, user_id, now)]
         nxt = {"level": level + 1, "title": config.LEVEL_TITLES[level + 1], "xp_needed": xp_needed(level),
+               "xp_from": xp_needed(level - 1), "days": days, "min_days": config.LEVEL_MIN_DAYS[level],
                "checks": checks, "ready": all(ch["ok"] for ch in checks)}
     return {"level": level, "title": config.LEVEL_TITLES[level], "level_since": since, "gate_since": start,
             "xp": xp, "next": nxt, "metrics": metrics(trades)}

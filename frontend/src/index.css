@@ -1636,3 +1636,23 @@ td.out { color: var(--down-text); }
 .check-row input { width: auto; margin-top: 3px; }
 .overrides { padding: 16px; margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 .overrides h3 { margin: 0; font-size: 16px; }
+
+/* ---------- My progress (#126) ---------- */
+.progress-page { display: flex; flex-direction: column; gap: 16px; }
+.progress-page .display { display: flex; align-items: center; gap: 10px; }
+.progress-page .progress { margin: 14px 0 0; }
+.progress-page .progress-track { height: 8px; }
+.level-head { display: flex; align-items: center; gap: 12px; }
+.level-badge { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: var(--surface); font-size: 20px; font-weight: 700; flex: none; }
+.checklist, .xp-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.checklist li { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 10px; color: var(--text-muted); }
+.checklist li svg { color: var(--text-muted); }
+.checklist li.ok { color: var(--text); }
+.checklist li.ok svg { color: var(--up-text); }
+.xp-list li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.xp-list li:last-child { border-bottom: 0; }
+.nav-dot { display: inline-block; width: 7px; height: 7px; margin-left: 4px; border-radius: 50%; background: var(--primary); vertical-align: top; }
+.levelup { text-align: center; max-width: 380px; }
+.levelup svg { color: var(--primary); margin: 0 auto 8px; }
+.levelup h2 { margin-bottom: 6px; }
+.levelup .modal-actions { justify-content: center; margin-top: 16px; }
