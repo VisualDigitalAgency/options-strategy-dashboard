@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Circle, Clock, PartyPopper, Share2, Trophy } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Circle, Clock, Copy, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
@@ -43,6 +43,8 @@ export default function Progress() {
   const [party, setParty] = useState(false)
   const [courses, setCourses] = useState([])
   const [share, setShare] = useState(null)
+  const [invite, setInvite] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     document.title = 'My progress · Theta Desk'
@@ -54,6 +56,7 @@ export default function Progress() {
       if (r.level !== user?.level) refresh()
     }).catch((e) => setError(e.message))
     rpc('progress_history', { limit: 50 }).then(setHist).catch(() => {})
+    rpc('referral_get').then(setInvite).catch(() => {})
     // A course is every lesson of one level; finished ones can be shared.
     Promise.all([rpc('lessons_list'), rpc('lesson_progress')]).then(([list, done]) => {
       const passed = new Set(done.filter((d) => d.passed_at).map((d) => d.slug))
@@ -125,6 +128,20 @@ export default function Progress() {
               ))}
             </div>
           </section>
+
+          {invite && (
+            <section className="card">
+              <div className="card-head"><h2><UserPlus size={16} aria-hidden /> Invite friends</h2>
+                <span className="muted small">{invite.joined} joined through your link</span></div>
+              <div className="invite-row">
+                <input className="mono" readOnly value={invite.url} aria-label="Your invite link" onFocus={(e) => e.target.select()} />
+                <button className="btn" onClick={async () => {
+                  try { await navigator.clipboard.writeText(invite.url); setCopied(true) } catch { /* clipboard blocked */ }
+                }}><Copy size={15} aria-hidden /> {copied ? 'Copied' : 'Copy'}</button>
+              </div>
+              <p className="muted small">Your share cards carry this link too.</p>
+            </section>
+          )}
 
           <section className="card">
             <div className="card-head"><h2>XP history</h2></div>

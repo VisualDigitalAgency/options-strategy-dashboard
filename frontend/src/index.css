@@ -1662,3 +1662,5 @@ td.out { color: var(--down-text); }
 .share-opt { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .share-preview { width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); margin: 8px 0 12px; }
 .share-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.invite-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.invite-row input { flex: 1; min-width: 0; }

@@ -68,6 +68,11 @@ def get(slug: str) -> dict | None:
         return c.value("SELECT payload FROM share_cards WHERE slug=:s", s=slug)
 
 
+def owner(slug: str) -> int:
+    with db.tx() as c:
+        return c.value("SELECT user_id FROM share_cards WHERE slug=:s", s=slug)
+
+
 def headline(p: dict) -> tuple[str, str]:
     """(big line, small line) for a card, shared by the image and the page."""
     if p["kind"] == "level":

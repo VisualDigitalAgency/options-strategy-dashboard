@@ -36,6 +36,7 @@ globalThis.fetch = async (_url, opts) => {
     lessons_list: [{ slug: 'a', level: 1 }, { slug: 'b', level: 1 }, { slug: 'c', level: 2 }],
     lesson_progress: [{ slug: 'a', passed_at: 'x' }, { slug: 'b', passed_at: 'x' }, { slug: 'c', passed_at: null }],
     card_create: { slug: 'Abc123xyz' },
+    referral_get: { code: 'AbC123xy', url: 'https://t.example/register?ref=AbC123xy', joined: 2 },
   }[method]
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: result ?? null }) }
 }
@@ -73,6 +74,9 @@ check('closing records the level', !document.querySelector('.levelup') && localS
 await render()
 await settle()
 check('not shown again', !document.querySelector('.levelup'))
+
+check('invite link and joined count shown', document.querySelector('.invite-row input')?.value === 'https://t.example/register?ref=AbC123xy'
+  && document.body.textContent.includes('2 joined through your link'))
 
 // ---- sharing
 const shareBtns = [...document.querySelectorAll('.share-list button')].map((b) => b.textContent)

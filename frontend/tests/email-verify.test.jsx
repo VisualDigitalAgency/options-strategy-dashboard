@@ -39,10 +39,10 @@ let ok = true
 const check = (name, cond, got = '') => { ok &&= cond; console.log(`${cond ? 'PASS' : 'FAIL'} ${name}`, got) }
 const tick = () => act(async () => { await new Promise((r) => setTimeout(r, 10)) })
 
-async function render(page) {
+async function render(page, path = '/') {
   document.body.replaceChildren(Object.assign(document.createElement('div'), { id: 'r' }))
   const root = createRoot(document.getElementById('r'))
-  await act(async () => root.render(h(MemoryRouter, null, h(AuthProvider, null, h(page)))))
+  await act(async () => root.render(h(MemoryRouter, { initialEntries: [path] }, h(AuthProvider, null, h(page)))))
   await tick()
   return root
 }
@@ -63,6 +63,7 @@ async function submit() {
 let root = await render(Register)
 await act(async () => { type('name', 'New User'); type('email', 'new@test.example'); type('new-password', 'plenty-long-passphrase') })
 await submit()
+check('no invite code: none sent', !('ref' in calls.find((c) => c.method === 'auth_register').params))
 check('after sign-up the code form shows', !!document.getElementById('code') && text().includes('We emailed a code'), text())
 await act(async () => type('code', '000000'))
 await submit()
@@ -95,6 +96,16 @@ await act(async () => type('code', '654321'))
 await submit()
 check('auto-approved: no waiting message', !text().includes('Waiting for approval') && !text().includes('Email confirmed'), text())
 check('auto-approved: session refreshed', calls.at(-1).method === 'auth_me' && signedIn, calls.at(-1))
+root.unmount()
+
+// 4. Invite link (#126): the code from ?ref= goes with the sign-up, and survives a detour.
+sessionStorage.clear()
+root = await render(Register, '/register?ref=AbC123xy')
+root.unmount()
+root = await render(Register, '/register')
+await act(async () => { type('name', 'Friend'); type('email', 'f@test.example'); type('new-password', 'plenty-long-passphrase') })
+await submit()
+check('invite code sent with the sign-up', calls.findLast((c) => c.method === 'auth_register').params.ref === 'AbC123xy', calls.at(-1))
 root.unmount()
 
 process.exit(ok ? 0 : 1)

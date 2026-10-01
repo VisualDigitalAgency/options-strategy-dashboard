@@ -252,10 +252,11 @@ class Ctx:
         return self.user["id"] if self.user else None
 
 
-def auth_register(_ctx: Ctx, name: str, email: str, password: str):
+def auth_register(_ctx: Ctx, name: str, email: str, password: str, ref: str | None = None):
     """Requests an account and emails a 6-digit code to confirm the address; once confirmed, the
-    account waits for admin approval. At most SIGNUPS_PER_IP sign-ups per hour from one IP."""
-    return auth.register(name, email, password, ip=_ctx.ip, device=_ctx.device)
+    account waits for admin approval. At most SIGNUPS_PER_IP sign-ups per hour from one IP.
+    `ref` is an invite code from a referral link; an unknown one is ignored."""
+    return auth.register(name, email, password, ip=_ctx.ip, device=_ctx.device, ref=ref)
 
 
 def auth_login(_ctx: Ctx, email: str, password: str):
@@ -487,6 +488,7 @@ USER_METHODS = {
     "progress_get": progress.evaluate,
     "progress_history": progress.history,
     "card_create": cards.create,
+    "referral_get": auth.referral,
     # Auto-trade (virtual account only)
     "va_get_autotrade": autotrade.get_settings,
     "va_set_autotrade": autotrade.set_settings,
@@ -635,7 +637,7 @@ a.cta{{display:inline-block;margin-top:20px;padding:12px 22px;border-radius:8px;
 p{{color:#9fb0c0}}</style></head><body><main>
 <img src="/c/{slug}.png" alt="{big}. {small}." width="1200" height="630">
 <h1>{small}</h1><p>Learn to sell options on Nifty 50 stocks with a virtual account. {label}, no real money.</p>
-<a class="cta" href="{base}/register">Start paper trading free</a></main></body></html>"""
+<a class="cta" href="{base}/register?ref={ref}">Start paper trading free</a></main></body></html>"""
 
 
 def _card(slug: str) -> dict:
@@ -651,7 +653,8 @@ def card_page(slug: str):
     big, small = cards.headline(p)
     base = auth.public_url()
     html = CARD_PAGE.format(big=escape(big), small=escape(small), label=escape(cards.LABEL),
-                            url=escape(f"{base}/c/{slug}"), base=escape(base), slug=escape(slug))
+                            url=escape(f"{base}/c/{slug}"), base=escape(base), slug=escape(slug),
+                            ref=escape(auth.ref_code(cards.owner(slug))))
     resp = Response(html, mimetype="text/html")
     resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'"
     resp.headers["Cache-Control"] = "public, max-age=3600"

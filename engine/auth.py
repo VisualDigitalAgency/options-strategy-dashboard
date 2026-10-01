@@ -245,7 +245,8 @@ def see_device(user_id: int, device: str | None, ip: str | None) -> None:
                   u=user_id, d=device, ip=ip)
 
 
-def register(name: str, email: str, password: str, ip: str | None = None, device: str | None = None) -> dict:
+def register(name: str, email: str, password: str, ip: str | None = None, device: str | None = None,
+             ref: str | None = None) -> dict:
     """Creates a pending account. One account per person:
       - an email already registered is refused, including other spellings of the same
         mailbox (Gmail dots, +tags)
@@ -279,6 +280,9 @@ def register(name: str, email: str, password: str, ip: str | None = None, device
         raise AuthError(TAKEN)
     with db.tx() as c:
         c.run("UPDATE users SET password_hash=:h WHERE id=:u", h=hash_password(password), u=uid)
+        # An unknown or mistyped invite code is ignored: it must never block a sign-up.
+        if ref:
+            c.run("UPDATE users SET referred_by=(SELECT id FROM users WHERE ref_code=:r) WHERE id=:u", r=ref[:32], u=uid)
     see_device(uid, device, ip)
     audit("register", target_user_id=uid, ip=ip)
     sent = _send_code(uid, email, ip)
@@ -584,13 +588,32 @@ def set_prefs(user_id: int, theme: str | None, palette: str | None) -> dict:
 
 # ---------- admin ----------
 
+def ref_code(user_id: int) -> str:
+    """The user's invite code, made on first use (48 random bits, so codes don't collide in practice)."""
+    with db.tx() as c:
+        c.run("UPDATE users SET ref_code=:r WHERE id=:u AND ref_code IS NULL", r=secrets.token_urlsafe(6), u=user_id)
+        return c.value("SELECT ref_code FROM users WHERE id=:u", u=user_id)
+
+
+def referral(user_id: int) -> dict:
+    """The caller's invite link and how many people confirmed an account through it (#126). A
+    metric only for now: nothing is rewarded yet."""
+    code = ref_code(user_id)
+    with db.tx() as c:
+        joined = c.value("SELECT count(*) FROM users WHERE referred_by=:u AND status <> 'unverified'", u=user_id)
+    return {"code": code, "url": f"{public_url()}/register?ref={code}", "joined": joined}
+
+
 def list_users() -> list[dict]:
     """Every user, pending first. Each carries `links`: other accounts that share a browser or a
     network with it, so the admin sees a likely second account before approving it."""
     with db.tx() as c:
         rows = c.all("SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.approved_at, "
-                     "u.last_login_at, u.must_change_password, u.email_verified_at, a.name AS approved_by_name "
-                     "FROM users u LEFT JOIN users a ON a.id = u.approved_by WHERE u.status <> 'unverified' "
+                     "u.last_login_at, u.must_change_password, u.email_verified_at, a.name AS approved_by_name, "
+                     "rb.name AS referred_by_name, "
+                     "(SELECT count(*) FROM users r WHERE r.referred_by = u.id AND r.status <> 'unverified') AS referrals "
+                     "FROM users u LEFT JOIN users a ON a.id = u.approved_by LEFT JOIN users rb ON rb.id = u.referred_by "
+                     "WHERE u.status <> 'unverified' "
                      "ORDER BY CASE u.status WHEN 'pending' THEN 0 ELSE 1 END, u.created_at DESC")
         same_device = c.all("SELECT DISTINCT a.user_id AS id, b.user_id AS other FROM user_devices a "
                             "JOIN user_devices b ON a.device_hash = b.device_hash AND a.user_id <> b.user_id")
