@@ -14,7 +14,7 @@ Far out-of-the-money options are cheap because they rarely pay. A strike at delt
 
 ## When a buy makes sense
 
-- **As protection** for a sold option: it caps the loss (Level 5 lessons on hedging).
+- **As protection** for a sold option: it caps the loss (the spread lessons from Level 1).
 - **As a defined-risk view**: you expect a big move, you accept losing the whole premium if it doesn't come, and you size it small.
 - **Never** as a way to "win back" a loss quickly.
 

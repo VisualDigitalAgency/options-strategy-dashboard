@@ -1,0 +1,29 @@
+{
+  "title": "Your first trade: the credit spread",
+  "level": 1,
+  "order": 6,
+  "summary": "Sell an option with a bought one behind it: premium in, worst case fixed from day one, and margin that fits a small account.",
+  "minutes": 6,
+  "questions": [
+    {"q": "What makes a credit spread a safer first trade than a naked sold option?",
+     "options": ["It always makes money", "The bought option caps the loss", "It needs no stop-loss", "It has no expiry"],
+     "answer": 1,
+     "why": "The bought strike is a floor: the loss can't go past it."},
+    {"q": "A bull put spread is:",
+     "options": ["Sell a put, buy a put further down", "Buy a put, sell a call", "Sell a call, buy a call further up", "Sell two puts"],
+     "answer": 0,
+     "why": "The bought put below the sold one caps the loss on a fall."},
+    {"q": "Sell the 500 call at ₹6, buy the 520 call at ₹2, lot 500. What is the credit?",
+     "options": ["₹1,000", "₹2,000", "₹3,000", "₹4,000"],
+     "answer": 1,
+     "why": "(6 − 2) × 500 = ₹2,000."},
+    {"q": "Same trade: what is the worst case?",
+     "options": ["₹2,000", "₹8,000", "₹10,000", "Unlimited"],
+     "answer": 1,
+     "why": "(520 − 500) × 500 = ₹10,000, minus the ₹2,000 credit = ₹8,000."},
+    {"q": "Why does a spread usually fit a ₹2 lakh account when a naked sale may not?",
+     "options": ["Spreads are free", "Margin follows the worst case, and the spread's is capped", "The broker gives a discount", "It doesn't"],
+     "answer": 1,
+     "why": "The exchange blocks margin for the worst case; capping it shrinks the margin."}
+  ]
+}
