@@ -74,8 +74,8 @@ function ChainTable({ chain, legs, onAdd, levels }) {
     }
     return (
       <td className={`chain-act ${side.toLowerCase()}`}>
-        <button className="act sell" onClick={() => onAdd(side, r.strike, 'SELL')} aria-label={`Sell ${r.strike} ${side}`}>Sell</button>
         <button className="act buy" onClick={() => onAdd(side, r.strike, 'BUY')} aria-label={`Buy ${r.strike} ${side}`}>Buy</button>
+        <button className="act sell" onClick={() => onAdd(side, r.strike, 'SELL')} aria-label={`Sell ${r.strike} ${side}`}>Sell</button>
       </td>
     )
   }
