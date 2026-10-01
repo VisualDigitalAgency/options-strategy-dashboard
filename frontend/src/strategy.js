@@ -97,3 +97,23 @@ export function warnings(chain, legs) {
   for (const e of chain.events) out.push(`${e.type === 'results' ? 'Results' : 'Dividend'} on ${e.date}, before expiry`)
   return out
 }
+
+// One leg per strike and type (#144): signed lots are added up, so pressing S twice makes 2 lots
+// and B on a sold strike takes one off (removing the leg at 0, flipping it past 0). Order is kept.
+export function netLegs(chain, legs) {
+  const by = new Map()
+  for (const l of legs) {
+    const k = `${l.side}|${l.strike}`
+    by.set(k, (by.get(k) ?? 0) + sign(l) * l.lots)
+  }
+  return [...by].filter(([, n]) => n !== 0).map(([k, n]) => {
+    const [side, strike] = k.split('|')
+    return makeLeg(chain, side, Number(strike), n > 0 ? 'BUY' : 'SELL', Math.abs(n))
+  }).filter(Boolean)
+}
+
+// Adds one lot of `action` on a strike (the chain's S/B and the legs' +/- all come here).
+export const addLot = (chain, legs, side, strike, action) =>
+  netLegs(chain, [...legs, { side, strike, action, lots: 1 }])
+
+export const legAt = (legs, side, strike) => legs.find((l) => l.side === side && l.strike === strike)

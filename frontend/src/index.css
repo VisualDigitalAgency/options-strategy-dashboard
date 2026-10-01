@@ -25,8 +25,8 @@
   --down: #e0685e;
   --warn: #e7a24a;
   --ce: #7fa6e0;
-  --sell: #ee7449;
-  --sell-text: #ff9b78;
+  --sell: #e5534b;
+  --sell-text: #ff8f88;
   --buy: #4f95ec;
   --buy-text: #8fbcff;
   --on-tone: #0b1422;
@@ -84,8 +84,8 @@
   --down: #c2453b;
   --warn: #a8650f;
   --ce: #3f6fb8;
-  --sell: #c94a1e;
-  --sell-text: #a63c15;
+  --sell: #cc3a35;
+  --sell-text: #a82a26;
   --buy: #2463c7;
   --buy-text: #1d51a6;
   --on-tone: #ffffff;
@@ -1766,8 +1766,9 @@ img.brand-logo { object-fit: contain; }
 .leg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .builder-leg {
   --leg: var(--sell); --leg-text: var(--sell-text);
-  display: flex; flex-direction: column; gap: 12px; padding: 12px 12px 12px 16px; background: var(--surface-2);
+  display: flex; flex-direction: column; gap: 12px; padding: 12px 12px 12px 16px;
   border: 1px solid var(--border); border-left: 3px solid var(--leg); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--leg) 9%, var(--surface-2));
   transition: border-color 150ms var(--ease);
 }
 .builder-leg.is-buy { --leg: var(--buy); --leg-text: var(--buy-text); }
@@ -1902,3 +1903,13 @@ img.brand-logo { object-fit: contain; }
 @media (prefers-reduced-motion: reduce) {
   .builder-dock { animation: none; }
 }
+
+/* Active legs in the option chain (#144): light red for a sell, light blue for a buy */
+.chain-table td.leg-sell { background: color-mix(in srgb, var(--sell) 14%, transparent); }
+.chain-table td.leg-buy { background: color-mix(in srgb, var(--buy) 14%, transparent); }
+.chain-lots { display: inline-flex; align-items: center; gap: 2px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border-strong); }
+.leg-sell .chain-lots { border-color: var(--sell); color: var(--sell-text); }
+.leg-buy .chain-lots { border-color: var(--buy); color: var(--buy-text); }
+.chain-lots button { display: grid; place-items: center; width: 28px; height: 28px; color: inherit; background: transparent; border: 0; border-radius: 999px; cursor: pointer; }
+.chain-lots button:hover { background: var(--hover); }
+.chain-lots b { min-width: 30px; font-size: 12.5px; }

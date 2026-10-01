@@ -7,7 +7,7 @@ import { useBudget } from '../settings'
 import { useTitle } from '../brand'
 import { int, num, rupee, rupee2, shortDate } from '../format'
 import { GroupPayoff } from '../components/Charts'
-import { TEMPLATES, greeks, makeLeg, stats, warnings } from '../strategy'
+import { TEMPLATES, addLot, greeks, legAt, makeLeg, netLegs, stats, warnings } from '../strategy'
 
 // Strategy builder (issue #137): any Nifty 50 stock, any expiry, any mix of sold and bought legs.
 // Open to every account. The screening rules show as warnings only. Bought legs on their own unlock
@@ -40,7 +40,7 @@ function Seg({ label, value, options, onChange, tone }) {
   )
 }
 
-function ChainTable({ chain, onAdd }) {
+function ChainTable({ chain, legs, onAdd }) {
   const [view, setView] = useState('CE') // phones show one side at a time
   const atm = useMemo(() => chain.rows.find((r) => r.strike >= chain.spot)?.strike, [chain])
   const near = useMemo(() => {
@@ -48,21 +48,39 @@ function ChainTable({ chain, onAdd }) {
     const mid = i < 0 ? chain.rows.length : i
     return chain.rows.slice(Math.max(0, mid - 12), mid + 12)
   }, [chain])
-  const acts = (r, side) => (
-    <td className={`chain-act ${side.toLowerCase()}`}>
-      <button className="act sell" onClick={() => onAdd(side, r.strike, 'SELL')} aria-label={`Sell ${r.strike} ${side}`}>Sell</button>
-      <button className="act buy" onClick={() => onAdd(side, r.strike, 'BUY')} aria-label={`Buy ${r.strike} ${side}`}>Buy</button>
-    </td>
-  )
+  // A strike in the strategy shows its leg here (#144): tinted red for a sell, blue for a buy, with
+  // the lot count and -/+ in place of Sell/Buy. Minus on the last lot drops the leg.
+  const acts = (r, side, leg) => {
+    const name = `${strikeText(r.strike)} ${side}`
+    if (leg) {
+      const less = leg.action === 'SELL' ? 'BUY' : 'SELL'
+      return (
+        <td className={`chain-act ${side.toLowerCase()} ${leg.action === 'SELL' ? 'leg-sell' : 'leg-buy'}`}>
+          <span className="chain-lots" role="group" aria-label={`${leg.action === 'SELL' ? 'Sold' : 'Bought'} ${name}`}>
+            <button type="button" onClick={() => onAdd(side, r.strike, less)} aria-label={`One lot less of ${name}`}><Minus size={13} /></button>
+            <b className="num">{leg.action === 'SELL' ? 'S' : 'B'}&thinsp;{leg.lots}</b>
+            <button type="button" onClick={() => onAdd(side, r.strike, leg.action)} aria-label={`One lot more of ${name}`}><Plus size={13} /></button>
+          </span>
+        </td>
+      )
+    }
+    return (
+      <td className={`chain-act ${side.toLowerCase()}`}>
+        <button className="act sell" onClick={() => onAdd(side, r.strike, 'SELL')} aria-label={`Sell ${r.strike} ${side}`}>Sell</button>
+        <button className="act buy" onClick={() => onAdd(side, r.strike, 'BUY')} aria-label={`Buy ${r.strike} ${side}`}>Buy</button>
+      </td>
+    )
+  }
   const cells = (r, side) => {
     const q = r[side]
-    const s = side.toLowerCase()
+    const leg = legAt(legs, side, r.strike)
+    const s = `${side.toLowerCase()}${leg ? (leg.action === 'SELL' ? ' leg-sell' : ' leg-buy') : ''}`
     const itm = side === 'CE' ? r.strike < chain.spot : r.strike > chain.spot
     if (!q) return <td colSpan={3} className={`muted ${s}`}>—</td>
     const parts = [
       <td key="p" className={`num chain-px ${s}${itm ? ' itm' : ''}`}><span>{num(q.bid)}</span><small>{num(q.ask)}</small></td>,
       <td key="d" className={`num chain-d ${s}${itm ? ' itm' : ''}`}>{q.delta == null ? '—' : num(q.delta, 2)}</td>,
-      <Fragment key="a">{acts(r, side)}</Fragment>,
+      <Fragment key="a">{acts(r, side, leg)}</Fragment>,
     ]
     return side === 'CE' ? parts.reverse() : parts
   }
@@ -128,19 +146,20 @@ export default function Builder() {
   }, [symbol, expiry])
 
   const choose = (next) => setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)))
+  // One leg per strike and type: S or B again adds a lot, the opposite takes one off (#144).
   const add = (side, strike, action) => {
-    const leg = chain && makeLeg(chain, side, strike, action)
-    if (leg) { setLegs((ls) => [...ls, leg]); setDone(null) }
+    if (chain) { setLegs((ls) => addLot(chain, ls, side, strike, action)); setDone(null) }
   }
   const template = (key) => {
     const made = TEMPLATES[key].legs(chain).filter(([, k]) => k != null).map(([s, k, a]) => makeLeg(chain, s, k, a)).filter(Boolean)
-    setLegs(made); setDone(null)
+    setLegs(netLegs(chain, made)); setDone(null)
   }
-  const update = (i, patch) => setLegs((ls) => ls.map((l, j) => {
+  // Editing a leg into one that already exists merges them, so the chain and the list agree.
+  const update = (i, patch) => setLegs((ls) => netLegs(chain, ls.map((l, j) => {
     if (j !== i) return l
     const next = { ...l, ...patch }
     return makeLeg(chain, next.side, next.strike, next.action, next.lots) ?? l
-  }))
+  })))
 
   // Live preview: fills, margin, and why a buy isn't allowed yet. Debounced so editing stays smooth.
   const orderLegs = legs.map((l) => ({ side: l.side, strike: l.strike, action: l.action, lots: l.lots }))
@@ -237,7 +256,7 @@ export default function Builder() {
               {!legs.length && <p className="muted">Pick a template, or tap Sell or Buy on a strike in the chain.</p>}
               <ul className="leg-list">
                 {legs.map((l, i) => (
-                  <li key={i} className={`builder-leg ${l.action === 'BUY' ? 'is-buy' : 'is-sell'}`}>
+                  <li key={`${l.side}${l.strike}`} className={`builder-leg ${l.action === 'BUY' ? 'is-buy' : 'is-sell'}`}>
                     <div className="leg-top">
                       <span className="side-pill">{l.action === 'BUY' ? 'Buy' : 'Sell'}</span>
                       <span className="leg-name num">{strikeText(l.strike)} {l.side}</span>
@@ -309,7 +328,7 @@ export default function Builder() {
           </aside>
 
           <section className="card b-chain" aria-label="Option chain">
-            <ChainTable chain={chain} onAdd={add} />
+            <ChainTable chain={chain} legs={legs} onAdd={add} />
           </section>
         </div>
       )}
