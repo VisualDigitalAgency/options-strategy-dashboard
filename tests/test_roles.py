@@ -63,7 +63,7 @@ check("sub-admin starts without live trading",
       set(S("auth_me")["result"]["features"]) == {"manage_users", "manage_roles", "screener", "autotrade", "market_calendar"})
 check("beta has the screener", "screener" in B("auth_me")["result"]["features"])
 # Pro (#136): a plain user has no screener, so no auto-trade either (it trades the screen's picks).
-check("user starts with the calendar only", set(U("auth_me")["result"]["features"]) == {"market_calendar"})
+check("user starts with no features (calendar is the Level 3 unlock, #165)", set(U("auth_me")["result"]["features"]) == set())
 r = U("get_screened_candidates")
 check("user can't read the screen", r.get("error", {}).get("code") == server.FORBIDDEN, r)
 r = U("get_trade_detail", {"symbol": "SBIN"})
@@ -121,10 +121,12 @@ r = B("broker_connect_url")
 check("beta passes the live-trading gate now", r.get("error", {}).get("code") != server.FORBIDDEN, r)
 check("toggle audited", audits("feature_on")[-1]["detail"] == {"role": "beta", "feature": "live_trading"}, audits("feature_on"))
 
+O("admin_set_feature", {"role": "user", "feature": "market_calendar", "enabled": True})
+check("calendar on for users -> allowed", U("get_market_calendar").get("error", {}).get("code") != server.FORBIDDEN)
+check("...beta (off, below Level 3) still refused", B("get_market_calendar").get("error", {}).get("code") == server.FORBIDDEN)
 O("admin_set_feature", {"role": "user", "feature": "market_calendar", "enabled": False})
 r = U("get_market_calendar")
 check("calendar off for users -> refused", r.get("error", {}).get("code") == server.FORBIDDEN, r)
-check("...beta still has it", B("get_market_calendar").get("error", {}).get("code") != server.FORBIDDEN)
 
 O("admin_set_feature", {"role": "sub_admin", "feature": "manage_users", "enabled": False})
 r = S("admin_list_users")
