@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -36,11 +36,11 @@ const NAV = [
   { to: '/builder', label: 'Builder', icon: Wrench },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar' },
-  { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
+  { to: '/virtual', label: 'Virtual account', icon: PiggyBank },
   { to: '/broker', label: 'Broker', icon: Plug },
   { to: '/learn', label: 'Learn', icon: GraduationCap },
   { to: '/progress', label: 'Progress', icon: Trophy, badge: true },
-  { to: '/leaderboard', label: 'Leaderboard', short: 'Board', icon: Medal },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Medal },
 ]
 
 
@@ -140,40 +140,134 @@ function UserMenu() {
   )
 }
 
-function TopBar() {
-  const { account, auto } = useBudget()
-  const { user } = useAuth()
-  const clock = useMarketClock()
+// Navigation lives in a sidebar (all widths). Desktop: expanded (icon + label) or shrunk to an icon
+// rail, toggled by the menu button and remembered per browser. Below 1024px it is a drawer over the page.
+const DESKTOP = '(min-width: 1024px)'
+const SHRUNK_KEY = 'theta-sidebar-shrunk'
+
+function useDesktop() {
+  const [desktop, setDesktop] = useState(() => window.matchMedia?.(DESKTOP).matches ?? true)
+  useEffect(() => {
+    const mq = window.matchMedia?.(DESKTOP)
+    if (!mq) return undefined
+    const on = (e) => setDesktop(e.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return desktop
+}
+
+function useSidebar() {
+  const desktop = useDesktop()
+  const [shrunk, setShrunk] = useState(() => { try { return localStorage.getItem(SHRUNK_KEY) === '1' } catch { return false } })
   const [open, setOpen] = useState(false)
-  const { pathname } = useLocation()
+  const toggle = () => {
+    if (!desktop) { setOpen((o) => !o); return }
+    setShrunk((v) => {
+      try { localStorage.setItem(SHRUNK_KEY, v ? '0' : '1') } catch { /* storage blocked */ }
+      return !v
+    })
+  }
+  return { desktop, shrunk: desktop && shrunk, open: !desktop && open, toggle, close: () => setOpen(false) }
+}
+
+function Sidebar({ sb }) {
+  const { user } = useAuth()
   const { name } = useBrand()
+  const { pathname } = useLocation()
+  const ref = useRef(null)
   // A level reached since this browser last celebrated one lights a dot on Progress (issue #126).
   const seen = seenLevel()
   if (seen === null && user?.level) markSeen(user.level)
   const levelUp = seen !== null && user?.level > seen
 
+  // Drawer: Escape closes, focus moves in on open and stays inside, the page behind doesn't scroll.
+  useEffect(() => {
+    if (!sb.open) return undefined
+    const el = ref.current
+    el?.querySelector('a, button')?.focus()
+    const key = (e) => {
+      if (e.key === 'Escape') sb.close()
+      if (e.key !== 'Tab' || !el) return
+      const f = [...el.querySelectorAll('a, button')]
+      if (!f.length) return
+      if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f.at(-1).focus() }
+      else if (!e.shiftKey && document.activeElement === f.at(-1)) { e.preventDefault(); f[0].focus() }
+    }
+    document.addEventListener('keydown', key)
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', key); document.body.style.overflow = overflow }
+  }, [sb.open]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <header className="topbar">
+    <>
+      {sb.open && <div className="sidebar-scrim" onClick={sb.close} aria-hidden />}
+      <nav id="sidebar" ref={ref} className={`sidebar${sb.shrunk ? ' shrunk' : ''}${sb.open ? ' open' : ''}`} aria-label="Main"
+        inert={!sb.desktop && !sb.open}>
+        {!sb.desktop && (
+          <div className="sb-head">
+            <span className="brand"><Logo /><span className="wordmark">{name}</span></span>
+            <button className="menu-btn" onClick={sb.close} aria-label="Close menu"><X size={20} aria-hidden /></button>
+          </div>
+        )}
+        <ul>
+          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, icon: Icon, end, badge, pro }) => (
+            <li key={to}>
+              <NavLink
+                to={pro && !can(user, 'screener') ? '/pro' : to}
+                end={end}
+                title={sb.shrunk ? label : undefined}
+                onClick={sb.close}
+                className={({ isActive }) => (isActive || (to === '/' && pathname.startsWith('/stock/')) ? 'active' : '')}
+              >
+                <Icon size={18} aria-hidden />
+                <span className="sb-label">{label}</span>
+                {pro && !can(user, 'screener') && <span className="pro-tag">Pro</span>}
+                {badge && levelUp && <span className="nav-dot" role="status" aria-label="New level reached" />}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+        {sb.desktop && (
+          <button className="sb-toggle" onClick={sb.toggle} aria-label={sb.shrunk ? 'Expand menu' : 'Shrink menu'} title={sb.shrunk ? 'Expand menu' : 'Shrink menu'}>
+            {sb.shrunk ? <ChevronsRight size={18} aria-hidden /> : <ChevronsLeft size={18} aria-hidden />}
+            <span className="sb-label">Shrink menu</span>
+          </button>
+        )}
+      </nav>
+    </>
+  )
+}
+
+function TopBar({ sb }) {
+  const { account, auto } = useBudget()
+  const { user } = useAuth()
+  const clock = useMarketClock()
+  const [open, setOpen] = useState(false)
+  const { name } = useBrand()
+  const header = useRef(null)
+  // Things that stick under the bar (sidebar, table headers, the builder summary) read its height.
+  useEffect(() => {
+    const el = header.current
+    if (!el || typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-h', `${el.offsetHeight}px`))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <header className="topbar" ref={header}>
       <div className="topbar-inner">
+        <button className="menu-btn" onClick={sb.toggle} aria-controls="sidebar"
+          aria-expanded={sb.desktop ? !sb.shrunk : sb.open}
+          aria-label={sb.desktop ? (sb.shrunk ? 'Expand menu' : 'Shrink menu') : (sb.open ? 'Close menu' : 'Open menu')}>
+          {sb.open ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}
+        </button>
         <Link to="/" className="brand" aria-label={`${name} home`}>
           <Logo />
           <span className="wordmark">{name}</span>
         </Link>
-        <nav className="main-nav" aria-label="Main">
-          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end, badge, pro }) => (
-            <NavLink
-              key={to}
-              to={pro && !can(user, 'screener') ? '/pro' : to}
-              end={end}
-              className={({ isActive }) => (isActive || (to === '/' && pathname.startsWith('/stock/')) ? 'active' : '')}
-            >
-              <Icon size={16} aria-hidden />{' '}
-              {short ? <><span className="nav-full">{label}</span><span className="nav-short" aria-hidden>{short}</span></> : label}
-              {pro && !can(user, 'screener') && <span className="pro-tag">Pro</span>}
-              {badge && levelUp && <span className="nav-dot" role="status" aria-label="New level reached" />}
-            </NavLink>
-          ))}
-        </nav>
         <div className="topbar-actions">
           <span className={`status mkt-${clock.key}`} title={clock.note}>
             <span className={`mkt-dot ${clock.key}`} aria-hidden />
@@ -215,6 +309,7 @@ function Splash() {
 
 function SignedIn() {
   const { user } = useAuth()
+  const sb = useSidebar()
   if (user.must_change_password) {
     return (
       <Routes>
@@ -226,8 +321,10 @@ function SignedIn() {
   return (
     <SettingsProvider>
       <ScreenProvider enabled={can(user, 'screener')}>
-        <TopBar />
+        <TopBar sb={sb} />
         <BrokerOnboarding />
+        <div className={`app-shell${sb.shrunk ? ' shrunk' : ''}`}>
+        <Sidebar sb={sb} />
         <main className="page">
           <Routes>
             {/* Free accounts land on their own strategy builder; the screener is Pro (#136, #137). */}
@@ -254,6 +351,7 @@ function SignedIn() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        </div>
       </ScreenProvider>
     </SettingsProvider>
   )

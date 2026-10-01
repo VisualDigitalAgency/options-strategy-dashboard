@@ -237,7 +237,7 @@ code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.9em; 
 
 /* ---------- Top bar ---------- */
 .topbar { position: sticky; top: 0; z-index: 20; background: var(--topbar-bg); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
-.topbar-inner { max-width: 1440px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.topbar-inner { margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--text); white-space: nowrap; }
 .brand svg { color: var(--primary); }
 .brand-sub { color: var(--text-muted); font-weight: 400; font-size: 14px; padding-left: 10px; border-left: 1px solid var(--border); }
@@ -298,7 +298,7 @@ code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.9em; 
 
 /* ---------- Page ---------- */
 .page { max-width: 1440px; margin: 0 auto; padding: 28px 24px 64px; }
-@media (min-width: 1800px) { .page, .topbar-inner, .settings-inner { max-width: 1680px; } }
+@media (min-width: 1800px) { .page, .settings-inner { max-width: 1680px; } }
 .page-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; }
 .page-head h1 { font-size: 26px; }
 .page-head .lede { margin-top: 10px; }
@@ -367,7 +367,7 @@ code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.9em; 
 /* ---------- Table ---------- */
 .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: clip; }
 .grid-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.grid-table th { position: sticky; top: 104px; background: var(--surface-2); z-index: 1; text-align: left; font-weight: 500; color: var(--text-muted); font-size: 13px; border-bottom: 1px solid var(--border-strong); padding: 0; }
+.grid-table th { position: sticky; top: var(--topbar-h, 104px); background: var(--surface-2); z-index: 1; text-align: left; font-weight: 500; color: var(--text-muted); font-size: 13px; border-bottom: 1px solid var(--border-strong); padding: 0; }
 .grid-table th.num { text-align: right; }
 .sort { width: 100%; display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 12px; white-space: nowrap; background: none; border: 0; cursor: pointer; color: inherit; font-family: var(--cond); font-size: 13px; font-weight: 500; letter-spacing: 0.01em; justify-content: inherit; }
 th.num .sort { justify-content: flex-end; }
@@ -964,16 +964,58 @@ td.out { color: var(--down-text); }
   .ticker-right { display: none; }
 }
 
-/* ---------- Navigation ---------- */
-.main-nav { display: flex; gap: 4px; margin-right: auto; margin-left: 12px; }
-.main-nav a {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: var(--radius-sm);
-  font-size: 14px; font-weight: 500; color: var(--text-muted); white-space: nowrap; position: relative;
-  transition: color 160ms var(--ease), background 160ms var(--ease);
+/* ---------- Navigation: sidebar (all widths) ---------- */
+/* Desktop: a column beside the page, 232px expanded or a 64px icon rail when shrunk. Below 1024px it
+   is a drawer over the page. --topbar-h is measured by TopBar so it always sits right under the bar. */
+:root { --sb-w: 232px; --sb-rail: 64px; }
+.app-shell { display: grid; grid-template-columns: var(--sb-w) minmax(0, 1fr); transition: grid-template-columns 200ms var(--ease); }
+.app-shell.shrunk { grid-template-columns: var(--sb-rail) minmax(0, 1fr); }
+.app-shell > .page { width: 100%; min-width: 0; }
+.sidebar {
+  position: sticky; top: var(--topbar-h, 64px); align-self: start; height: calc(100vh - var(--topbar-h, 64px)); height: calc(100dvh - var(--topbar-h, 64px));
+  display: flex; flex-direction: column; gap: 8px; padding: 16px 12px; overflow-y: auto; overflow-x: hidden;
+  background: var(--surface); border-right: 1px solid var(--border); z-index: 15;
 }
-.main-nav a:hover { color: var(--text); background: var(--hover); }
-.main-nav a.active { color: var(--text); background: var(--surface-2); }
-.main-nav a.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: -13px; height: 2px; background: var(--primary); border-radius: 2px; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sidebar a, .sb-toggle {
+  display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 12px; border-radius: var(--radius-sm); position: relative;
+  font: 500 14px var(--font); color: var(--text-muted); white-space: nowrap; transition: color 150ms var(--ease), background 150ms var(--ease);
+}
+.sidebar a svg, .sb-toggle svg { flex: none; }
+.sidebar a:hover, .sb-toggle:hover { color: var(--text); background: var(--hover); }
+.sidebar a.active { color: var(--text); background: var(--surface-2); }
+.sidebar a.active::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 0 2px 2px 0; background: var(--primary); }
+.sidebar a.active svg { color: var(--primary-text); }
+.sidebar .pro-tag { margin-left: auto; }
+.sidebar .nav-dot { margin-left: auto; vertical-align: middle; }
+.sb-toggle { margin-top: auto; width: 100%; background: transparent; border: 0; cursor: pointer; border-top: 1px solid var(--border); border-radius: 0; padding-top: 8px; min-height: 50px; }
+.sidebar.shrunk { padding-inline: 10px; }
+.sidebar.shrunk a, .sidebar.shrunk .sb-toggle { justify-content: center; padding: 0; }
+/* Labels stay in the DOM (screen readers, tooltips via title) but take no room in the rail. */
+.sidebar.shrunk .sb-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sidebar.shrunk .pro-tag { position: absolute; top: 4px; right: 2px; margin: 0; padding: 0 4px; font-size: 9px; }
+.sidebar.shrunk .nav-dot { position: absolute; top: 8px; right: 10px; margin: 0; }
+.menu-btn {
+  display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; margin-left: -8px; border-radius: var(--radius-sm);
+  color: var(--text); background: transparent; border: 1px solid transparent; cursor: pointer; transition: background 150ms var(--ease);
+}
+.menu-btn:hover { background: var(--hover); }
+.menu-btn:focus-visible, .sidebar a:focus-visible, .sb-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.sidebar-scrim { display: none; }
+.topbar .brand { margin-right: auto; }
+.sb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 0 12px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.sb-head .menu-btn { margin: 0; }
+.sidebar .wordmark { display: inline; font-weight: 600; }
+@media (max-width: 1023px) {
+  .app-shell, .app-shell.shrunk { display: block; }
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; height: 100%; width: min(280px, 84vw); z-index: 60; padding-top: 12px;
+    transform: translateX(-100%); visibility: hidden; transition: transform 200ms var(--ease), visibility 0s linear 200ms; box-shadow: var(--shadow);
+  }
+  .sidebar.open { transform: none; visibility: visible; transition: transform 200ms var(--ease); }
+  .sidebar a { min-height: 46px; }
+  .sidebar-scrim { display: block; position: fixed; inset: 0; z-index: 55; background: var(--scrim); animation: fade 160ms var(--ease); }
+}
 
 /* ---------- Shared bits ---------- */
 .pos { color: var(--up-text); }
@@ -1187,10 +1229,6 @@ td.out { color: var(--down-text); }
   .m-card-stats b { font-size: 14px; font-weight: 600; }
 }
 @media (max-width: 1023px) {
-  .topbar-inner { flex-wrap: wrap; row-gap: 8px; }
-  .main-nav { order: 3; width: 100%; margin: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding-bottom: 4px; }
-  .main-nav::-webkit-scrollbar { display: none; }
-  .main-nav a.active::after { bottom: 0; }
   .brand { margin-right: auto; }
 }
 @media (max-width: 767px) {
@@ -1281,7 +1319,6 @@ td.out { color: var(--down-text); }
   .btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .topbar .btn { width: 44px; height: 44px; padding: 0; }
   .page-head .btn .btn-label { position: static; width: auto; height: auto; clip: auto; }
-  .main-nav a { padding: 0 10px; font-size: 13px; }
   .stats { grid-template-columns: 1fr 1fr; }
   .stat-value { font-size: 17px; }
   .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -1295,11 +1332,7 @@ td.out { color: var(--down-text); }
 }
 
 /* ---------- Responsive pass (320-1920) ---------- */
-.nav-short { display: none; }
-/* Narrow phones: nav fits without sideways scroll, top-bar actions stay on screen */
-/* Brand and actions always share row 1; the nav takes row 2. Without this the actions
-   wrapped onto their own row on some pages and clipped the refresh button on others,
-   depending on whether the page had a scrollbar. */
+/* Narrow phones: brand and actions share one row and stay on screen. */
 @media (max-width: 1023px) {
   .brand { flex: none; }
   .topbar-actions { flex: 0 1 auto; min-width: 0; flex-wrap: nowrap; justify-content: flex-end; }
@@ -1311,10 +1344,6 @@ td.out { color: var(--down-text); }
   .auto-chip-label { display: none; }
 }
 @media (max-width: 419px) {
-  .nav-full { display: none; }
-  .nav-short { display: inline; }
-  .main-nav { gap: 0; }
-  .main-nav a { padding: 0 9px; gap: 6px; }
   .wordmark { display: none; }
   .topbar-inner { column-gap: 8px; }
   .wallet-btn svg { display: none; }  /* the dial mark stays; frees room so actions keep row 1 */
@@ -1373,7 +1402,6 @@ td.out { color: var(--down-text); }
   .session dd, .ticket-sum dd, .builder-sum dd { font-size: 14px; }
   .stat-label, .ledger .stat-label, .pos-risk dt, .muted.small, .stat-sub { font-size: 12px; }
   .pos-risk dd, .sim-summary dd, .quote-chg, .trade-sentence, .sim-outcome, .confirm-body, .statement-label { font-size: 13.5px; }
-  .main-nav a { font-size: 13px; }
   .ledger > .stat { padding: 10px 12px 12px; }
 }
 @media (max-width: 479px) {
@@ -1719,7 +1747,7 @@ img.brand-logo { object-fit: contain; }
 
 .builder-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-areas: "main side" "chain side"; gap: 20px; align-items: start; }
 .b-main { grid-area: main; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.b-side { grid-area: side; position: sticky; top: 120px; display: flex; flex-direction: column; gap: 16px; }
+.b-side { grid-area: side; position: sticky; top: calc(var(--topbar-h, 104px) + 16px); display: flex; flex-direction: column; gap: 16px; }
 .b-side .card-head { margin-bottom: 0; }
 .b-chain { grid-area: chain; min-width: 0; }
 
