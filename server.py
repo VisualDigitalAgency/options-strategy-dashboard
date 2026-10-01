@@ -383,21 +383,22 @@ def admin_audit_log(_ctx: Ctx, limit: int = 100):
                      "LEFT JOIN users t ON t.id = l.target_user_id ORDER BY l.id DESC LIMIT :n", n=limit)
 
 
-# ---------- real broker (phase 1: Zerodha, admin-only soft launch) ----------
+# ---------- real broker (phase 1: Zerodha; roles with live_trading, owner-only by default) ----------
 # Only Zerodha is connectable right now, so the broker name isn't a client-supplied param yet;
 # a second broker later adds it back once there's a real choice to make.
 
 
-def broker_connect_url(_ctx: Ctx):
+def broker_connect_url(user_id: int):
     """Starts connecting the caller's Zerodha account: the Kite login URL and a one-time `state` to
-    pass back to broker_exchange_token."""
-    return broker.connect_url(_ctx.user_id)
+    pass back to broker_exchange_token. Needs the live_trading feature."""
+    return broker.connect_url(user_id)
 
 
-def broker_exchange_token(_ctx: Ctx, request_token: str, state: str):
+def broker_exchange_token(user_id: int, request_token: str, state: str):
     """Finishes connecting Zerodha: swaps Kite's one-time request_token for an access token, stored
-    encrypted. `state` must be the one broker_connect_url returned. One active connection per user."""
-    return broker.exchange_token(_ctx.user_id, request_token, state)
+    encrypted. `state` must be the one broker_connect_url returned. One active connection per user.
+    Needs the live_trading feature."""
+    return broker.exchange_token(user_id, request_token, state)
 
 
 # ---------- method tables ----------
@@ -453,8 +454,10 @@ USER_METHODS = {
     "va_set_autotrade": autotrade.set_settings,
     "va_autotrade_runs": autotrade.get_runs,
     "va_autotrade_run_now": va_autotrade_run_now,
-    # Real broker (phase 1: Zerodha). Connecting needs live_trading (ADMIN_METHODS below); once
-    # connected, these are the acting user's own methods same as the va_* ones above.
+    # Real broker (phase 1: Zerodha). Connecting, previewing and placing need live_trading
+    # (REQUIRES below); the rest act on the caller's own connection, like the va_* ones above.
+    "broker_connect_url": broker_connect_url,
+    "broker_exchange_token": broker_exchange_token,
     "broker_status": broker.status,
     "broker_disconnect": broker.disconnect,
     "broker_get_positions": broker.get_positions,
@@ -475,9 +478,6 @@ ADMIN_METHODS = {
     "admin_set_role": admin_set_role,
     "admin_get_features": admin_get_features,
     "admin_set_feature": admin_set_feature,
-    # Real-money connection, for roles with live_trading; see doc/2026-09-26-broker-integration-phase1-zerodha.md
-    "broker_connect_url": broker_connect_url,
-    "broker_exchange_token": broker_exchange_token,
 }
 
 REQUIRES = {

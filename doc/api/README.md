@@ -40,7 +40,7 @@ Signing out, changing the password, or an admin disabling the account or issuing
 |---|---|---|
 | `-32000` | 200 | A message written for the user: insufficient margin, wrong password, a stale screen. The handler raised `ValueError` or `TimeoutError`, or NSE failed ("Market data from NSE isn't available right now…"). Show `message` as is. |
 | `-32001` | 200 | Not signed in (no session, or it expired or was ended). |
-| `-32003` | 403 / 200 | Origin not allowed (403), or an admin method called by a non-admin (200). |
+| `-32003` | 403 / 200 | Origin not allowed (403), or a method whose feature (`REQUIRES`) the caller's role lacks (200). |
 | `-32004` | 200 | The account has a temporary password; set a new one first. |
 | `-32005` | 200 | The email isn't confirmed yet. The client shows the code form. |
 | `-32600` | 4xx / 200 | Not a JSON-RPC 2.0 request, not `application/json` (415), or an HTTP-level error (404, 405, 413). |
@@ -63,8 +63,9 @@ The virtual-account and broker responses below are captured from real calls agai
 
 ```json
 {"jsonrpc": "2.0", "id": 1, "result": {
-  "id": 1, "name": "Asha Trader", "email": "trader@example.com", "role": "admin", "status": "active",
+  "id": 1, "name": "Asha Trader", "email": "trader@example.com", "role": "owner", "status": "active",
   "must_change_password": false, "created_at": "2026-09-30 10:28:03",
+  "features": ["manage_users", "manage_roles", "live_trading", "autotrade", "market_calendar"],
   "prefs": {"theme": null, "palette": null}}}
 ```
 
@@ -170,7 +171,7 @@ Legs that can't fill now (market shut, or a limit away from the touch) come back
 
 `pnl` values each leg at `mark` (`mark_src` says whether that is the mid, the bid or the last trade); `pnl_exit` is what closing at the touch would realise.
 
-### Connect Zerodha (admins only, phase 1)
+### Connect Zerodha (roles with live trading, phase 1)
 
 1. `broker_connect_url` returns the Kite login URL and a one-time `state`. The frontend keeps `state` in `sessionStorage`, because Kite's redirect doesn't carry custom params.
 
