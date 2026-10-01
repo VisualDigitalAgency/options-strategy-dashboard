@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-77 methods: 11 public, 4 account, 7 market data, 39 user, 16 admin.
+81 methods: 15 public, 4 account, 7 market data, 39 user, 16 admin.
 
 ## Tiers
 
@@ -29,8 +29,12 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`auth_reset_password`](#auth_reset_password) | public | Sets a new password from the emailed reset token. |
 | [`lessons_list`](#lessons_list) | public | Every lesson in the learning path (title, level, order, summary, minutes, question count). |
 | [`lessons_get`](#lessons_get) | public | One lesson's body and quiz questions (never the answers), plus the previous and next lesson. |
-| [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used). |
+| [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used), and the pages a signed-out visitor may open (`reader_pages`). |
 | [`leaderboard_get`](#leaderboard_get) | public | Monthly paper-trading leaderboard (no sign-in needed). |
+| [`reader_universe`](#reader_universe) | public | The Nifty 50 symbols the builder offers. |
+| [`reader_chain`](#reader_chain) | public | builder_chain for signed-out visitors (same result); rate-limited per IP. |
+| [`reader_levels`](#reader_levels) | public | builder_levels for signed-out visitors (same result); rate-limited per IP. |
+| [`levels_overview`](#levels_overview) | public | The 10 levels: title, minimum days and the features each unlocks (labels). |
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
 | [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
@@ -229,7 +233,7 @@ Set by the server, never by the client: `_ctx`.
 ### `lessons_list`
 
 Every lesson in the learning path (title, level, order, summary, minutes, question count).
-Public, so lesson pages can be read and shared without an account.
+Public while the owner keeps Learn on for readers, so lesson pages can be read and shared.
 
 No params.
 
@@ -238,7 +242,7 @@ Set by the server, never by the client: `_ctx`.
 ### `lessons_get`
 
 One lesson's body and quiz questions (never the answers), plus the previous and next
-lesson. Public.
+lesson. Public while Learn is on for readers.
 
 | Param | Type | Default |
 |---|---|---|
@@ -248,8 +252,8 @@ Set by the server, never by the client: `_ctx`.
 
 ### `app_info`
 
-The app's name and logo version (null while the built-in mark is used). Public; every page
-loads it to show the brand.
+The app's name and logo version (null while the built-in mark is used), and the pages a
+signed-out visitor may open (`reader_pages`). Public; every page loads it.
 
 No params.
 
@@ -259,10 +263,49 @@ Set by the server, never by the client: `_ctx`.
 
 Monthly paper-trading leaderboard (no sign-in needed). `month` is "YYYY-MM"; omitted, it is
 the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
+Signed out, only while the owner keeps the leaderboard on for readers.
 
 | Param | Type | Default |
 |---|---|---|
 | `month` | `str \| None` | `null` |
+
+Set by the server, never by the client: `_ctx`.
+
+### `reader_universe`
+
+The Nifty 50 symbols the builder offers. Public while the builder is on for readers.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `reader_chain`
+
+builder_chain for signed-out visitors (same result); rate-limited per IP.
+
+| Param | Type | Default |
+|---|---|---|
+| `symbol` | `str` | required |
+| `expiry` | `str \| None` | `null` |
+
+Set by the server, never by the client: `_ctx`.
+
+### `reader_levels`
+
+builder_levels for signed-out visitors (same result); rate-limited per IP.
+
+| Param | Type | Default |
+|---|---|---|
+| `symbol` | `str` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `levels_overview`
+
+The 10 levels: title, minimum days and the features each unlocks (labels). Public while
+Progress is on for readers; signed-out visitors see it in place of their own progress.
+
+No params.
 
 Set by the server, never by the client: `_ctx`.
 

@@ -1,6 +1,6 @@
 import { Fragment, cloneElement, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Bookmark, CheckCircle2, Eraser, FolderOpen, Lock, Minus, Pin, PinOff, Plus, ShieldCheck, Trash2, Wrench } from 'lucide-react'
+import { AlertTriangle, Bookmark, UserPlus, CheckCircle2, Eraser, FolderOpen, Lock, Minus, Pin, PinOff, Plus, ShieldCheck, Trash2, Wrench } from 'lucide-react'
 import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
@@ -197,6 +197,26 @@ function ChainTable({ chain, legs, onAdd, levels, onExpiry }) {
 }
 
 // Shades the in-the-money side of a strike (calls below spot, puts above).
+const DRAFT_KEY = 'builder:draft'
+
+function JoinPrompt({ onClose }) {
+  return (
+    <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="join-h">
+      <div className="modal">
+        <h2 id="join-h"><UserPlus size={20} aria-hidden /> Place this trade for free</h2>
+        <p>Create a free account to place this strategy on a ₹10 lakh virtual account with live NSE prices,
+          see its margin, and track your progress through the levels. Your legs are kept: they will be
+          here when you come back signed in.</p>
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>Keep exploring</button>
+          <Link to="/login?next=%2Fbuilder" className="btn">Sign in</Link>
+          <Link to="/register" className="btn primary" autoFocus>Join free</Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const cloneWithItm = (el, itm) => (itm ? cloneElement(el, { className: `${el.props.className} itm` }) : el)
 
 export default function Builder() {
@@ -228,7 +248,15 @@ export default function Builder() {
   const [held, setHeld] = useState([])
   const [heldTick, setHeldTick] = useState(0)
 
-  useEffect(() => { rpc('get_config').then((c) => setUniverse(c.universe)).catch((e) => setError(e.message)) }, [])
+  // Readers (#163): a signed-out visitor builds with the public, per-IP-limited chain and is asked
+  // to join when they place; their legs wait in the browser and come back after sign-up.
+  const reader = user === null
+  const checking = user === undefined // auth still loading: call nothing yet
+  const [join, setJoin] = useState(false)
+  useEffect(() => {
+    if (checking) return
+    ;(reader ? rpc('reader_universe') : rpc('get_config').then((c) => c.universe)).then(setUniverse).catch((e) => setError(e.message))
+  }, [reader, checking])
 
   // Saved strategies (#150), unlocked at Level 5.
   const canSave = can(user, 'saved_strategies')
@@ -241,11 +269,21 @@ export default function Builder() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadSaved, [canSave])
   useEffect(() => {
-    if (!symbol) return
+    if (!symbol || checking) return
     setChain(null); setError(null); setLegs([]); setDone(null); setBaseline(null); setDaysAhead(0); setIvShift(0)
     // `asked` records which request a chain answers, so a saved strategy waits for the right one.
-    rpc('builder_chain', expiry ? { symbol, expiry } : { symbol }).then((c) => setChain({ ...c, asked: expiry })).catch((e) => setError(e.message))
-  }, [symbol, expiry])
+    rpc(reader ? 'reader_chain' : 'builder_chain', expiry ? { symbol, expiry } : { symbol }).then((c) => setChain({ ...c, asked: expiry })).catch((e) => setError(e.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, expiry, checking])
+
+  // A trade built before joining (#163): open it once, after sign-in.
+  useEffect(() => {
+    if (reader || checking) return
+    let draft = null
+    try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY)); localStorage.removeItem(DRAFT_KEY) } catch { /* no storage */ }
+    if (draft?.symbol && draft.legs?.length) openSaved({ name: '', expired: false, ...draft })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reader, checking])
 
   useEffect(() => {
     setHeld([])
@@ -259,8 +297,9 @@ export default function Builder() {
 
   useEffect(() => {
     setLevels(null)
-    if (symbol) rpc('builder_levels', { symbol }).then(setLevels).catch(() => {})
-  }, [symbol])
+    if (symbol && !checking) rpc(reader ? 'reader_levels' : 'builder_levels', { symbol }).then(setLevels).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, checking])
 
   const choose = (next) => setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)))
 
@@ -318,7 +357,7 @@ export default function Builder() {
   useEffect(() => {
     clearTimeout(debounce.current)
     setPreview(null); setPreviewError(null); setConfirm(false)
-    if (!chain || !legs.length) return undefined
+    if (!chain || !legs.length || reader) return undefined
     debounce.current = setTimeout(() => {
       rpc('va_preview_order', { symbol: chain.symbol, expiry: chain.expiry, legs: orderLegs })
         .then(setPreview).catch((e) => setPreviewError(e.message))
@@ -354,6 +393,11 @@ export default function Builder() {
   const needsConfirm = (preview?.illiquid?.length || preview?.waiting?.length) > 0
 
   async function place() {
+    if (reader) {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ symbol: chain.symbol, expiry: chain.expiry, legs: orderLegs })) } catch { /* no storage */ }
+      setJoin(true)
+      return
+    }
     if (needsConfirm && !confirm) { setConfirm(true); return }
     setBusy(true); setPreviewError(null)
     try {
@@ -369,15 +413,16 @@ export default function Builder() {
 
   const delta = (a, b, f) => (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b) ? '—' : `${a - b >= 0 ? '+' : '−'}${f(Math.abs(a - b))}`)
 
-  const blocked = busy || !preview || !!preview.buy_rule || !preview.sufficient
+  const blocked = reader ? !legs.length : busy || !preview || !!preview.buy_rule || !preview.sufficient
   const placeLabel = busy ? 'Placing…' : confirm ? 'Place anyway' : held.length ? 'Place adjustment on virtual account' : 'Place on virtual account'
-  const dockNote = preview?.buy_rule ? 'Buy leg not allowed yet'
+  const dockNote = reader ? 'Join free to see margin and place' : preview?.buy_rule ? 'Buy leg not allowed yet'
     : preview && !preview.sufficient ? 'Not enough free margin'
       : confirm ? 'Check the note above, then press again'
         : previewError || (preview ? `Margin ${rupee(preview.margin_change)}` : 'Checking margin…')
 
   return (
     <div className={`builder-page${legs.length ? ' has-dock' : ''}`}>
+      {join && <JoinPrompt onClose={() => setJoin(false)} />}
       <header className="builder-hero">
         <div>
           <h1 className="page-title"><Wrench size={20} aria-hidden /> Strategy builder</h1>

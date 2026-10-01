@@ -2011,3 +2011,10 @@ img.brand-logo { object-fit: contain; }
 .chain-v2 tr.atm .chain-k { background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
 .chain-v2 tr.chain-row.open .chain-k, .chain-v2 tr.chain-row:hover .chain-k { background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
 .chain-v2 .chain-actions .chain-k { background: var(--surface-2); }
+
+/* Readers (#163): the level ladder for signed-out visitors, and their menu. */
+.level-ladder { list-style: none; padding: 16px; display: grid; gap: 10px; margin: 0 0 16px; }
+.public-nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.public-nav a { padding: 6px 10px; border-radius: 8px; color: var(--text-muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+.public-nav a.active { color: var(--text); background: var(--hover); }
+@media (max-width: 640px) { .public-nav a span { display: none; } }

@@ -7,7 +7,7 @@ import DialMark from './components/DialMark'
 // null logo means the built-in dial mark and /favicon.svg.
 
 const FALLBACK = 'Theta Desk' // only until app_info answers
-let state = { name: FALLBACK, logo: null }
+let state = { name: FALLBACK, logo: null, reader: null } // reader: pages a signed-out visitor may open (#163)
 let loading = null
 const subs = new Set()
 
@@ -29,7 +29,7 @@ function applyIcons() {
 }
 
 export function setBrand(next) {
-  state = { name: next.name || FALLBACK, logo: next.logo || null }
+  state = { name: next.name || FALLBACK, logo: next.logo || null, reader: next.reader_pages ?? state.reader }
   applyIcons()
   subs.forEach((f) => f())
 }

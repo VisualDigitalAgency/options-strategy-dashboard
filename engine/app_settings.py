@@ -11,7 +11,24 @@ from . import db
 SETTINGS = {
     "auto_approve": (bool, True, "New accounts can use the app as soon as their email is confirmed. "
                                   "Off: they wait for approval on the Admin page."),
+    # Reader (#163): what a signed-out visitor may open. Off sends them to sign in instead.
+    "reader_builder": (bool, True, "Reader (signed out): the strategy builder. Placing an order asks them to join."),
+    "reader_learn": (bool, True, "Reader (signed out): lessons. Quizzes always need an account."),
+    "reader_progress": (bool, True, "Reader (signed out): the levels and what each unlocks, with a join prompt."),
+    "reader_leaderboard": (bool, True, "Reader (signed out): the monthly leaderboard."),
 }
+READER_PAGES = ("builder", "learn", "progress", "leaderboard")
+
+
+def reader_pages() -> list[str]:
+    """The pages a signed-out visitor may open right now."""
+    return [p for p in READER_PAGES if get(f"reader_{p}")]
+
+
+def require_reader(user, page: str) -> None:
+    """Signed-in users pass; a visitor needs the owner to have the page on for readers."""
+    if not user and page not in reader_pages():
+        raise ValueError("Sign in to see this")
 
 
 def get(key: str):
