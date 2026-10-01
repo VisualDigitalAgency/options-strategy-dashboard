@@ -19,7 +19,7 @@ const check = (name, cond, got = '') => { ok &&= cond; console.log(`${cond ? 'PA
 // Tests run bundled from a cache folder, so find the content from the working directory instead.
 const dir = [join(process.cwd(), 'content/lessons'), join(process.cwd(), '../content/lessons')].find(existsSync)
 const files = readdirSync(dir).filter((f) => f.endsWith('.md')).sort()
-check('eight lesson files', files.length === 8, files.length)
+check('eleven lesson files', files.length === 11, files.length)
 document.body.replaceChildren(Object.assign(document.createElement('div'), { id: 'r' }))
 const root = createRoot(document.getElementById('r'))
 const used = new Set()

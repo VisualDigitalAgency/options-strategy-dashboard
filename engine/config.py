@@ -119,4 +119,16 @@ QUICK_FLIP_MINUTES = 5   # legs opened and closed faster than this score nothing
 # Features each level unlocks (#123), on top of the role's own toggles. A key that isn't in
 # engine/permissions.FEATURES yet (the feature hasn't shipped) is ignored until it exists.
 LEVEL_FEATURES = {4: ("leaderboard",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
+# Gates for Levels 6-9 (#146). Leaving 9 also needs the owner's final-assessment sign-off.
+VOLATILE_SWING_PCT = 3.0          # L6: a month whose Nifty high-low range is at least this % of its open
+L7_PROFIT_MONTHS = (6, 8)         # L7: profitable months out of the last N complete months
+L7_MAX_DD_PCT = 10.0
+L8_RET_DD_12M = 2.0               # L8: return / drawdown over the last 12 months
+L8_TOP_PCT = 20                   # L8: in the top this % of their band...
+L8_TOP_MONTHS = 2                 # ...in at least this many finalised monthly boards
+L9_PROFIT_MONTHS = (9, 12)        # L9: profitable months out of the last 12, with 12-month drawdown...
+L9_MAX_DD_PCT = 10.0
+L9_MENTEES = 3                    # ...and this many people they invited reached MENTEE_LEVEL
+MENTEE_LEVEL = 3
+L9_TRACK_MONTHS = 18              # ...over a track record at least this long, then the owner's sign-off
 BETA_LEVEL = 6           # reaching this level moves a `user` to `beta`, once; never higher

@@ -402,7 +402,17 @@ def prefs_set(_ctx: Ctx, theme: str | None = None, palette: str | None = None):
 def admin_list_users(_ctx: Ctx):
     """Every account past email confirmation, waiting requests first. Each lists the other accounts
     that share its browser or network."""
-    return auth.list_users()
+    rows = auth.list_users()
+    # The owner's Level 10 sign-off (#146): flag who is waiting for it.
+    for r in rows:
+        r["final_ready"] = r["status"] == "active" and progress.final_ready(r["id"])
+    return rows
+
+
+def admin_approve_final(_ctx: Ctx, target_id: int):
+    """Owner only: signs off the Level 10 final assessment for a Level 9 user who has passed every
+    other check, which moves them up at once. Audited."""
+    return progress.approve_final(_ctx.user_id, target_id, ip=_ctx.ip)
 
 
 def admin_set_status(_ctx: Ctx, target_id: int, status: str):
@@ -557,6 +567,7 @@ ADMIN_METHODS = {
     "admin_set_feature": admin_set_feature,
     "admin_get_settings": admin_get_settings,
     "admin_set_brand_name": admin_set_brand_name,
+    "admin_approve_final": admin_approve_final,
     "admin_reset_logo": admin_reset_logo,
     "admin_get_overrides": admin_get_overrides,
     "admin_set_override": admin_set_override,
@@ -570,7 +581,7 @@ REQUIRES = {
     "admin_set_role": "manage_roles",
     "admin_get_features": "owner", "admin_set_feature": "owner",
     "admin_get_settings": "owner", "admin_set_setting": "owner",
-    "admin_set_brand_name": "owner", "admin_reset_logo": "owner",
+    "admin_set_brand_name": "owner", "admin_reset_logo": "owner", "admin_approve_final": "owner",
     "admin_get_overrides": "owner", "admin_set_override": "owner",
     "broker_connect_url": "live_trading", "broker_exchange_token": "live_trading",
     "broker_preview_order": "live_trading", "broker_place_order": "live_trading",

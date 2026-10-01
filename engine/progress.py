@@ -10,20 +10,22 @@ A user leaves level n for n+1 when all three hold (evaluate):
   - at least LEVEL_MIN_DAYS[n] days at level n
   - level n's gate, measured on legs closed since the later of reaching the level and the last
     virtual-account reset (so a reset restarts the gate but never takes XP away).
-Levels only go up, one step per evaluation. Gates for levels 6+ need data the app doesn't record
-yet (Nifty-wide volatility, the Adjustments course, mentoring, the final assessment), so they read
-as "not available yet" and nobody passes them until those land.
+Levels only go up, one step per evaluation. From Level 6 the gates also look at the track record
+since the last reset (months profitable, 12-month drawdown), Nifty's monthly swings (engine/nifty),
+the finished leaderboards, the people a user invited, and, to reach Level 10, the owner's sign-off
+on a final assessment (#146).
 
 A "trade" here is one closed leg: a short strangle is two.
 """
 
 from datetime import datetime, timedelta, timezone
 
-from . import config, db
+from . import config, db, nifty
 
 IST = timezone(timedelta(hours=5, minutes=30))
 MAX_LEVEL = 10
 UNAVAILABLE = "Not available yet"
+FINAL_LABEL = "Final assessment approved by the owner"
 
 
 def xp_needed(level: int) -> int:
@@ -120,16 +122,95 @@ def _profitable_streak(trades: list[dict], now: datetime) -> int:
 
 # ---------- gates ----------
 
-def _gate(level: int, trades: list[dict], c, user_id: int, now: datetime) -> list[dict]:
-    """The checks for leaving `level`, each {label, ok, value}."""
+def _lessons_check(c, user_id: int, level: int, label: str) -> dict:
+    from . import lessons
+    need = {l["slug"] for l in lessons.list_lessons() if l["level"] == level}
+    done = {r["slug"] for r in c.all("SELECT slug FROM lesson_progress WHERE user_id=:u AND passed_at IS NOT NULL",
+                                     u=user_id)}
+    return {"label": label, "ok": bool(need) and need <= done, "value": f"{len(need & done)}/{len(need)}"}
+
+
+def _last_months(now: datetime, n: int) -> list[str]:
+    """The n complete calendar months (IST) ending last month, newest first."""
+    out, d = [], now.astimezone(IST).replace(day=1) - timedelta(days=1)
+    for _ in range(n):
+        out.append(d.strftime("%Y-%m"))
+        d = d.replace(day=1) - timedelta(days=1)
+    return out
+
+
+def _profit_months(history: list[dict], now: datetime, need: int, of: int) -> dict:
+    window = set(_last_months(now, of))
+    by = _monthly([t for t in history if t["month"] in window])
+    won = sum(1 for v in by.values() if v > 0)
+    return {"label": f"{need} profitable months out of the last {of}", "ok": won >= need, "value": f"{won}/{of}"}
+
+
+def _window_dd(history: list[dict], now: datetime, months: int, limit: float) -> dict:
+    window = set(_last_months(now, months)) | {now.astimezone(IST).strftime("%Y-%m")}
+    m = metrics([t for t in history if t["month"] in window])
+    return {"label": f"Max drawdown {limit:g}% or less over {months} months", "ok": m["trades"] > 0 and m["max_dd_pct"] <= limit,
+            "value": f"{m['max_dd_pct']}%"}
+
+
+def _breached(t: dict) -> bool:
+    """A short leg broke the stop-loss discipline: closed with its stop off, or left open more than a
+    day after its stop alert fired. A stop that fired and closed the trade is discipline, not a breach."""
+    if not t["had_sl"]:
+        return True
+    return t.get("alert_days") is not None and float(t["alert_days"]) > 1
+
+
+def _volatile_month(trades: list[dict]) -> dict:
+    label = f"A volatile month (Nifty swing {config.VOLATILE_SWING_PCT:g}% or more) with no stop-loss broken"
+    ranges = nifty.monthly()
+    if not ranges:
+        return {"label": label, "ok": False, "value": "Nifty data not loaded yet"}
+    best = None
+    for month in sorted({t["month"] for t in trades}, reverse=True):
+        swing = ranges.get(month, {}).get("swing_pct", 0)
+        shorts = [t for t in trades if t["month"] == month and t["short"]]
+        if swing >= config.VOLATILE_SWING_PCT and shorts and not any(_breached(t) for t in shorts):
+            best = f"{month} (Nifty {swing:g}%)"
+            break
+    return {"label": label, "ok": best is not None, "value": best or "None yet"}
+
+
+def _top_boards(c, user_id: int) -> dict:
+    """Finished monthly boards where the user ranked in the top L8_TOP_PCT% of their band."""
+    rows = c.all("SELECT e.month, e.rank, (SELECT count(*) FROM leaderboard_entries b WHERE b.month = e.month "
+                 "AND b.band = e.band) AS size FROM leaderboard_entries e WHERE e.user_id=:u", u=user_id)
+    top = sum(1 for r in rows if r["rank"] <= max(1, -(-r["size"] * config.L8_TOP_PCT // 100)))
+    return {"label": f"Top {config.L8_TOP_PCT}% of your leaderboard band in {config.L8_TOP_MONTHS} months",
+            "ok": top >= config.L8_TOP_MONTHS, "value": top}
+
+
+def _mentees(c, user_id: int) -> dict:
+    """People this user invited (#134) who reached MENTEE_LEVEL. Each level is read in that user's own
+    transaction (user_levels is per-user under RLS)."""
+    invited = [r["id"] for r in c.all("SELECT id FROM users WHERE referred_by=:u AND status = 'active'", u=user_id)]
+    got = 0
+    for i in invited:
+        with db.tx(i) as ci:
+            got += (ci.value("SELECT level FROM user_levels WHERE user_id=:u", u=i) or 1) >= config.MENTEE_LEVEL
+    return {"label": f"{config.L9_MENTEES} people you invited reached Level {config.MENTEE_LEVEL}",
+            "ok": got >= config.L9_MENTEES, "value": got}
+
+
+def _track_record(history: list[dict]) -> dict:
+    months = int(float(history[0]["age_days"]) // 30.44) if history else 0
+    return {"label": f"A track record of {config.L9_TRACK_MONTHS} months or more", "ok": months >= config.L9_TRACK_MONTHS,
+            "value": f"{months} months"}
+
+
+def _gate(level: int, trades: list[dict], c, user_id: int, now: datetime, history: list[dict] | None = None) -> list[dict]:
+    """The checks for leaving `level`, each {label, ok, value}. `trades` are those since reaching the
+    level; `history` is everything since the last reset, for the longer windows of Levels 7+."""
+    history = trades if history is None else history
     shorts = [t for t in trades if t["short"]]
     m = metrics(trades)
     if level == 1:
-        from . import lessons
-        need = {l["slug"] for l in lessons.list_lessons() if l["level"] == 1}
-        done = {r["slug"] for r in c.all("SELECT slug FROM lesson_progress WHERE user_id=:u AND passed_at IS NOT NULL",
-                                         u=user_id)}
-        return [{"label": "Pass every Level 1 lesson quiz", "ok": need <= done, "value": f"{len(need & done)}/{len(need)}"},
+        return [_lessons_check(c, user_id, 1, "Pass every Level 1 lesson quiz"),
                 {"label": "Close 5 trades", "ok": m["trades"] >= 5, "value": m["trades"]}]
     if level == 2:
         no_sl = sum(1 for t in shorts if not t["had_sl"])
@@ -151,6 +232,22 @@ def _gate(level: int, trades: list[dict], c, user_id: int, now: datetime) -> lis
         return [{"label": "Return ÷ drawdown 1.5 or more over 3 months", "ok": r["trades"] > 0 and r["ret_dd"] >= 1.5,
                  "value": r["ret_dd"]},
                 {"label": "Close 60 trades", "ok": m["trades"] >= 60, "value": m["trades"]}]
+    if level == 6:
+        return [_volatile_month(trades), _lessons_check(c, user_id, 6, "Pass the Adjustments course (Level 6 lessons)")]
+    if level == 7:
+        need, of = config.L7_PROFIT_MONTHS
+        return [_profit_months(history, now, need, of), _window_dd(history, now, of, config.L7_MAX_DD_PCT)]
+    if level == 8:
+        year = metrics([t for t in history if float(t["age_days"]) <= 365])
+        return [{"label": f"Return ÷ drawdown {config.L8_RET_DD_12M:g} or more over 12 months",
+                 "ok": year["trades"] > 0 and year["ret_dd"] >= config.L8_RET_DD_12M, "value": year["ret_dd"]},
+                _top_boards(c, user_id)]
+    if level == 9:
+        need, of = config.L9_PROFIT_MONTHS
+        approved = c.value("SELECT final_approved_at FROM user_levels WHERE user_id=:u", u=user_id)
+        return [_profit_months(history, now, need, of), _window_dd(history, now, of, config.L9_MAX_DD_PCT),
+                _mentees(c, user_id), _track_record(history),
+                {"label": FINAL_LABEL, "ok": approved is not None, "value": "Approved" if approved else "Waiting"}]
     return [{"label": UNAVAILABLE, "ok": False, "value": None}]
 
 
@@ -172,16 +269,22 @@ def _snapshot(c, user_id: int, now: datetime) -> dict:
                "FROM user_levels l JOIN accounts a ON a.user_id = l.user_id WHERE l.user_id=:u", u=user_id, n=now)
     level, since, start, days = lv["level"], lv["level_since"], lv["gate_since"], lv["days"]
     xp = c.value("SELECT COALESCE(SUM(points), 0) FROM xp_ledger WHERE user_id=:u", u=user_id)
-    trades = c.all("SELECT *, to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') AS month, "
-                   "EXTRACT(EPOCH FROM (CAST(:n AS timestamptz) - closed_at)) / 86400 AS age_days FROM trade_results "
-                   "WHERE user_id=:u AND closed_at >= (SELECT GREATEST(l.level_since, a.created_at) FROM user_levels l "
-                   "JOIN accounts a ON a.user_id = l.user_id WHERE l.user_id=:u) ORDER BY closed_at, id", u=user_id, n=now)
+    # Everything since the last reset; the gate's own trades are the part since reaching the level.
+    # `alert_days`: how long a leg stayed open after its stop alert fired (null if it never did).
+    history = c.all("SELECT t.*, to_char(t.closed_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') AS month, "
+                    "EXTRACT(EPOCH FROM (CAST(:n AS timestamptz) - t.closed_at)) / 86400 AS age_days, "
+                    "EXTRACT(EPOCH FROM (t.closed_at - p.sl_alert_at)) / 86400 AS alert_days, "
+                    "t.closed_at >= GREATEST(l.level_since, a.created_at) AS in_gate FROM trade_results t "
+                    "JOIN accounts a ON a.user_id = t.user_id JOIN user_levels l ON l.user_id = t.user_id "
+                    "LEFT JOIN positions p ON p.id = t.position_id AND p.user_id = t.user_id "
+                    "WHERE t.user_id=:u AND t.closed_at >= a.created_at ORDER BY t.closed_at, t.id", u=user_id, n=now)
+    trades = [t for t in history if t["in_gate"]]
     nxt = None
     if level < MAX_LEVEL:
         checks = [{"label": f"{xp_needed(level):,} XP", "ok": xp >= xp_needed(level), "value": xp},
                   {"label": f"{config.LEVEL_MIN_DAYS[level]} days at this level",
                    "ok": days >= config.LEVEL_MIN_DAYS[level], "value": days},
-                  *_gate(level, trades, c, user_id, now)]
+                  *_gate(level, trades, c, user_id, now, history)]
         nxt = {"level": level + 1, "title": config.LEVEL_TITLES[level + 1], "xp_needed": xp_needed(level),
                "xp_from": xp_needed(level - 1), "days": days, "min_days": config.LEVEL_MIN_DAYS[level],
                "checks": checks, "ready": all(ch["ok"] for ch in checks)}
@@ -208,6 +311,31 @@ def evaluate(user_id: int, _now: datetime | None = None) -> dict:
         auth.audit("level_up", actor_id=None, target_user_id=user_id, level=up)
     _maybe_beta(user_id, snap["level"])
     return {**snap, "leveled_up": up}
+
+
+def final_ready(user_id: int) -> bool:
+    """At Level 9 with every check passed except the owner's final-assessment sign-off."""
+    with db.tx(user_id) as c:
+        # Cheap first: the Admin list asks this for every user, and only Level 9 can be waiting.
+        if c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) != 9:
+            return False
+        snap = _snapshot(c, user_id, datetime.now(timezone.utc))
+    if snap["level"] != 9 or not snap["next"]:
+        return False
+    return all(ch["ok"] for ch in snap["next"]["checks"] if ch["label"] != FINAL_LABEL)
+
+
+def approve_final(owner_id: int, target_id: int, ip: str | None = None) -> dict:
+    """The owner signs off the Level 10 final assessment, once everything else passes; the user then
+    moves up at once. Audited."""
+    from . import auth
+    if not final_ready(target_id):
+        raise ValueError("Only a Level 9 user who has passed every other check can be approved")
+    with db.tx(target_id) as c:
+        c.run("UPDATE user_levels SET final_approved_at=now(), final_approved_by=:o WHERE user_id=:u",
+              o=owner_id, u=target_id)
+    auth.audit("final_assessment_approved", actor_id=owner_id, target_user_id=target_id, ip=ip)
+    return evaluate(target_id)
 
 
 def _maybe_beta(user_id: int, level: int) -> None:

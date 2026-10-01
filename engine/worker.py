@@ -19,7 +19,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import autotrade, cache, config, leaderboard, market_calendar, progress, users, virtual
+from . import autotrade, cache, config, leaderboard, market_calendar, nifty, progress, users, virtual
 from .batch import FORCE, ScreenJob
 from .brokers.poller import start_poller as start_broker_poller
 
@@ -136,6 +136,20 @@ def start_calendar_refresher() -> None:
     threading.Thread(target=loop, daemon=True, name="calendar-refresher").start()
 
 
+def start_nifty_refresher() -> None:
+    """Nifty's monthly ranges for the Level 6 gate (#146): one yfinance call a day."""
+    def loop():
+        while True:
+            try:
+                if nifty.due():
+                    nifty.refresh()
+            except Exception:
+                log.exception("nifty refresh failed")
+            time.sleep(3600)
+
+    threading.Thread(target=loop, daemon=True, name="nifty-refresher").start()
+
+
 def fresh_screen(job: ScreenJob, timeout: float = 900) -> list[dict]:
     """Blocks until a complete screen no older than the refresh interval exists, then returns it."""
     job.ensure(ttl=screen_interval())
@@ -187,6 +201,7 @@ def main() -> None:
     job = ScreenJob()
     start_screen_refresher(job)
     start_calendar_refresher()
+    start_nifty_refresher()
     start_progress_evaluator()
     start_leaderboard_finalizer()
     virtual.start_monitor()

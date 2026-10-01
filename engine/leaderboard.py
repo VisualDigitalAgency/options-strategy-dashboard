@@ -72,8 +72,9 @@ def _entry(user_id: int, month: str) -> dict | None:
     return {"level": level, **score([float(r["realized_pnl"]) for r in rows], float(rows[-1]["capital"]))}
 
 
-def compute(month: str) -> dict[str, list[dict]]:
-    """Every band's ranked rows for `month`, from the trade log as it stands now."""
+def compute(month: str, with_ids: bool = False) -> dict[str, list[dict]]:
+    """Every band's ranked rows for `month`, from the trade log as it stands now: FIELDS only, plus
+    `user_id` when `with_ids` (finalize, for the Level 8 gate, #146; never for the public board)."""
     with db.tx() as c:
         people = c.all("SELECT id, nickname FROM users WHERE status = 'active' AND leaderboard_opt_in "
                        "AND nickname IS NOT NULL ORDER BY id")
@@ -85,25 +86,25 @@ def compute(month: str) -> dict[str, list[dict]]:
             log.exception("leaderboard entry failed for user %s", p["id"])
             continue
         if e:
-            entries.append({"nickname": p["nickname"], **e})
+            entries.append({"user_id": p["id"], "nickname": p["nickname"], **e})
     out = {}
     for band, lo, hi in BANDS:
         rows = sorted((e for e in entries if lo <= e["level"] <= hi),
                       key=lambda e: (-e["ratio"], -e["return_pct"], e["nickname"].lower()))
-        out[band] = [{"rank": i, **e} for i, e in enumerate(rows, 1)]
+        out[band] = [{"rank": i, **{k: v for k, v in e.items() if with_ids or k != "user_id"}} for i, e in enumerate(rows, 1)]
     return out
 
 
 def finalize(month: str) -> int:
     """Freezes `month` into leaderboard_entries, replacing any earlier copy. Returns rows written."""
-    boards = compute(month)
+    boards = compute(month, with_ids=True)
     with db.tx() as c:
         c.run("DELETE FROM leaderboard_entries WHERE month=:m", m=month)
         for band, rows in boards.items():
             for r in rows:
-                c.run("INSERT INTO leaderboard_entries (month, band, rank, nickname, level, ratio, return_pct,"
-                      " max_dd_pct, trades, win_rate) VALUES (:m, :b, :rank, :nickname, :level, :ratio,"
-                      " :return_pct, :max_dd_pct, :trades, :win_rate)", m=month, b=band, **r)
+                c.run("INSERT INTO leaderboard_entries (month, band, rank, user_id, nickname, level, ratio,"
+                      " return_pct, max_dd_pct, trades, win_rate) VALUES (:m, :b, :rank, :user_id, :nickname,"
+                      " :level, :ratio, :return_pct, :max_dd_pct, :trades, :win_rate)", m=month, b=band, **r)
     return sum(len(r) for r in boards.values())
 
 

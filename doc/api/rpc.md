@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-72 methods: 11 public, 4 account, 6 market data, 36 user, 15 admin.
+73 methods: 11 public, 4 account, 6 market data, 36 user, 16 admin.
 
 ## Tiers
 
@@ -88,6 +88,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_set_feature`](#admin_set_feature) | admin | Owner only: turns one feature on or off for a role. |
 | [`admin_get_settings`](#admin_get_settings) | admin | Owner only: the app switches (such as auto_approve) with their values and descriptions. |
 | [`admin_set_brand_name`](#admin_set_brand_name) | admin | Owner only: renames the app everywhere it is shown (pages, emails, share cards). |
+| [`admin_approve_final`](#admin_approve_final) | admin | Owner only: signs off the Level 10 final assessment for a Level 9 user who has passed every other check, which moves them up at once. |
 | [`admin_reset_logo`](#admin_reset_logo) | admin | Owner only: drops the uploaded logo and favicon and goes back to the built-in ones. |
 | [`admin_get_overrides`](#admin_get_overrides) | admin | Owner only: one account's per-user feature overrides (grant or deny). |
 | [`admin_set_override`](#admin_set_override) | admin | Owner only: grant or deny one feature for one account, or `clear` to go back to its role and level. |
@@ -875,6 +876,17 @@ Owner only: renames the app everywhere it is shown (pages, emails, share cards).
 | Param | Type | Default |
 |---|---|---|
 | `name` | `str` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_approve_final`
+
+Owner only: signs off the Level 10 final assessment for a Level 9 user who has passed every
+other check, which moves them up at once. Audited.
+
+| Param | Type | Default |
+|---|---|---|
+| `target_id` | `int` | required |
 
 Set by the server, never by the client: `_ctx`.
 

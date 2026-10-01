@@ -151,12 +151,13 @@ check("reset keeps XP", s["xp"] == xp_before, (xp_before, s["xp"]))
 check("reset keeps the trade log", len(results(uid)) == 5)
 check("reset restarts the gate's trade count", s["metrics"]["trades"] == 0, s["metrics"])
 
-# 11. Levels 6+ can't be passed until their data exists.
+# 11. Level 6's gate has real checks now (#146; the details are in test_gates.py).
 with db.tx(lv) as c:
     c.run("UPDATE user_levels SET level=6 WHERE user_id=:u", u=lv)
 s = progress.evaluate(lv, _now=datetime.now(timezone.utc) + timedelta(days=400))
-check("Level 6 gate reads 'not available yet'", s["level"] == 6 and any(ch["label"] == progress.UNAVAILABLE for ch in s["next"]["checks"])
-      and not s["next"]["ready"], s["next"]["checks"])
+labels = [ch["label"] for ch in s["next"]["checks"]]
+check("Level 6 gate: volatile month and the Adjustments course", s["level"] == 6 and not s["next"]["ready"]
+      and any("volatile month" in x for x in labels) and any("Adjustments" in x for x in labels), labels)
 
 # 12. Privacy and the RPC.
 other = new_user("other@test.example", 1_000_000)
