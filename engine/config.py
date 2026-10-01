@@ -113,6 +113,22 @@ CAPITAL_TASKS = {
     "invite_level3": (50_000, 10),   # someone you invited reached Level 3
     "share_card": (25_000, 2),       # share a level-up or course card (once per kind)
 }
+# Coins (#47): a second reward on top of the capital grants, exchanged one way into capital.
+COIN_RUPEES = 100  # 1 coin = ₹100
+# The same tasks as CAPITAL_TASKS, in coins: key -> (coins, how many times it can pay).
+COIN_TASKS = {
+    "l1_lessons": (25, 1), "first_sl_trade": (25, 1), "five_sl_trades": (50, 1), "profit_month": (50, 6),
+    "low_delta_20": (50, 1), "adjustments": (50, 1), "share_card": (25, 2),
+    "invite_trades": (25, 3), "invite_level3": (25, 3),
+}
+COIN_LEVEL = {2: 25, 3: 25, 4: 25, 5: 50, 6: 50, 7: 50, 8: 100, 9: 100, 10: 100}
+# A profitable closed short leg pays only when it was traded with discipline: stop-loss on, sold
+# below DELTA_MAX_ABS, held this long, with at least this much profit; at most this many a month.
+COIN_TRADE = 2
+COIN_TRADE_MIN_DAYS = 7
+COIN_TRADE_MIN_PNL = 500
+COIN_TRADE_PER_MONTH = 10
+COIN_XP_STEP, COIN_XP = 250, 10  # every 250 XP pays 10 coins
 # Reaching level n adds this much (#47).
 LEVEL_CAPITAL = {2: 25_000, 3: 25_000, 4: 25_000, 5: 50_000, 6: 50_000, 7: 50_000, 8: 100_000,
                  9: 100_000, 10: 100_000}

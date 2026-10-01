@@ -2049,3 +2049,9 @@ img.brand-logo { object-fit: contain; }
 .capital-tasks li.ok svg { color: var(--up); }
 .ct-reward { white-space: nowrap; }
 .capital-grants li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
+
+/* Coins (#47). */
+.coins-exchange { padding: 16px; margin-bottom: 16px; }
+.coins-exchange h2 { margin: 0 0 10px; font-size: 16px; display: inline-flex; gap: 8px; align-items: center; }
+.coins-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.coins-row input { width: 120px; }

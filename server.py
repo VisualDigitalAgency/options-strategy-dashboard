@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, config, data_fetch, db, leaderboard, lessons, market_calendar, permissions, progress, risk_rules, span, strategies, users, virtual
+from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, config, data_fetch, db, leaderboard, lessons, market_calendar, permissions, progress, risk_rules, span, strategies, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -586,6 +586,8 @@ USER_METHODS = {
     "progress_get": progress.evaluate,
     "progress_history": progress.history,
     "capital_status": capital.status,
+    "coins_status": coins.status,
+    "coins_exchange": coins.exchange,
     "card_create": cards.create,
     # Saved builder strategies (#150): need `saved_strategies` (Level 5).
     "strategy_save": strategies.save,
