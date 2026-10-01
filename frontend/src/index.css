@@ -1632,3 +1632,5 @@ td.out { color: var(--down-text); }
 .lesson-visual svg { display: block; width: 100%; max-width: 520px; height: auto; margin: 0 auto; }
 .lesson-visual figcaption { font-size: 14px; color: var(--text-muted); text-align: center; margin-top: 8px; }
 .md-tip { margin: 0 0 14px; padding: 12px 14px; border-left: 3px solid var(--primary); background: var(--surface-2); border-radius: 0 8px 8px 0; }
+.check-row { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 8px; font-weight: 400; }
+.check-row input { width: auto; margin-top: 3px; }

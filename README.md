@@ -13,7 +13,7 @@
 
 Screens every Nifty 50 stock for 30+ DTE option-selling setups and trades them on a virtual (paper) account with live NSE prices. Real broker execution (Zerodha) exists but is soft-launched to admi[...]
 
-Live: https://theta.connectbiomedical.com (sign-in required; new users confirm their email, then the admin approves them).
+Live: https://theta.connectbiomedical.com (sign-in required; new users confirm their email and can start at once, unless the owner turns automatic approval off).
 
 **Stack:** Python 3.12 / Flask JSON-RPC API, a background worker, PostgreSQL 16, Redis 7, React 19 (Vite) frontend, Caddy in front.
 
@@ -130,7 +130,7 @@ DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://lo
 | **Real account** (`/broker/account`) | Real (or, until connected, approximate virtual-derived) available margin, cash, collateral, span, exposure and open positions |
 | **Admin** (`/admin`, roles with *manage users*) | Approve, reject or disable users, issue temporary passwords, change roles, sign-in activity log with client IPs. The owner also gets **Roles & features** |
 
-Accounts: every page needs a sign-in. New users request access on `/register` and start as pending with ₹10,00,000 of virtual capital.
+Accounts: every page needs a sign-in, except the lessons at `/learn`. New users sign up on `/register` and confirm their email with a 6-digit code. With **Approve new accounts automatically** on (the default, Admin → Roles & features, owner only), that's enough: they're signed in at once with ₹10,00,000 of virtual capital, as the *User* role, and the first screen asks for a public nickname and whether to appear on the leaderboard. With it off, confirmed accounts wait as pending until approved on the Admin page. Duplicate-account flags (same browser or network) still show there either way.
 
 ## Learn (lessons and quizzes)
 

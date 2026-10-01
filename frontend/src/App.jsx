@@ -23,6 +23,7 @@ const Broker = lazy(() => import('./pages/Broker'))
 const BrokerAccount = lazy(() => import('./pages/BrokerAccount'))
 const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
 const Learn = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Learn })))
+const Welcome = lazy(() => import('./pages/Welcome'))
 const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
 
 const NAV = [
@@ -206,6 +207,7 @@ function SignedIn() {
       </Routes>
     )
   }
+  if (!user.nickname) return lazyPage(Welcome) // first login (#121): nickname + leaderboard choice
   return (
     <SettingsProvider>
       <ScreenProvider>

@@ -77,8 +77,16 @@ function VerifyEmail({ email, intro }) {
   const [done, setDone] = useState(null)
   const [note, setNote] = useState(intro)
   const [sending, setSending] = useState(false)
+  const { refresh } = useAuth()
+  const nav = useNavigate()
   const { busy, error, submit } = useSubmit(async () => {
     const r = await rpc('auth_verify_email', { email, code: code.replace(/\s/g, '') })
+    // Auto-approved (#121): already signed in, so go straight in; the welcome step follows.
+    if (r.signed_in) {
+      nav('/', { replace: true })
+      await refresh()
+      return
+    }
     setDone(r.message)
   })
   const resend = async () => {

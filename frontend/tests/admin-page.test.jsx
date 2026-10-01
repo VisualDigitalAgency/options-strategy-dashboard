@@ -31,7 +31,8 @@ const FEATURES = {
   matrix: { sub_admin: { live_trading: false, autotrade: true }, beta: { live_trading: false, autotrade: true }, user: { live_trading: false, autotrade: true } },
 }
 const calls = []
-const RESULT = { admin_get_features: FEATURES, admin_set_role: { id: 2, role: 'beta' },
+const SETTINGS = [{ key: 'auto_approve', value: true, label: 'New accounts can use the app as soon as their email is confirmed.' }]
+const RESULT = { admin_get_settings: SETTINGS, admin_set_setting: [{ ...SETTINGS[0], value: false }], admin_get_features: FEATURES, admin_set_role: { id: 2, role: 'beta' },
   admin_set_feature: { ...FEATURES, matrix: { ...FEATURES.matrix, beta: { live_trading: true, autotrade: true } } }, auth_me: ME, admin_list_users: USERS, admin_audit_log: LOG, admin_list_blocked: BLOCKED }
 globalThis.fetch = async (_url, opts) => {
   const { method, id, params } = JSON.parse(opts.body)
@@ -90,10 +91,17 @@ check('log: IP shown as sent', text.includes('110.226.112.201'))
 // Roles & features (owner only)
 await tab('Roles')
 const sw = document.querySelector('[role=switch][aria-label="live trading for Beta"]')
-check('features: a switch per role and feature', document.querySelectorAll('.feature-matrix [role=switch]').length === 6 && sw?.getAttribute('aria-checked') === 'false')
+check('features: a switch per role and feature', document.querySelectorAll('.feature-matrix [role=switch]:not([aria-label="auto approve"])').length === 6 && sw?.getAttribute('aria-checked') === 'false')
 await act(async () => sw.click())
 await settle()
 check('features: toggling saves and shows the new state', calls.some((c) => c.method === 'admin_set_feature' && c.params.role === 'beta' && c.params.enabled === true)
   && document.querySelector('[role=switch][aria-label="live trading for Beta"]').getAttribute('aria-checked') === 'true')
+
+const auto = document.querySelector('[role=switch][aria-label="auto approve"]')
+check('settings: auto-approve switch shown on', auto?.getAttribute('aria-checked') === 'true')
+await act(async () => auto.click())
+await settle()
+check('settings: switching it off saves', calls.some((c) => c.method === 'admin_set_setting' && c.params.key === 'auto_approve' && c.params.value === false)
+  && document.querySelector('[role=switch][aria-label="auto approve"]').getAttribute('aria-checked') === 'false')
 
 process.exit(ok ? 0 : 1)

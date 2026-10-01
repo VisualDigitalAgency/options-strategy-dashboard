@@ -1,6 +1,7 @@
 """Sign-up email verification (issue #45): a new account is `unverified` until its emailed code
 is entered, then `pending` for the admin. Wrong/expired codes, guess limits, resend throttle,
-same answers for unknown emails, and mail failures recorded for the admin."""
+same answers for unknown emails, and mail failures recorded for the admin. Runs with the owner's
+auto_approve switch off (manual approval); test_signup_auto.py covers it on (#121)."""
 import sys
 import threading
 
@@ -25,6 +26,8 @@ def fake_send(to, subject, text):
 
 
 mail.send = fake_send
+with db.tx() as c:  # manual approval mode, as before #121
+    c.run("UPDATE app_settings SET value='false' WHERE key='auto_approve'")
 _ip = iter(f"10.1.0.{i}" for i in range(1, 250))
 
 
