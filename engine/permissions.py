@@ -30,6 +30,7 @@ FEATURES = {
     "screener": "Pro: the screener and its stock analysis pages",
     "autotrade": "Auto-trade on the virtual account (needs the screener)",
     "market_calendar": "Market Calendar page",
+    "hedges": "Buy option legs on their own in the strategy builder (Level 6 unlock); without it a buy must protect a sell",
 }
 
 

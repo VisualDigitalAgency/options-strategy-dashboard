@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, brand, autotrade, broker, cache, cards, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
+from engine import app_settings, auth, autotrade, brand, broker, builder, cache, cards, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -139,6 +139,13 @@ def get_trade_detail(symbol: str, expiry: str | None = None):
     span.load(universe())
     row = risk_rules.pick_cycle(risk_rules.safe_evaluate_cycles(symbol), expiry)
     return _with_events(dict(row), events, today) if row else row
+
+
+def builder_chain(symbol: str, expiry: str | None = None):
+    """Strategy builder (#137): one stock's option chain for `expiry` (YYYY-MM-DD; default the
+    first at least 30 days out) with deltas, lot size, the open expiries, results/dividend dates
+    before expiry and the rules the page warns about. Shares the 60 s quote cache with orders."""
+    return builder.chain(symbol, expiry)
 
 
 def get_market_calendar():
@@ -484,6 +491,7 @@ METHODS = {
     "get_config": get_config,
     "get_market_calendar": get_market_calendar,
     "calc_margin": calc_margin,
+    "builder_chain": builder_chain,
 }
 
 USER_METHODS = {

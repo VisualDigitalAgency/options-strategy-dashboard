@@ -1678,3 +1678,27 @@ img.brand-logo { object-fit: contain; }
 .pro-upsell { max-width: 640px; margin: 24px auto; }
 .pro-upsell h1 { display: flex; align-items: center; gap: 8px; font-size: 22px; }
 .pro-upsell ul { padding-left: 20px; line-height: 1.7; }
+
+/* Strategy builder (issue #137) */
+.builder-page { display: flex; flex-direction: column; gap: 16px; }
+.builder-page h2 { margin: 0 0 10px; font-size: 16px; }
+.builder-pick { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.builder-pick select { height: 44px; min-width: 180px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.builder-facts { margin: 0 0 10px; color: var(--text-muted); }
+.builder-templates { display: flex; flex-wrap: wrap; gap: 8px; }
+.builder-leg { display: grid; grid-template-columns: 80px 100px 64px 64px 1fr auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.builder-leg select, .builder-leg input { height: 36px; padding: 0 6px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.builder-warnings { list-style: none; margin: 0; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+.builder-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 20px; margin: 0 0 12px; }
+.builder-stats dt { font-size: 13px; color: var(--text-muted); }
+.builder-stats dd { margin: 0; font-weight: 600; }
+.builder-place { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.chain-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.chain-table th, .chain-table td { padding: 4px 6px; text-align: center; border-bottom: 1px solid var(--border); }
+.chain-table tr.atm th { color: var(--primary); }
+.chain-act { white-space: nowrap; }
+.btn.tiny { min-height: 28px; padding: 0 8px; font-size: 12px; }
+@media (max-width: 640px) {
+  .builder-leg { grid-template-columns: 1fr 1fr 1fr; }
+  .builder-pick select { min-width: 0; width: 100%; }
+}
