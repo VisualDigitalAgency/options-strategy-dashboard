@@ -5,12 +5,12 @@ import { useTitle } from '../brand'
 
 // Coin store (#175), phase 1: the page only. Payments aren't wired yet, so Buy is disabled; coins
 // will be credited by the server from a verified payment, never from this page. Prices are
-// placeholders until pricing is decided (#49).
+// set by the owner (1 Oct): ₹49 → ₹1 lakh, ₹99 → ₹2.5 lakh, ₹199 → ₹7.5 lakh of virtual capital.
 const COIN_RUPEES = 100 // virtual capital per coin (config.COIN_RUPEES)
 export const PACKS = [
-  { id: 'starter', coins: 50, price: 49 },
-  { id: 'trader', coins: 120, price: 99, tag: 'Popular' },
-  { id: 'pro', coins: 300, price: 199, tag: 'Best value' },
+  { id: 'starter', coins: 1000, price: 49 },
+  { id: 'trader', coins: 2500, price: 99, tag: 'Popular' },
+  { id: 'pro', coins: 7500, price: 199, tag: 'Best value' },
 ]
 
 export default function CoinStore() {
