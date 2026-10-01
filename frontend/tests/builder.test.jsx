@@ -10,7 +10,7 @@ const { createRoot } = await import('react-dom/client')
 const { MemoryRouter, Route, Routes } = await import('react-router-dom')
 const { AuthProvider } = await import('../src/auth.jsx')
 const { default: Builder } = await import('../src/pages/Builder.jsx')
-const { addLot, netLegs, stats, TEMPLATES } = await import('../src/strategy.js')
+const { addLot, curve, netLegs, pnlOn, probProfit, safeStrike, scorecard, stats, TEMPLATES, zoneAt } = await import('../src/strategy.js')
 const { act, createElement: h } = React
 
 let ok = true
@@ -49,6 +49,7 @@ globalThis.fetch = async (_url, opts) => {
     app_info: { name: 'X', logo: null },
     get_config: { universe: ['RELIANCE', 'SBIN'] },
     builder_chain: chain,
+    builder_levels: { symbol: 'SBIN', pivots: { P: 1000, R1: 1080, S1: 920 }, zones: [{ level: 1110, type: 'resistance', touches: 3 }], zone_width_pct: 1.5 },
     va_preview_order: { fills: [], margin_change: 12345, available_margin: 1e6, sufficient: true, notes: [], illiquid: [], waiting: [],
       buy_rule: buys.length && !sells.length ? 'Buying a CE on its own unlocks at Level 6.' : null },
     va_place_order: { filled: [1, 2, 3, 4], open: [] },
@@ -72,6 +73,17 @@ check('warnings: DTE and results, never blocking', text().includes('20 days to e
   && !btn('Place on virtual account').disabled)
 check('margin from the preview', text().includes('12,345'))
 check('payoff chart drawn', !!document.querySelector('.chart'))
+check('levels fetched for the stock', calls.some((c) => c.method === 'builder_levels' && c.params.symbol === 'SBIN'))
+check('chain shows IV and OI columns', [...document.querySelectorAll('.chain-cols th')].filter((t) => /^(IV|OI)$/.test(t.textContent)).length === 4)
+check('analysis: probability of profit, return on margin, vega, 1σ move', ['Probability of profit', 'Return on margin', 'Vega / IV pt', '1σ move by expiry'].every((t) => text().includes(t)))
+check('rule check lists rows and a count to review', !!document.querySelector('.builder-score') && /\d+ to review/.test(text()))
+check('rule check: a sold strike in the S/R zone is flagged', text().includes('resistance zone at 1110'))
+const slider = document.querySelector('input[aria-label="Days from today"]')
+await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(slider, '10'); slider.dispatchEvent(new Event('input', { bubbles: true })) })
+check('date slider moves the T+N curve label', text().includes('In 10 days'), slider.value)
+await act(async () => btn('Pin to compare an adjustment').click())
+check('pinning shows the comparison', text().includes('Against the pinned version'))
+await act(async () => btn('Unpin').click())
 check('sell legs orange-red, buy legs blue (classes)', document.querySelectorAll('.builder-leg.is-sell').length === 2
   && document.querySelectorAll('.builder-leg.is-buy').length === 2)
 check('mobile dock shows the net and a Place button', !!document.querySelector('.builder-dock .btn.primary')
@@ -96,7 +108,24 @@ await settle(500)
 check('naked buy: server reason shown', text().includes('unlocks at Level 6') && btn('Place on virtual account').disabled)
 check('bottom bar says it is a virtual order', [...document.querySelectorAll('.builder-dock button')].some((b) => b.textContent === 'Place virtual order'))
 
-// 3. Active legs in the chain (#144).
+// 3. Analysis maths.
+const strangle = [{ ...L('CE', 1100, 'SELL', 5), iv: 20 }, { ...L('PE', 900, 'SELL', 5), iv: 20 }]
+const pop = probProfit(strangle, chain)
+check('PoP: wide short strangle mostly wins', pop > 0.9 && pop < 1, pop)
+const lcPop = probProfit([{ ...L('CE', 1100, 'BUY', 5), iv: 20 }], chain)
+check('PoP: far OTM long call mostly loses', lcPop > 0 && lcPop < 0.1, lcPop)
+check('T+0 P&L at spot is about zero (calibrated to the premium)', Math.abs(pnlOn(strangle, 1000, 20, 100, 1000, 20)) < 1)
+const pts = curve(strangle, chain, { daysAhead: 10, baseline: strangle })
+check('curve: expiry, day-N and baseline series', pts.length === 161 && pts.every((p) => Number.isFinite(p.now) && p.base === p.pnl))
+const lv = { zones: [{ level: 1200, type: 'resistance', touches: 2 }], zone_width_pct: 1.5 }
+check('zoneAt within the zone width', zoneAt(lv, 1190)?.level === 1200 && !zoneAt(lv, 1150))
+check('safe strike: lowest delta under the limit, most premium', safeStrike(chain, 'CE', null).strike === 1200 && safeStrike(chain, 'PE', null).strike === 800)
+check('safe strike skips an S/R zone', safeStrike(chain, 'CE', lv).strike === null)
+const sc = scorecard({ ...chain, dte: 40, events: [] }, [{ ...L('CE', 1200, 'SELL', 5), delta: 0.1 }], lv)
+check('scorecard: zone flagged, delta passes', sc.find((r) => r.label.endsWith('support/resistance'))?.ok === false
+  && sc.find((r) => r.label.endsWith('delta'))?.ok === true, sc)
+
+// 4. Active legs in the chain (#144).
 let ls = addLot(chain, [], 'CE', 1100, 'SELL')
 ls = addLot(chain, ls, 'CE', 1100, 'SELL')
 check('S twice: one leg of 2 lots', ls.length === 1 && ls[0].lots === 2 && ls[0].action === 'SELL', ls)

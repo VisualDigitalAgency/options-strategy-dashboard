@@ -257,9 +257,11 @@ Sub-admins, who lose real trading until the owner turns *live trading* on for Su
 
 Every account can build its own strategy (#137); free accounts land here, since the screener is Pro (#136).
 
-- Pick any Nifty 50 stock and expiry; legs come from the live option chain (bid/ask and delta per strike, S to sell, B to buy) or a template: short strangle, short straddle, iron condor, bull put spread, bear call spread.
-- While you edit: payoff at expiry, credit or debit, max profit and loss (net short calls show as unlimited), breakevens, net delta and theta, and the margin the order needs (from `va_preview_order`).
-- The screening rules are **warnings only**: under 30 days to expiry, a sold strike at |delta| ≥ 0.15, results or a dividend before expiry.
+- Pick any Nifty 50 stock and expiry; legs come from the live option chain (bid/ask, delta, IV and OI per strike, near strikes or all, S to sell, B to buy) or a template: short strangle, short straddle, iron condor, bull put spread, bear call spread. With **Rule-safe strikes** on, a template sells the strike nearest the money whose |delta| is under 0.15 and which sits clear of the S/R zones.
+- While you edit: credit or debit, max profit and loss (net short calls show as unlimited), breakevens, the margin the order needs (from `va_preview_order`), return on margin (max profit ÷ margin), probability of profit at expiry (lognormal at ATM IV), net delta, gamma, theta and vega, and the 1σ expected move.
+- **Payoff chart:** the expiry payoff, plus a dashed curve for any day before expiry (date slider) with IV moved ±15 points (IV slider), both Black-Scholes, calibrated so today's value matches the premium. Strikes with no usable IV use the ATM IV. The chart also shades the 1σ range and the swing S/R zones and marks last month's floor pivots (`builder_levels`).
+- **Pin to compare:** pin the current strategy, then adjust it (roll a strike, add a hedge). The pinned payoff stays on the chart, and the change in credit, max loss, margin and probability of profit is shown.
+- The screening rules are a **rule check that never blocks**: under 30 days to expiry, results or a dividend before expiry, and for each sold strike its |delta| against 0.15, whether it is inside the 1σ expected move, and whether it sits in a swing S/R zone.
 - **Bought legs.** Buying a leg on its own unlocks at Level 6 (`hedges`). Before that a buy must protect a sell in the same order or position: same type (CE/PE), further out of the money than a sold strike, and no more lots than sold on that side. The server enforces this in `va_place_order`; buying back a short is always allowed.
 - A long blocks the premium paid as margin. With no short left in its group, a long has its own stop at `LONG_SL_PCT` (50%) below what was paid, live at once, judged on the mid and sold at the bid (auto or alert, like the short stop). Hedge longs close with their group.
 - Orders go to the virtual account.

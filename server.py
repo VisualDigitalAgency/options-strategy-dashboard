@@ -148,6 +148,12 @@ def builder_chain(symbol: str, expiry: str | None = None):
     return builder.chain(symbol, expiry)
 
 
+def builder_levels(symbol: str):
+    """Strategy builder: last month's floor pivots (P, R1-R4, S1-S4) and the swing support and
+    resistance zones for one Nifty 50 stock, drawn on the payoff chart and used by the rule checks."""
+    return builder.levels(symbol)
+
+
 def get_market_calendar():
     """NSE trading holidays and Nifty 50 corporate events, from the worker's daily copy, plus the
     expiry dates the last screen covered (the calendar groups events by expiry cycle)."""
@@ -509,6 +515,7 @@ METHODS = {
     "get_market_calendar": get_market_calendar,
     "calc_margin": calc_margin,
     "builder_chain": builder_chain,
+    "builder_levels": builder_levels,
 }
 
 USER_METHODS = {

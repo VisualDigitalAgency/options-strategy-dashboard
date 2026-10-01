@@ -350,3 +350,56 @@ export function OIChart({ d }) {
     </figure>
   )
 }
+
+/**
+ * Strategy builder payoff: the expiry P&L (filled), the P&L on a chosen day (dashed), a pinned
+ * baseline's expiry P&L (dotted), the 1σ expected move as a band, and the stock's monthly pivots and
+ * swing S/R zones that fall inside the price range. `points` comes from strategy.curve.
+ */
+export function BuilderPayoff({ points, spot, sd, levels, nowLabel, height = 280 }) {
+  const lo = points[0]?.px ?? 0
+  const hi = points[points.length - 1]?.px ?? 0
+  const inside = (v) => v > lo && v < hi
+  const breakevens = points.slice(1).filter((p, i) => Math.sign(p.pnl) !== Math.sign(points[i].pnl)).map((p) => p.px)
+  const pivots = Object.entries(levels?.pivots ?? {}).filter(([, v]) => inside(v))
+  const zones = (levels?.zones ?? []).filter((z) => inside(z.level))
+  const w = (levels?.zone_width_pct ?? 1.5) / 100
+  const hasBase = points.some((p) => p.base != null)
+  return (
+    <figure className="chart" aria-label={`Payoff chart, breakevens at expiry ${breakevens.map((b) => Math.round(b)).join(' and ') || 'none'}`}>
+      <ResponsiveContainer width="100%" height={height}>
+        <ComposedChart data={points} margin={{ top: 18, right: 16, bottom: 4, left: 8 }}>
+          <CartesianGrid stroke={C.grid} vertical={false} />
+          {sd && <ReferenceArea x1={Math.max(sd.low, lo)} x2={Math.min(sd.high, hi)} fill={C.accent} fillOpacity={0.07} ifOverflow="hidden" />}
+          {zones.map((z) => (
+            <ReferenceArea key={`z${z.level}`} x1={z.level * (1 - w)} x2={z.level * (1 + w)} ifOverflow="hidden"
+              fill={z.type === 'support' ? C.up : C.down} fillOpacity={0.08} />
+          ))}
+          <XAxis dataKey="px" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => Math.round(v)} {...axisProps} />
+          <YAxis tickFormatter={(v) => `${v < 0 ? '-' : ''}₹${int(Math.abs(Math.round(v / 1000)))}k`} width={60} {...axisProps} />
+          <Tooltip content={<Tip rows={(px, p) => [
+            ['Price', num(px)], ['At expiry', rupee(p.pnl)], [nowLabel, rupee(p.now)],
+            ...(p.base != null ? [['Baseline', rupee(p.base)]] : []),
+          ]} />} cursor={{ stroke: C.axis, strokeDasharray: '3 3' }} />
+          <ReferenceLine y={0} stroke={C.axis} />
+          <Area dataKey="profit" type="linear" stroke={C.up} fill={C.up} fillOpacity={0.16} strokeWidth={2} isAnimationActive={false} />
+          <Area dataKey="loss" type="linear" stroke={C.down} fill={C.down} fillOpacity={0.16} strokeWidth={2} isAnimationActive={false} />
+          <Line dataKey="now" type="monotone" stroke={C.accent} strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
+          {hasBase && <Line dataKey="base" type="linear" stroke={C.axis} strokeWidth={1.5} strokeDasharray="2 3" dot={false} isAnimationActive={false} />}
+          {pivots.map(([k, v]) => (
+            <ReferenceLine key={k} x={v} stroke={C.axis} strokeOpacity={0.5} strokeDasharray="1 3"
+              label={{ value: k, fill: C.axis, fontSize: 10, position: 'insideTopRight' }} />
+          ))}
+          {spot && <ReferenceLine x={spot} stroke={C.primary} strokeWidth={1.5} label={{ value: `Spot ${num(spot, 0)}`, fill: C.primary, fontSize: 12, position: 'top' }} />}
+        </ComposedChart>
+      </ResponsiveContainer>
+      <figcaption className="chart-legend small muted">
+        <span><i className="lg-solid" /> At expiry</span>
+        <span><i className="lg-dash" /> {nowLabel}</span>
+        {hasBase && <span><i className="lg-dot" /> Baseline</span>}
+        {sd && <span><i className="lg-band" /> 1σ move</span>}
+        {(zones.length > 0 || pivots.length > 0) && <span>S/R zones · monthly pivots</span>}
+      </figcaption>
+    </figure>
+  )
+}

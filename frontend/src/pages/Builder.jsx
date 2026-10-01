@@ -1,21 +1,26 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Bookmark, CheckCircle2, Eraser, FolderOpen, Lock, Minus, Plus, Trash2, Wrench } from 'lucide-react'
+import { AlertTriangle, Bookmark, CheckCircle2, Eraser, FolderOpen, Lock, Minus, Pin, PinOff, Plus, ShieldCheck, Trash2, Wrench } from 'lucide-react'
 import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
 import { useTitle } from '../brand'
 import { int, num, rupee, rupee2, shortDate } from '../format'
-import { GroupPayoff } from '../components/Charts'
-import { TEMPLATES, addLot, greeks, legAt, makeLeg, netLegs, restoreLegs, stats, warnings } from '../strategy'
+import { BuilderPayoff } from '../components/Charts'
+import { sdRange } from '../bs'
+import {
+  SAFE_TEMPLATES, TEMPLATES, addLot, atmIv, curve, zoneAt as zoneOf, greeks, legAt, makeLeg, netLegs, pnlOn, probProfit, restoreLegs, scorecard, stats,
+} from '../strategy'
 
 // Strategy builder (issue #137): any Nifty 50 stock, any expiry, any mix of sold and bought legs.
-// Open to every account. The screening rules show as warnings only. Bought legs on their own unlock
+// Open to every account. The screening rules show as a rule check that never blocks. Bought legs on their own unlock
 // at Level 6 (`hedges`); before that a buy must protect a sell, which the server enforces and the
 // preview explains (`buy_rule`). Orders go to the virtual account.
 
 const money = (v) => (v === Infinity ? 'Unlimited' : v === -Infinity ? 'Unlimited' : rupee(v))
 const strikeText = (k) => num(k, k % 1 ? 2 : 0)
+const compact = (v) => (v >= 1e5 ? `${num(v / 1e5, 1)}L` : v >= 1e3 ? `${num(v / 1e3, 1)}k` : int(v))
+const pct = (v) => (v == null ? '—' : `${num(v * 100, 0)}%`)
 
 // A tiny payoff-at-expiry sketch per template, so the shapes read at a glance.
 const SHAPES = {
@@ -40,16 +45,19 @@ function Seg({ label, value, options, onChange, tone }) {
   )
 }
 
-function ChainTable({ chain, legs, onAdd }) {
+function ChainTable({ chain, legs, onAdd, levels }) {
   const [view, setView] = useState('CE') // phones show one side at a time
+  const [wide, setWide] = useState(false) // ±12 strikes, or the whole chain
+  const maxOi = useMemo(() => Math.max(1, ...chain.rows.flatMap((r) => [r.CE?.oi ?? 0, r.PE?.oi ?? 0])), [chain])
   const atm = useMemo(() => chain.rows.find((r) => r.strike >= chain.spot)?.strike, [chain])
   const near = useMemo(() => {
     const i = chain.rows.findIndex((r) => r.strike >= chain.spot)
     const mid = i < 0 ? chain.rows.length : i
-    return chain.rows.slice(Math.max(0, mid - 12), mid + 12)
-  }, [chain])
+    return wide ? chain.rows : chain.rows.slice(Math.max(0, mid - 12), mid + 12)
+  }, [chain, wide])
   // A strike in the strategy shows its leg here (#144): tinted red for a sell, blue for a buy, with
   // the lot count and -/+ in place of Sell/Buy. Minus on the last lot drops the leg.
+  const zoneAt = (k) => zoneOf(levels, k)
   const acts = (r, side, leg) => {
     const name = `${strikeText(r.strike)} ${side}`
     if (leg) {
@@ -76,10 +84,14 @@ function ChainTable({ chain, legs, onAdd }) {
     const leg = legAt(legs, side, r.strike)
     const s = `${side.toLowerCase()}${leg ? (leg.action === 'SELL' ? ' leg-sell' : ' leg-buy') : ''}`
     const itm = side === 'CE' ? r.strike < chain.spot : r.strike > chain.spot
-    if (!q) return <td colSpan={3} className={`muted ${s}`}>—</td>
+    if (!q) return <td colSpan={5} className={`muted ${s}`}>—</td>
     const parts = [
       <td key="p" className={`num chain-px ${s}${itm ? ' itm' : ''}`}><span>{num(q.bid)}</span><small>{num(q.ask)}</small></td>,
       <td key="d" className={`num chain-d ${s}${itm ? ' itm' : ''}`}>{q.delta == null ? '—' : num(q.delta, 2)}</td>,
+      <td key="i" className={`num chain-iv ${s}`}>{q.iv > 0 ? num(q.iv, 1) : '—'}</td>,
+      <td key="o" className={`num chain-oi ${s}`} title={`Open interest ${int(q.oi)}`}>
+        <span className="oi-bar" style={{ width: `${Math.round((q.oi / maxOi) * 100)}%` }} aria-hidden /><span>{compact(q.oi)}</span>
+      </td>,
       <Fragment key="a">{acts(r, side, leg)}</Fragment>,
     ]
     return side === 'CE' ? parts.reverse() : parts
@@ -88,19 +100,24 @@ function ChainTable({ chain, legs, onAdd }) {
     <>
       <div className="chain-toolbar">
         <h2>Option chain</h2>
+        <button type="button" className="btn small" aria-pressed={wide} onClick={() => setWide((w) => !w)}>{wide ? 'Near strikes' : 'All strikes'}</button>
         <Seg label="Show calls or puts" value={view} onChange={setView} options={[['CE', 'Calls'], ['PE', 'Puts']]} />
       </div>
       <div className={`chain-wrap show-${view.toLowerCase()}`}>
         <table className="chain-table">
           <thead>
-            <tr className="chain-sides"><th colSpan={3} className="ce">Calls</th><th /><th colSpan={3} className="pe">Puts</th></tr>
+            <tr className="chain-sides"><th colSpan={5} className="ce">Calls</th><th /><th colSpan={5} className="pe">Puts</th></tr>
             <tr className="chain-cols">
               <th className="ce" />
+              <th className="ce chain-oi">OI</th>
+              <th className="ce chain-iv">IV</th>
               <th className="ce">Δ</th>
               <th className="ce">Bid <small>ask</small></th>
               <th className="chain-k">Strike</th>
               <th className="pe">Bid <small>ask</small></th>
               <th className="pe">Δ</th>
+              <th className="pe chain-iv">IV</th>
+              <th className="pe chain-oi">OI</th>
               <th className="pe" />
             </tr>
           </thead>
@@ -108,7 +125,10 @@ function ChainTable({ chain, legs, onAdd }) {
             {near.map((r) => (
               <tr key={r.strike} className={r.strike === atm ? 'atm' : ''}>
                 {cells(r, 'CE')}
-                <th scope="row" className="num chain-k">{strikeText(r.strike)}{r.strike === atm && <span className="spot-tag">Spot {num(chain.spot)}</span>}</th>
+                <th scope="row" className={`num chain-k${zoneAt(r.strike) ? ` in-zone ${zoneAt(r.strike).type}` : ''}`}
+                  title={zoneAt(r.strike) ? `In a ${zoneAt(r.strike).type} zone` : undefined}>
+                  {strikeText(r.strike)}{r.strike === atm && <span className="spot-tag">Spot {num(chain.spot)}</span>}
+                </th>
                 {cells(r, 'PE')}
               </tr>
             ))}
@@ -137,6 +157,11 @@ export default function Builder() {
   const [confirm, setConfirm] = useState(false)
   const debounce = useRef(null)
   const hedges = can(user, 'hedges')
+  const [levels, setLevels] = useState(null) // monthly pivots + S/R zones; the page works without them
+  const [daysAhead, setDaysAhead] = useState(0)
+  const [ivShift, setIvShift] = useState(0)
+  const [baseline, setBaseline] = useState(null) // { legs, stats, margin } pinned for comparison
+  const [safe, setSafe] = useState(false) // templates pick rule-safe strikes
 
   useEffect(() => { rpc('get_config').then((c) => setUniverse(c.universe)).catch((e) => setError(e.message)) }, [])
 
@@ -152,10 +177,15 @@ export default function Builder() {
   useEffect(loadSaved, [canSave])
   useEffect(() => {
     if (!symbol) return
-    setChain(null); setError(null); setLegs([]); setDone(null)
+    setChain(null); setError(null); setLegs([]); setDone(null); setBaseline(null); setDaysAhead(0); setIvShift(0)
     // `asked` records which request a chain answers, so a saved strategy waits for the right one.
     rpc('builder_chain', expiry ? { symbol, expiry } : { symbol }).then((c) => setChain({ ...c, asked: expiry })).catch((e) => setError(e.message))
   }, [symbol, expiry])
+
+  useEffect(() => {
+    setLevels(null)
+    if (symbol) rpc('builder_levels', { symbol }).then(setLevels).catch(() => {})
+  }, [symbol])
 
   const choose = (next) => setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)))
 
@@ -196,7 +226,7 @@ export default function Builder() {
     if (chain) { setLegs((ls) => addLot(chain, ls, side, strike, action)); setDone(null) }
   }
   const template = (key) => {
-    const made = TEMPLATES[key].legs(chain).filter(([, k]) => k != null).map(([s, k, a]) => makeLeg(chain, s, k, a)).filter(Boolean)
+    const made = (safe && SAFE_TEMPLATES[key] ? SAFE_TEMPLATES[key](chain, levels) : TEMPLATES[key].legs(chain)).filter(([, k]) => k != null).map(([s, k, a]) => makeLeg(chain, s, k, a)).filter(Boolean)
     setLegs(netLegs(chain, made)); setDone(null)
   }
   // Editing a leg into one that already exists merges them, so the chain and the list agree.
@@ -223,9 +253,20 @@ export default function Builder() {
 
   const lot = chain?.lot_size || 0
   const s = useMemo(() => (chain ? stats(legs, chain.spot, lot) : null), [legs, chain, lot])
-  const g = useMemo(() => (chain ? greeks(legs, chain.spot, chain.dte, lot) : null), [legs, chain, lot])
-  const warn = chain ? warnings(chain, legs) : []
-  const payoffLegs = legs.map((l) => ({ side: l.side, strike: l.strike, qty: (l.action === 'BUY' ? 1 : -1) * l.lots * lot, avg_price: l.premium }))
+  const iv = chain ? atmIv(chain) : 0
+  const g = useMemo(() => (chain ? greeks(legs, chain.spot, chain.dte, lot, iv) : null), [legs, chain, lot, iv])
+  const card = chain ? scorecard(chain, legs, levels) : []
+  const failing = card.filter((r) => !r.ok).length
+  const pop = useMemo(() => (chain ? probProfit(legs, chain) : null), [legs, chain])
+  const days = chain ? Math.min(daysAhead, chain.dte) : 0
+  const points = useMemo(() => (chain && legs.length ? curve(legs, chain, { daysAhead: days, ivShift, baseline: baseline?.legs }) : []),
+    [legs, chain, days, ivShift, baseline])
+  const sd = chain && iv > 0 ? sdRange(chain.spot, iv, chain.dte, 1) : null
+  const nowLabel = days === 0 ? 'Today' : days >= (chain?.dte ?? 0) ? 'Expiry' : `In ${days} day${days > 1 ? 's' : ''}`
+  const pnlThen = chain && legs.length ? pnlOn(legs, chain.spot, chain.dte, lot, chain.spot, Math.max(chain.dte - days, 0), ivShift, iv) : 0
+  const margin = preview?.margin_change
+  const rom = s && margin > 0 && Number.isFinite(s.maxProfit) ? s.maxProfit / margin : null
+  const pin = () => setBaseline({ legs, stats: s, margin, pop })
   const needsConfirm = (preview?.illiquid?.length || preview?.waiting?.length) > 0
 
   async function place() {
@@ -240,6 +281,8 @@ export default function Builder() {
     } catch (e) { setPreviewError(e.message) } finally { setBusy(false); setConfirm(false) }
   }
 
+
+  const delta = (a, b, f) => (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b) ? '—' : `${a - b >= 0 ? '+' : '−'}${f(Math.abs(a - b))}`)
 
   const blocked = busy || !preview || !!preview.buy_rule || !preview.sufficient
   const placeLabel = busy ? 'Placing…' : confirm ? 'Place anyway' : 'Place on virtual account'
@@ -314,6 +357,10 @@ export default function Builder() {
               ))}
               <button className="tpl" onClick={() => setLegs([])}><Eraser size={16} aria-hidden />Blank</button>
             </div>
+            <label className="safe-toggle small">
+              <input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} />
+              <ShieldCheck size={15} aria-hidden /> Rule-safe strikes: sold strikes under delta {chain.rules.delta_max_abs}{levels ? ' and clear of S/R zones' : ''}, most premium first
+            </label>
             {notice && <p className="alert builder-notice" role="status"><AlertTriangle size={16} aria-hidden /> {notice}</p>}
 
             <section className="card builder-legs" aria-label="Legs">
@@ -325,7 +372,7 @@ export default function Builder() {
                     <div className="leg-top">
                       <span className="side-pill">{l.action === 'BUY' ? 'Buy' : 'Sell'}</span>
                       <span className="leg-name num">{strikeText(l.strike)} {l.side}</span>
-                      <span className="leg-px num">{rupee2(l.premium)}<small>Δ {l.delta == null ? '—' : num(l.delta, 2)}</small></span>
+                      <span className="leg-px num">{rupee2(l.premium)}<small>Δ {l.delta == null ? '—' : num(l.delta, 2)} · IV {l.iv > 0 ? num(l.iv, 1) : '—'}</small></span>
                       <button className="icon-btn" onClick={() => setLegs((ls) => ls.filter((_, j) => j !== i))} aria-label="Remove leg"><Trash2 size={16} /></button>
                     </div>
                     <div className="leg-controls">
@@ -346,10 +393,22 @@ export default function Builder() {
               </ul>
             </section>
 
-            {warn.length > 0 && (
-              <ul className="builder-warnings" aria-label="Warnings">
-                {warn.map((w) => <li key={w}><AlertTriangle size={14} aria-hidden /> {w}</li>)}
-              </ul>
+            {legs.length > 0 && (
+              <section className="card builder-score" aria-label="Rule check">
+                <div className="card-head">
+                  <h2>Rule check</h2>
+                  <span className={`chip small ${failing ? 'neg' : 'pos'}`}>{failing ? `${failing} to review` : 'All clear'}</span>
+                </div>
+                <ul>
+                  {card.map((r) => (
+                    <li key={r.label} className={r.ok ? 'ok' : 'warn'}>
+                      {r.ok ? <CheckCircle2 size={15} aria-hidden /> : <AlertTriangle size={15} aria-hidden />}
+                      <div><b>{r.label}</b><span className="small">{r.detail}</span></div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted small">The rules never block an order here; they are what the screener and auto-trade follow.</p>
+              </section>
             )}
           </div>
 
@@ -368,10 +427,48 @@ export default function Builder() {
                 <dl className="builder-stats">
                   <div><dt>Breakevens</dt><dd className="num">{s.breakevens.map((b) => num(b, 0)).join(' · ') || '—'}</dd></div>
                   <div><dt>Margin needed</dt><dd className="num">{preview ? rupee(preview.margin_change) : '…'}</dd></div>
+                  <div><dt title="Chance the position is in profit at expiry, from the ATM implied volatility">Probability of profit</dt><dd className="num">{pct(pop)}</dd></div>
+                  <div><dt title="Max profit as a share of the margin blocked">Return on margin</dt><dd className="num">{rom == null ? '—' : pct(rom)}</dd></div>
                   <div><dt>Net delta</dt><dd className="num">{num(g.delta, 1)}</dd></div>
                   <div><dt>Theta / day</dt><dd className="num">{rupee(g.theta)}</dd></div>
+                  <div><dt>Gamma</dt><dd className="num">{num(g.gamma, 2)}</dd></div>
+                  <div><dt title="P&L for a 1-point rise in implied volatility">Vega / IV pt</dt><dd className="num">{rupee(g.vega)}</dd></div>
+                  {sd && <div><dt>1σ move by expiry</dt><dd className="num">±{num(sd.pct, 1)}% ({num(sd.low, 0)}–{num(sd.high, 0)})</dd></div>}
+                  <div><dt>ATM IV</dt><dd className="num">{iv > 0 ? `${num(iv, 1)}%` : '—'}</dd></div>
                 </dl>
-                <GroupPayoff legs={payoffLegs} spot={chain.spot} />
+                <BuilderPayoff points={points} spot={chain.spot} sd={sd} levels={levels} nowLabel={nowLabel} />
+                <div className="whatif" role="group" aria-label="What if">
+                  <label>
+                    <span>Date: <b className="num">{nowLabel}</b>{days > 0 && days < chain.dte && <span className="muted"> ({chain.dte - days} days left)</span>}</span>
+                    <input type="range" min="0" max={chain.dte} step="1" value={days} aria-label="Days from today"
+                      onChange={(e) => setDaysAhead(Number(e.target.value))} />
+                  </label>
+                  <label>
+                    <span>IV change: <b className="num">{ivShift > 0 ? '+' : ''}{ivShift} pts</b></span>
+                    <input type="range" min="-15" max="15" step="1" value={ivShift} aria-label="IV change in points"
+                      onChange={(e) => setIvShift(Number(e.target.value))} />
+                  </label>
+                  <p className="small">P&L at today's spot, {nowLabel.toLowerCase()}: <b className={`num ${pnlThen >= 0 ? 'pos' : 'neg'}`}>{rupee(pnlThen)}</b>
+                    {(days || ivShift) ? <button type="button" className="link-btn" onClick={() => { setDaysAhead(0); setIvShift(0) }}>Reset</button> : null}</p>
+                </div>
+                <div className="baseline">
+                  {baseline ? (
+                    <>
+                      <div className="card-head"><h3>Against the pinned version</h3>
+                        <button type="button" className="btn small" onClick={() => setBaseline(null)}><PinOff size={14} aria-hidden /> Unpin</button></div>
+                      <dl className="builder-stats">
+                        <div><dt>Net credit</dt><dd className="num">{delta(s.net, baseline.stats.net, rupee)}</dd></div>
+                        <div><dt>Max loss</dt><dd className="num">{delta(s.maxLoss, baseline.stats.maxLoss, rupee)}</dd></div>
+                        <div><dt>Margin</dt><dd className="num">{delta(margin, baseline.margin, rupee)}</dd></div>
+                        <div><dt>Probability of profit</dt><dd className="num">{delta(pop, baseline.pop, (v) => `${num(v * 100, 0)} pts`)}</dd></div>
+                      </dl>
+                    </>
+                  ) : (
+                    <button type="button" className="btn small" onClick={pin} disabled={!preview}>
+                      <Pin size={14} aria-hidden /> Pin to compare an adjustment
+                    </button>
+                  )}
+                </div>
                 <div className="builder-save">
                   {canSave ? (
                     <>
@@ -406,7 +503,7 @@ export default function Builder() {
           </aside>
 
           <section className="card b-chain" aria-label="Option chain">
-            <ChainTable chain={chain} legs={legs} onAdd={add} />
+            <ChainTable chain={chain} legs={legs} onAdd={add} levels={levels} />
           </section>
         </div>
       )}

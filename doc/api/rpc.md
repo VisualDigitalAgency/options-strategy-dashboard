@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-76 methods: 11 public, 4 account, 6 market data, 39 user, 16 admin.
+77 methods: 11 public, 4 account, 7 market data, 39 user, 16 admin.
 
 ## Tiers
 
@@ -41,6 +41,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`get_market_calendar`](#get_market_calendar) | market data | NSE trading holidays and Nifty 50 corporate events, from the worker's daily copy, plus the expiry dates the last screen covered (the calendar groups events by expiry cycle). |
 | [`calc_margin`](#calc_margin) | market data | SPAN + exposure for SHORT legs [{side, strike}] at `lots` lots, ignoring existing positions. |
 | [`builder_chain`](#builder_chain) | market data | Strategy builder (#137): one stock's option chain for `expiry` (YYYY-MM-DD; default the first at least 30 days out) with deltas, lot size, the open expiries, results/dividend dates before expiry and the rules the page warns about. |
+| [`builder_levels`](#builder_levels) | market data | Strategy builder: last month's floor pivots (P, R1-R4, S1-S4) and the swing support and resistance zones for one Nifty 50 stock, drawn on the payoff chart and used by the rule checks. |
 | [`va_get_account`](#va_get_account) | user | Account figures from the cached snapshot; realised P&L and cash always read fresh from the DB. |
 | [`va_refresh_positions`](#va_refresh_positions) | user | Re-price now, at most every REPRICE_EVERY seconds per user; otherwise the cached snapshot. |
 | [`va_get_positions`](#va_get_positions) | user | Cached snapshot, re-priced by the monitor thread; never waits on NSE. |
@@ -374,6 +375,15 @@ before expiry and the rules the page warns about. Shares the 60 s quote cache wi
 |---|---|---|
 | `symbol` | `str` | required |
 | `expiry` | `str \| None` | `null` |
+
+### `builder_levels`
+
+Strategy builder: last month's floor pivots (P, R1-R4, S1-S4) and the swing support and
+resistance zones for one Nifty 50 stock, drawn on the payoff chart and used by the rule checks.
+
+| Param | Type | Default |
+|---|---|---|
+| `symbol` | `str` | required |
 
 ## User methods
 
