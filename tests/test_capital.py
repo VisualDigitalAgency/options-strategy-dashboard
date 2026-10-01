@@ -67,7 +67,8 @@ with db.tx(uid) as c:
           "ON CONFLICT (user_id) DO UPDATE SET level = 3", u=uid)
 before = cap(uid)
 got = sorted(g["ref"] for g in capital.evaluate(uid) if g["task"] == "level")
-check("Levels 2 and 3 pay their amounts", got == ["2", "3"] and cap(uid) == before + 100_000 + 150_000, (got, cap(uid)))
+check("Levels 2 and 3 pay their amounts", got == ["2", "3"]
+      and cap(uid) == before + config.LEVEL_CAPITAL[2] + config.LEVEL_CAPITAL[3], (got, cap(uid)))
 
 # Earned capital is not profit.
 acct = virtual.get_account(uid)
