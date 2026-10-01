@@ -262,7 +262,8 @@ Every account can build its own strategy (#137); free accounts land here, since 
 - The screening rules are **warnings only**: under 30 days to expiry, a sold strike at |delta| ≥ 0.15, results or a dividend before expiry.
 - **Bought legs.** Buying a leg on its own unlocks at Level 6 (`hedges`). Before that a buy must protect a sell in the same order or position: same type (CE/PE), further out of the money than a sold strike, and no more lots than sold on that side. The server enforces this in `va_place_order`; buying back a short is always allowed.
 - A long blocks the premium paid as margin. With no short left in its group, a long has its own stop at `LONG_SL_PCT` (50%) below what was paid, live at once, judged on the mid and sold at the bid (auto or alert, like the short stop). Hedge longs close with their group.
-- Orders go to the virtual account. Saving strategies (Level 5) comes later.
+- Orders go to the virtual account.
+- **Saved strategies (Level 5, #150):** name and save the strategy on screen (up to 50; the same name replaces it). *My strategies* reopens one at its exact strikes and today's prices; if its expiry has passed it opens on the first expiry at least 30 days out, with each strike matched by the delta it had when saved, and says so. Private to each user.
 
 ## Portfolio & virtual account
 

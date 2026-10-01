@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Eraser, Minus, Plus, Trash2, Wrench } from 'lucide-react'
+import { AlertTriangle, Bookmark, CheckCircle2, Eraser, FolderOpen, Lock, Minus, Plus, Trash2, Wrench } from 'lucide-react'
 import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
 import { useTitle } from '../brand'
 import { int, num, rupee, rupee2, shortDate } from '../format'
 import { GroupPayoff } from '../components/Charts'
-import { TEMPLATES, addLot, greeks, legAt, makeLeg, netLegs, stats, warnings } from '../strategy'
+import { TEMPLATES, addLot, greeks, legAt, makeLeg, netLegs, restoreLegs, stats, warnings } from '../strategy'
 
 // Strategy builder (issue #137): any Nifty 50 stock, any expiry, any mix of sold and bought legs.
 // Open to every account. The screening rules show as warnings only. Bought legs on their own unlock
@@ -139,13 +139,58 @@ export default function Builder() {
   const hedges = can(user, 'hedges')
 
   useEffect(() => { rpc('get_config').then((c) => setUniverse(c.universe)).catch((e) => setError(e.message)) }, [])
+
+  // Saved strategies (#150), unlocked at Level 5.
+  const canSave = can(user, 'saved_strategies')
+  const [saved, setSaved] = useState([])
+  const [saveName, setSaveName] = useState('')
+  const [saveMsg, setSaveMsg] = useState(null)
+  const [pending, setPending] = useState(null) // a strategy to load once its chain arrives
+  const [notice, setNotice] = useState(null)
+  const loadSaved = () => { if (canSave) rpc('strategy_list').then(setSaved).catch(() => {}) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadSaved, [canSave])
   useEffect(() => {
     if (!symbol) return
     setChain(null); setError(null); setLegs([]); setDone(null)
-    rpc('builder_chain', expiry ? { symbol, expiry } : { symbol }).then(setChain).catch((e) => setError(e.message))
+    // `asked` records which request a chain answers, so a saved strategy waits for the right one.
+    rpc('builder_chain', expiry ? { symbol, expiry } : { symbol }).then((c) => setChain({ ...c, asked: expiry })).catch((e) => setError(e.message))
   }, [symbol, expiry])
 
   const choose = (next) => setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)))
+
+  const openSaved = (st) => {
+    setNotice(null); setDone(null); setPending(st)
+    // An expired strategy always goes to the default live expiry (the first at least 30 days out).
+    const here = chain && chain.symbol === st.symbol && (st.expired ? !expiry : chain.expiry === st.expiry)
+    if (!here) choose({ symbol: st.symbol, expiry: st.expired ? '' : st.expiry })
+  }
+  useEffect(() => {
+    if (!pending || !chain || chain.symbol !== pending.symbol || chain.asked !== expiry
+      || (pending.expired ? expiry : chain.expiry !== pending.expiry)) return
+    const { legs: made, missing } = restoreLegs(chain, pending, pending.expired)
+    setLegs(made)
+    setNotice(pending.expired
+      ? `"${pending.name}" was for ${pending.expiry}, which has passed. Moved to ${chain.expiry}, with each strike matched by delta. Check the legs before placing.`
+      : missing ? `${missing} leg${missing > 1 ? 's' : ''} of "${pending.name}" had no price today and ${missing > 1 ? 'were' : 'was'} left out.` : null)
+    setSaveName(pending.name)
+    setPending(null)
+  }, [pending, chain, expiry])
+
+  async function saveStrategy() {
+    setSaveMsg(null)
+    try {
+      const r = await rpc('strategy_save', {
+        name: saveName, symbol: chain.symbol, expiry: chain.expiry,
+        legs: legs.map((l) => ({ side: l.side, strike: l.strike, action: l.action, lots: l.lots, ...(l.delta != null ? { delta: l.delta } : {}) })),
+      })
+      setSaveMsg({ ok: true, text: r.replaced ? `Updated "${r.name}"` : `Saved "${r.name}"` })
+      loadSaved()
+    } catch (e) { setSaveMsg({ ok: false, text: e.message }) }
+  }
+  const removeSaved = async (st) => {
+    try { await rpc('strategy_delete', { strategy_id: st.id }); loadSaved() } catch (e) { setSaveMsg({ ok: false, text: e.message }) }
+  }
   // One leg per strike and type: S or B again adds a lot, the opposite takes one off (#144).
   const add = (side, strike, action) => {
     if (chain) { setLegs((ls) => addLot(chain, ls, side, strike, action)); setDone(null) }
@@ -241,6 +286,25 @@ export default function Builder() {
       {symbol && !chain && !error && <p className="muted">Loading the option chain…</p>}
       {!symbol && <p className="builder-empty muted">Choose a stock to load its option chain.</p>}
 
+      {canSave && saved.length > 0 && (
+        <section className="card builder-saved" aria-label="My strategies">
+          <div className="card-head"><h2>My strategies</h2><span className="muted small">{saved.length}</span></div>
+          <ul>
+            {saved.map((st) => (
+              <li key={st.id}>
+                <div className="saved-name">
+                  <b>{st.name}</b>
+                  <span className="muted small num">{st.symbol} · {shortDate(st.expiry)} · {st.legs.map((l) => `${l.action === 'SELL' ? 'S' : 'B'}${l.lots > 1 ? l.lots : ''} ${strikeText(l.strike)}${l.side}`).join(', ')}</span>
+                  {st.expired && <span className="chip small">Expired: opens on a live expiry</span>}
+                </div>
+                <button className="btn small" onClick={() => openSaved(st)} aria-label={`Open ${st.name}`}><FolderOpen size={15} aria-hidden /> Open</button>
+                <button className="icon-btn" onClick={() => removeSaved(st)} aria-label={`Delete ${st.name}`}><Trash2 size={16} /></button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {chain && (
         <div className="builder-grid">
           <div className="b-main">
@@ -250,6 +314,7 @@ export default function Builder() {
               ))}
               <button className="tpl" onClick={() => setLegs([])}><Eraser size={16} aria-hidden />Blank</button>
             </div>
+            {notice && <p className="alert builder-notice" role="status"><AlertTriangle size={16} aria-hidden /> {notice}</p>}
 
             <section className="card builder-legs" aria-label="Legs">
               <div className="card-head"><h2>Legs</h2>{legs.length > 0 && <span className="muted small">{legs.length} leg{legs.length > 1 ? 's' : ''}</span>}</div>
@@ -307,6 +372,19 @@ export default function Builder() {
                   <div><dt>Theta / day</dt><dd className="num">{rupee(g.theta)}</dd></div>
                 </dl>
                 <GroupPayoff legs={payoffLegs} spot={chain.spot} />
+                <div className="builder-save">
+                  {canSave ? (
+                    <>
+                      <label className="sr-only" htmlFor="b-save-name">Strategy name</label>
+                      <input id="b-save-name" value={saveName} maxLength={40} placeholder="Name this strategy"
+                        onChange={(e) => setSaveName(e.target.value)} />
+                      <button className="btn" onClick={saveStrategy} disabled={!saveName.trim()}><Bookmark size={15} aria-hidden /> Save</button>
+                    </>
+                  ) : (
+                    <button className="btn" disabled title="Saved strategies unlock at Level 5"><Lock size={15} aria-hidden /> Save · unlocks at Level 5</button>
+                  )}
+                  {saveMsg && <p className={`small ${saveMsg.ok ? 'pos' : 'neg'}`} role="status">{saveMsg.text}</p>}
+                </div>
                 <div className="builder-place">
                   {preview?.buy_rule && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {preview.buy_rule}</div>}
                   {preview && !preview.sufficient && (

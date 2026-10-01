@@ -93,7 +93,10 @@ def _check_legs(legs, need_action: bool) -> None:
             px = l["price"]
             if not _type_ok(px, (float,)) or not 0 < px < 1_000_000:
                 raise InvalidParams("leg price must be a positive number")
-        extra = set(l) - {"side", "strike", "action", "lots", "price"}
+        # A saved strategy (#150) keeps each leg's delta; order methods ignore it.
+        if l.get("delta") is not None and (not _type_ok(l["delta"], (float,)) or not -1 <= l["delta"] <= 1):
+            raise InvalidParams("leg delta must be a number from -1 to 1")
+        extra = set(l) - {"side", "strike", "action", "lots", "price", "delta"}
         if extra:
             raise InvalidParams(f"unknown leg field(s): {', '.join(sorted(extra))}")
 
