@@ -21,6 +21,10 @@
 	handle /healthz {
 		reverse_proxy api:8000
 	}
+	# Public share cards (#126): server-rendered so link previews work.
+	handle /c/* {
+		reverse_proxy api:8000
+	}
 	handle {
 		root * /srv
 		# Hashed build assets never change; cache them for a year. index.html is never cached.

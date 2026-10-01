@@ -15,10 +15,11 @@ import traceback
 
 import pandas as pd
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, Response, abort, jsonify, request
+from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, broker, cache, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
+from engine import app_settings, auth, autotrade, broker, cache, cards, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -485,6 +486,7 @@ USER_METHODS = {
     "lesson_progress": lessons.progress,
     "progress_get": progress.evaluate,
     "progress_history": progress.history,
+    "card_create": cards.create,
     # Auto-trade (virtual account only)
     "va_get_autotrade": autotrade.get_settings,
     "va_set_autotrade": autotrade.set_settings,
@@ -584,10 +586,10 @@ def unhandled_error(e: Exception):
 def security_headers(resp):
     # Caddy adds these too in production (phase 5); set here so the API is safe on its own.
     resp.headers["X-Frame-Options"] = "DENY"
-    resp.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    resp.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "same-origin"
-    resp.headers["Cache-Control"] = "no-store"
+    resp.headers.setdefault("Cache-Control", "no-store")
     return resp
 
 
@@ -614,6 +616,55 @@ def _finite(v):
     if isinstance(v, (list, tuple)):
         return [_finite(x) for x in v]
     return v
+
+
+# ---------- public share cards (#126) ----------
+# Plain GET pages, not RPC: WhatsApp and X fetch them without cookies or JavaScript.
+CARD_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{big} · Theta Desk</title>
+<meta name="description" content="{small}. {label}.">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Theta Desk">
+<meta property="og:title" content="{big}"><meta property="og:description" content="{small}. {label}.">
+<meta property="og:url" content="{url}"><meta property="og:image" content="{url}.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>body{{margin:0;font:16px/1.5 system-ui,sans-serif;background:#0f1720;color:#e6edf3;display:grid;place-items:center;min-height:100vh}}
+main{{max-width:640px;padding:24px 16px;text-align:center}}img{{width:100%;height:auto;border-radius:12px}}
+a.cta{{display:inline-block;margin-top:20px;padding:12px 22px;border-radius:8px;background:#2bb673;color:#0f1720;font-weight:700;text-decoration:none}}
+p{{color:#9fb0c0}}</style></head><body><main>
+<img src="/c/{slug}.png" alt="{big}. {small}." width="1200" height="630">
+<h1>{small}</h1><p>Learn to sell options on Nifty 50 stocks with a virtual account. {label}, no real money.</p>
+<a class="cta" href="{base}/register">Start paper trading free</a></main></body></html>"""
+
+
+def _card(slug: str) -> dict:
+    p = cards.get(slug) if len(slug) <= 32 else None
+    if p is None:
+        abort(404)
+    return p
+
+
+@app.get("/c/<slug>")
+def card_page(slug: str):
+    p = _card(slug)
+    big, small = cards.headline(p)
+    base = auth.public_url()
+    html = CARD_PAGE.format(big=escape(big), small=escape(small), label=escape(cards.LABEL),
+                            url=escape(f"{base}/c/{slug}"), base=escape(base), slug=escape(slug))
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'"
+    resp.headers["Cache-Control"] = "public, max-age=3600"
+    return resp
+
+
+@app.get("/c/<slug>.png")
+def card_png(slug: str):
+    # A card is frozen when made, so its image never changes.
+    site = auth.public_url().split("://", 1)[-1]
+    resp = Response(cards.png(_card(slug), site), mimetype="image/png")
+    resp.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return resp
 
 
 @app.post("/rpc")

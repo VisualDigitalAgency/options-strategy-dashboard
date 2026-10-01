@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-65 methods: 9 public, 4 account, 5 market data, 34 user, 13 admin.
+66 methods: 9 public, 4 account, 5 market data, 35 user, 13 admin.
 
 ## Tiers
 
@@ -58,6 +58,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`lesson_progress`](#lesson_progress) | user | The caller's quiz record per lesson: attempts, best score, when it was passed, and when a failed quiz can be retaken. |
 | [`progress_get`](#progress_get) | user | Scores any newly passed lessons, moves up one level if every check passes, and returns the user's progress: level, XP, the next level's checks with live values, and gate metrics. |
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
+| [`card_create`](#card_create) | user | Makes (or reuses) a share card for a level reached or a course finished and returns its slug. |
 | [`va_get_autotrade`](#va_get_autotrade) | user | The user's auto-trade settings, the next scheduled run, and whether a run is in progress. |
 | [`va_set_autotrade`](#va_set_autotrade) | user | Changes auto-trade settings; an omitted field keeps its value. |
 | [`va_autotrade_runs`](#va_autotrade_runs) | user | Past auto-trade runs, newest first, with what each placed. |
@@ -551,6 +552,19 @@ The newest XP ledger entries: points, reason and what they were for.
 | Param | Type | Default |
 |---|---|---|
 | `limit` | `int` | `50` |
+
+Set by the server, never by the client: `user_id`.
+
+### `card_create`
+
+Makes (or reuses) a share card for a level reached or a course finished and returns its
+slug. `show_return` adds the paper-trading % return; rupee amounts and email are never shown.
+
+| Param | Type | Default |
+|---|---|---|
+| `kind` | `str` | required |
+| `ref` | `int` | required |
+| `show_return` | `bool` | `false` |
 
 Set by the server, never by the client: `user_id`.
 
