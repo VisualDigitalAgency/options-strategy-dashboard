@@ -1636,6 +1636,12 @@ td.out { color: var(--down-text); }
 .check-row input { width: auto; margin-top: 3px; }
 .overrides { padding: 16px; margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 .overrides h3 { margin: 0; font-size: 16px; }
+/* An unstyled select grows to its longest option ("name · email"), which widened the whole page on
+   phones. Capped to the card, long entries are cut off inside the box instead. */
+.overrides select {
+  width: 100%; max-width: 420px; min-width: 0; height: 44px; padding: 0 12px; text-overflow: ellipsis;
+  color: var(--text); font: 14px var(--font); background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+}
 
 /* ---------- My progress (#126) ---------- */
 .progress-page { display: flex; flex-direction: column; gap: 16px; }
