@@ -28,13 +28,13 @@ def call(method, params=None, token=None):
 
 # 1. Content loads and every quiz is well formed.
 all_lessons = lessons.list_lessons()
-check("eleven lessons in level order", len(all_lessons) == 11 and all_lessons[0]["slug"] == "what-is-an-option"
+check("fourteen lessons in level order", len(all_lessons) == 14 and all_lessons[0]["slug"] == "what-is-an-option"
       and [l["level"] for l in all_lessons] == sorted(l["level"] for l in all_lessons), [l["slug"] for l in all_lessons])
 check("every lesson has 5 questions", all(l["questions"] == 5 for l in all_lessons))
 
 # 2. Reading is public; answers never leave the server.
 r = call("lessons_list")
-check("lessons_list works signed out", "result" in r and len(r["result"]) == 11, r.get("error"))
+check("lessons_list works signed out", "result" in r and len(r["result"]) == 14, r.get("error"))
 r = call("lessons_get", {"slug": "margin"})
 q = r["result"]["questions"]
 check("lessons_get works signed out", r["result"]["title"].startswith("Margin"), r.get("error"))

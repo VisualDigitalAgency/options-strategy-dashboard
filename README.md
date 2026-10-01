@@ -142,6 +142,8 @@ Short lessons for option sellers, from what an option is to managing a short str
 - A pass is recorded once per lesson (`lesson_progress`). The learning path's XP ledger (#122) will award lesson XP from it.
 - Every lesson carries an "educational, not investment advice" note.
 
+- **Buying and hedging lessons (Level 5):** buying options (the buyer's side, why most bought options expire worthless, the app's buy rules), hedging with spreads (bull put, bear call, iron condor; max loss, the gap, margin) and hedging around results. They come before Level 6, where buying on its own unlocks; the Level 6 Adjustments course then covers hedging a trade already held.
+
 ## Levels and XP
 
 Users climb Level 1 (Learner) to Level 10 (Theta Master) by paper-trading with discipline (#120). Engine: `engine/progress.py`; thresholds in `engine/config.py`.

@@ -160,6 +160,12 @@ const VISUALS = {
       <Payoff xs={[0, 12]} pts={[[0, -60], [3, 30], [9, 30], [12, -60]]} marks={[[2, 'breakeven'], [10, 'breakeven']]} winX={128} />
     </Figure>
   ),
+  'payoff-long-call': () => (
+    <Figure label="Long call payoff: a flat loss equal to the premium paid while the price stays below the strike, then a line rising to the right past the breakeven."
+      caption="Buy a call: the most you can lose is what you paid. You only make money if the price rises past strike plus premium, before expiry.">
+      <Payoff xs={[0, 10]} pts={[[0, -25], [5, -25], [10, 75]]} marks={[[5, 'strike'], [6.25, 'breakeven']]} winX={230} loseX={110} />
+    </Figure>
+  ),
   'payoff-put-spread': () => (
     <Figure label="Bull put spread payoff: flat profit above the sold strike, a falling line between the two strikes, then flat again below the bought strike, so the loss stops growing."
       caption="Sold put + bought put further down: below the bought strike the loss stops growing. The most you can lose is known before you trade.">

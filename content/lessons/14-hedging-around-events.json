@@ -1,0 +1,29 @@
+{
+  "title": "Hedging around results and events",
+  "level": 5,
+  "order": 14,
+  "summary": "Why an overnight gap jumps past a stop, and the three answers: avoid, close before, or hedge, with what protection costs.",
+  "minutes": 5,
+  "questions": [
+    {"q": "Why can a stop-loss fail on results day?",
+     "options": ["Stops don't work on results day by rule", "The price can open far beyond the stop with no trade in between", "The exchange closes", "Margin is released"],
+     "answer": 1,
+     "why": "A gap skips every price in between, so the stop fills at the open."},
+    {"q": "Which is NOT one of the three ways to handle an event?",
+     "options": ["Choose an expiry before it", "Close before it", "Hedge with a bought option", "Turn off the stop-loss"],
+     "answer": 3,
+     "why": "Turning the stop off removes protection; the other three reduce the event risk."},
+    {"q": "Why does protection cost more just before results?",
+     "options": ["Lot sizes change", "Implied volatility is higher, so options are pricier", "Brokers charge extra", "It doesn't"],
+     "answer": 1,
+     "why": "Expected big moves raise IV, and with it every option's price."},
+    {"q": "You sold a put for ₹7 and protection costs ₹6. The sensible choice is usually to:",
+     "options": ["Buy the protection", "Close the trade instead", "Sell more puts", "Ignore the event"],
+     "answer": 1,
+     "why": "Paying ₹6 to protect ₹7 leaves almost nothing; closing is cleaner."},
+    {"q": "Where does the builder show results before your expiry?",
+     "options": ["Nowhere", "In its warnings", "Only in emails", "In the payoff chart"],
+     "answer": 1,
+     "why": "The builder lists results and dividends before expiry as warnings."}
+  ]
+}

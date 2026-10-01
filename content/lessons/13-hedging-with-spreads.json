@@ -1,0 +1,29 @@
+{
+  "title": "Hedging with spreads",
+  "level": 5,
+  "order": 13,
+  "summary": "Bull put and bear call spreads and the iron condor: the most you keep and can lose, choosing the gap, and why margin falls.",
+  "minutes": 6,
+  "questions": [
+    {"q": "A bull put spread is:",
+     "options": ["Buy a put, sell a call", "Sell a put, buy a put further down", "Sell a call, buy a call further up", "Sell two puts"],
+     "answer": 1,
+     "why": "The bought put below the sold one caps the loss on a fall."},
+    {"q": "Sell the 1,100 call at ₹8, buy the 1,150 call at ₹3, lot 100. What is the most you can lose?",
+     "options": ["₹500", "₹4,500", "₹5,000", "Unlimited"],
+     "answer": 1,
+     "why": "(1,150 − 1,100) × 100 = ₹5,000, minus the ₹500 net premium = ₹4,500."},
+    {"q": "An iron condor profits while the stock:",
+     "options": ["Rises sharply", "Falls sharply", "Stays between the two sold strikes", "Moves either way a lot"],
+     "answer": 2,
+     "why": "It is a bull put spread and a bear call spread together."},
+    {"q": "Making the gap between strikes wider:",
+     "options": ["Lowers the worst case", "Raises the worst case but keeps more premium", "Has no effect", "Removes the risk"],
+     "answer": 1,
+     "why": "Further protection is cheaper, but the loss before it kicks in is bigger."},
+    {"q": "Why does adding the bought leg lower the margin?",
+     "options": ["Bought options are free", "The capped worst case needs less margin", "The exchange gives a discount", "It doesn't"],
+     "answer": 1,
+     "why": "Margin covers the worst case, and the spread makes that smaller."}
+  ]
+}

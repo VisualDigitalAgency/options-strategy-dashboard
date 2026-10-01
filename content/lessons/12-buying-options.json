@@ -1,0 +1,29 @@
+{
+  "title": "Buying options: the other side of the trade",
+  "level": 5,
+  "order": 12,
+  "summary": "What a buyer pays and needs to win, why most bought options expire worthless, when a buy makes sense, and the app's rules for buying.",
+  "minutes": 5,
+  "questions": [
+    {"q": "You buy a call for ₹5. What is the most you can lose?",
+     "options": ["Nothing", "₹5 per share, the premium paid", "Unlimited", "The strike price"],
+     "answer": 1,
+     "why": "A buyer's loss is capped at the premium paid."},
+    {"q": "You buy the 1,100 call for ₹10. At expiry, where must the stock be for you to make money?",
+     "options": ["Above 1,000", "Above 1,100", "Above 1,110", "Anywhere"],
+     "answer": 2,
+     "why": "You need the price past strike + premium: 1,100 + 10 = 1,110."},
+    {"q": "How does time decay affect an option buyer?",
+     "options": ["It helps them", "It costs them a little every day", "It has no effect", "It only matters at expiry"],
+     "answer": 1,
+     "why": "The time value the seller collects is the buyer's daily cost."},
+    {"q": "A delta 0.10 option ends in the money roughly:",
+     "options": ["9 times in 10", "Half the time", "1 time in 10", "Never"],
+     "answer": 2,
+     "why": "Delta roughly reads as the chance of finishing in the money: about 1 in 10."},
+    {"q": "From Level 6, a bought leg with no sold leg to protect closes when:",
+     "options": ["It doubles", "It has lost half of what you paid", "At expiry only", "Never"],
+     "answer": 1,
+     "why": "The 50% stop keeps one bad bet from draining the account."}
+  ]
+}
