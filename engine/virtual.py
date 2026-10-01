@@ -438,7 +438,8 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         "premium": round(premium, 2), **_margin_impact(user_id, symbol, expiry, existing, fills),
         "sl_mode_default": default_sl, "notes": sorted(notes), "market_open": market_open(),
         "waiting": waiting, "illiquid": illiquid,
-        "buy_rule": _buy_rule(user_id, existing, fills),
+        # Either rule blocks the order; the builder shows the reason (#137, #170).
+        "buy_rule": _buy_rule(user_id, existing, fills) or _strategy_rule(user_id, existing, fills),
     }
 
 
@@ -513,6 +514,43 @@ def _buy_rule(user_id: int, existing: list[dict], fills: list[dict]) -> str | No
                     f"{nearest:g} {side} to protect it (any strike unlocks at Level 6)")
         if sum(l["qty"] for l in longs) > -sum(s["qty"] for s in shorts):
             return f"Buy no more {side} than you sell; more unlocks at Level 6"
+    return None
+
+
+def _strategy_rule(user_id: int, existing: list[dict], fills: list[dict]) -> str | None:
+    """Why this order's sells aren't allowed at the user's level, or None (#170). The course runs in
+    ascending margin: spreads and condors first, a single unprotected sale from NAKED_LEVEL, both
+    sides unprotected (a strangle) from STRANGLE_LEVEL. A sold leg counts as protected when the
+    group holds as many bought lots of the same type further out of the money. Only orders that add
+    a sale are checked, so closing or reducing is always allowed. The owner and Pro accounts (the
+    screener suggests strangles) are not gated; auto-trade books through execute_order, not here."""
+    before = {(r["side"], r["strike"]): r["qty"] for r in existing}
+    legs = _after([{"side": r["side"], "strike": r["strike"], "qty": r["qty"], "price": r["avg_price"]}
+                   for r in existing], fills)
+    if not any(l["qty"] < min(before.get((l["side"], l["strike"]), 0), 0) for l in legs):
+        return None
+    with db.tx() as c:
+        role = c.value("SELECT role FROM users WHERE id=:u", u=user_id)
+    with db.tx(user_id) as c:  # user_levels is per-user under RLS
+        level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
+    if role == "owner" or level >= config.STRANGLE_LEVEL or "screener" in permissions.user_features(user_id, role):
+        return None
+    naked = []
+    for side in ("CE", "PE"):
+        shorts = [l for l in legs if l["side"] == side and l["qty"] < 0]
+        if not shorts:
+            continue
+        nearest = min(s["strike"] for s in shorts) if side == "CE" else max(s["strike"] for s in shorts)
+        cover = sum(l["qty"] for l in legs if l["side"] == side and l["qty"] > 0
+                    and (l["strike"] > nearest if side == "CE" else l["strike"] < nearest))
+        if cover < -sum(s["qty"] for s in shorts):
+            naked.append(side)
+    if naked and level < config.NAKED_LEVEL:
+        return (f"Selling a {naked[0]} without a bought {naked[0]} further out behind it unlocks at Level "
+                f"{config.NAKED_LEVEL}. Until then, trade credit spreads and iron condors")
+    if len(naked) == 2:
+        return (f"Selling both a call and a put without protection (a strangle) unlocks at Level "
+                f"{config.STRANGLE_LEVEL}. Protect one side with a bought option")
     return None
 
 

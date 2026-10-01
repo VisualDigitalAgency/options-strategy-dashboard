@@ -416,7 +416,7 @@ export default function Builder() {
 
   const blocked = reader ? !legs.length : busy || !preview || !!preview.buy_rule || !preview.sufficient
   const placeLabel = busy ? 'Placing…' : confirm ? 'Place anyway' : held.length ? 'Place adjustment on virtual account' : 'Place on virtual account'
-  const dockNote = reader ? 'Join free to see margin and place' : preview?.buy_rule ? 'Buy leg not allowed yet'
+  const dockNote = reader ? 'Join free to see margin and place' : preview?.buy_rule ? 'Not allowed at your level yet'
     : preview && !preview.sufficient ? 'Not enough free margin'
       : confirm ? 'Check the note above, then press again'
         : previewError || (preview ? `Margin ${rupee(preview.margin_change)}` : 'Checking margin…')
