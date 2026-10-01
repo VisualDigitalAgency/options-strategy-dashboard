@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-66 methods: 9 public, 4 account, 5 market data, 35 user, 13 admin.
+67 methods: 9 public, 4 account, 5 market data, 36 user, 13 admin.
 
 ## Tiers
 
@@ -59,6 +59,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`progress_get`](#progress_get) | user | Scores any newly passed lessons, moves up one level if every check passes, and returns the user's progress: level, XP, the next level's checks with live values, and gate metrics. |
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
 | [`card_create`](#card_create) | user | Makes (or reuses) a share card for a level reached or a course finished and returns its slug. |
+| [`referral_get`](#referral_get) | user | The caller's invite link and how many people confirmed an account through it (#126). |
 | [`va_get_autotrade`](#va_get_autotrade) | user | The user's auto-trade settings, the next scheduled run, and whether a run is in progress. |
 | [`va_set_autotrade`](#va_set_autotrade) | user | Changes auto-trade settings; an omitted field keeps its value. |
 | [`va_autotrade_runs`](#va_autotrade_runs) | user | Past auto-trade runs, newest first, with what each placed. |
@@ -133,12 +134,14 @@ Callable by: anyone, signed in or not.
 
 Requests an account and emails a 6-digit code to confirm the address; once confirmed, the
 account waits for admin approval. At most SIGNUPS_PER_IP sign-ups per hour from one IP.
+`ref` is an invite code from a referral link; an unknown one is ignored.
 
 | Param | Type | Default |
 |---|---|---|
 | `name` | `str` | required |
 | `email` | `str` | required |
 | `password` | `str` | required |
+| `ref` | `str \| None` | `null` |
 
 Set by the server, never by the client: `_ctx`.
 
@@ -565,6 +568,15 @@ slug. `show_return` adds the paper-trading % return; rupee amounts and email are
 | `kind` | `str` | required |
 | `ref` | `int` | required |
 | `show_return` | `bool` | `false` |
+
+Set by the server, never by the client: `user_id`.
+
+### `referral_get`
+
+The caller's invite link and how many people confirmed an account through it (#126). A
+metric only for now: nothing is rewarded yet.
+
+No params.
 
 Set by the server, never by the client: `user_id`.
 

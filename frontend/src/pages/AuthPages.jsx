@@ -244,13 +244,25 @@ export function ResetPassword() {
   )
 }
 
+// An invite code from a referral link (#126). Kept for the visit, so it survives moving between
+// sign-in and sign-up; a wrong code is ignored by the server.
+const REF_KEY = 'theta-ref'
+function useInviteCode() {
+  const fromUrl = useSearchParams()[0].get('ref')
+  try {
+    if (fromUrl) sessionStorage.setItem(REF_KEY, fromUrl)
+    return fromUrl || sessionStorage.getItem(REF_KEY) || undefined
+  } catch { return fromUrl || undefined }
+}
+
 export function Register() {
+  const ref = useInviteCode()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [done, setDone] = useState(null)
   const { busy, error, submit } = useSubmit(async () => {
-    const r = await rpc('auth_register', { name, email, password })
+    const r = await rpc('auth_register', { name, email, password, ...(ref ? { ref } : {}) })
     setDone(r)
   })
   if (done?.verify) return <VerifyEmail email={done.email} intro={done.message} />

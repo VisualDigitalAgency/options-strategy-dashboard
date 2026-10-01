@@ -55,6 +55,13 @@ function UserRow({ u, me, onAct, onRole, busy }) {
       <td>
         <b>{u.name}</b>{u.role !== 'user' && <span className="chip admin-chip">{ROLE[u.role]}</span>}
         <span className="muted small block">{u.email}</span>
+        {(u.referred_by_name || u.referrals > 0) && (
+          <span className="muted small block">
+            {u.referred_by_name && <>Invited by {u.referred_by_name}</>}
+            {u.referred_by_name && u.referrals > 0 && ' · '}
+            {u.referrals > 0 && <>Invited {u.referrals}</>}
+          </span>
+        )}
       </td>
       <td data-label="Status"><span className={`chip st-${u.status}`}>{STATUS[u.status]}</span>
         {u.must_change_password && <span className="muted small block">Temporary password</span>}
