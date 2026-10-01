@@ -1,5 +1,5 @@
 // Strategy builder (issue #137): chain and templates, expiry stats (unlimited vs capped), rule
-// warnings that never block, the server's buy-leg reason shown and the button disabled, and placing.
+// warnings that never block, sell/buy colouring, the lot stepper, the phone dock and chain toggle, the server's buy-leg reason shown and the button disabled, and placing.
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 
 GlobalRegistrator.register({ width: 375, height: 800 })
@@ -72,6 +72,18 @@ check('warnings: DTE and results, never blocking', text().includes('20 days to e
   && !btn('Place on virtual account').disabled)
 check('margin from the preview', text().includes('12,345'))
 check('payoff chart drawn', !!document.querySelector('.chart'))
+check('sell legs orange-red, buy legs blue (classes)', document.querySelectorAll('.builder-leg.is-sell').length === 2
+  && document.querySelectorAll('.builder-leg.is-buy').length === 2)
+check('mobile dock shows the net and a Place button', !!document.querySelector('.builder-dock .btn.primary')
+  && /(credit|debit)/.test(document.querySelector('.builder-dock').textContent))
+await act(async () => document.querySelector('.builder-leg.is-buy [aria-label="Buy or sell"] button.tone-sell').click())
+check('flipping a leg to sell recolours it', document.querySelectorAll('.builder-leg.is-sell').length === 3)
+await act(async () => btn('More lots').click())
+check('lot stepper adds a lot', document.querySelector('.builder-leg input[aria-label=Lots]').value === '2')
+await act(async () => btn('Iron condor').click())
+await settle(500)
+await act(async () => btn('Puts').click())
+check('phone chain toggles to puts', !!document.querySelector('.chain-wrap.show-pe'))
 
 await act(async () => btn('Place on virtual account').click())
 await settle()
