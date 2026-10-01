@@ -1672,3 +1672,9 @@ td.out { color: var(--down-text); }
 .brand-settings .field input { width: 100%; max-width: 320px; font-family: inherit; }
 img.brand-logo { object-fit: contain; }
 .favicon-preview { width: 32px; height: 32px; image-rendering: auto; }
+
+/* Pro (issue #136) */
+.pro-tag { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--primary); color: var(--bg); }
+.pro-upsell { max-width: 640px; margin: 24px auto; }
+.pro-upsell h1 { display: flex; align-items: center; gap: 8px; font-size: 22px; }
+.pro-upsell ul { padding-left: 20px; line-height: 1.7; }

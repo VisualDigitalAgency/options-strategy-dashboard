@@ -29,7 +29,7 @@ def check(name, cond, got):
         fails.append(name)
 
 
-uid = users.create_user("srv@test.example", "Server Test", status="active")
+uid = users.create_user("srv@test.example", "Server Test", role="beta", status="active")  # beta has the screener (#136)
 token = auth.new_session(uid, "127.0.0.1", "test")
 
 # 1. NaN / Infinity / huge numbers never reach the engine

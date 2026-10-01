@@ -16,6 +16,7 @@ import BrokerOnboarding from './components/BrokerOnboarding'
 import { Logo, useBrand } from './brand'
 
 const StockDetail = lazy(() => import('./pages/StockDetail'))
+const ProUpsell = lazy(() => import('./pages/ProUpsell'))
 const Portfolio = lazy(() => import('./pages/Portfolio'))
 const VirtualAccount = lazy(() => import('./pages/VirtualAccount'))
 const MarketCalendar = lazy(() => import('./pages/MarketCalendar'))
@@ -29,7 +30,7 @@ const Welcome = lazy(() => import('./pages/Welcome'))
 const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
 
 const NAV = [
-  { to: '/', label: 'Screener', icon: LayoutGrid, end: true },
+  { to: '/', label: 'Screener', icon: LayoutGrid, end: true, pro: true },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar' },
   { to: '/virtual', label: 'Virtual account', short: 'Account', icon: PiggyBank },
@@ -155,7 +156,7 @@ function TopBar() {
           <span className="wordmark">{name}</span>
         </Link>
         <nav className="main-nav" aria-label="Main">
-          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end, badge }) => (
+          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end, badge, pro }) => (
             <NavLink
               key={to}
               to={to}
@@ -164,6 +165,7 @@ function TopBar() {
             >
               <Icon size={16} aria-hidden />{' '}
               {short ? <><span className="nav-full">{label}</span><span className="nav-short" aria-hidden>{short}</span></> : label}
+              {pro && !can(user, 'screener') && <span className="pro-tag">Pro</span>}
               {badge && levelUp && <span className="nav-dot" role="status" aria-label="New level reached" />}
             </NavLink>
           ))}
@@ -219,13 +221,13 @@ function SignedIn() {
   if (!user.nickname) return lazyPage(Welcome) // first login (#121): nickname + leaderboard choice
   return (
     <SettingsProvider>
-      <ScreenProvider>
+      <ScreenProvider enabled={can(user, 'screener')}>
         <TopBar />
         <BrokerOnboarding />
         <main className="page">
           <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/stock/:symbol" element={lazyPage(StockDetail)} />
+            <Route path="/" element={can(user, 'screener') ? <Overview /> : lazyPage(ProUpsell)} />
+            {can(user, 'screener') && <Route path="/stock/:symbol" element={lazyPage(StockDetail)} />}
             <Route path="/portfolio" element={lazyPage(Portfolio)} />
             {can(user, 'market_calendar') && <Route path="/calendar" element={lazyPage(MarketCalendar)} />}
             <Route path="/virtual" element={lazyPage(VirtualAccount)} />

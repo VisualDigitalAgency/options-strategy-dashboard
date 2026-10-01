@@ -6,7 +6,8 @@ const POLL_IDLE_MS = 60000 // nothing in flight: check once a minute for a newer
 const POLL_ACTIVE_MS = 10000 // backend is refreshing: pick up new rows as batches land
 const ScreenContext = createContext(null)
 
-export function ScreenProvider({ children }) {
+// `enabled` is false for accounts without Pro (#136): no polling, no data.
+export function ScreenProvider({ enabled = true, children }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const timer = useRef(null)
@@ -30,17 +31,18 @@ export function ScreenProvider({ children }) {
   }, [])
 
   useEffect(() => {
+    if (!enabled) return undefined
     alive.current = true
     load()
     return () => {
       alive.current = false
       clearTimeout(timer.current)
     }
-  }, [load])
+  }, [load, enabled])
 
   const refreshing = !!data?.refreshing
   // "loading" now means only the very first screen, before any cache exists.
-  const loading = !data || (!data.candidates.length && refreshing)
+  const loading = enabled && (!data || (!data.candidates.length && refreshing))
   return <ScreenContext.Provider value={{ data, loading, refreshing, error, load }}>{children}</ScreenContext.Provider>
 }
 
