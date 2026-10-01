@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-63 methods: 9 public, 4 account, 5 market data, 34 user, 11 admin.
+65 methods: 9 public, 4 account, 5 market data, 34 user, 13 admin.
 
 ## Tiers
 
@@ -82,6 +82,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_get_features`](#admin_get_features) | admin | Owner only: which features each role (sub_admin, beta, user) has, and the feature list. |
 | [`admin_set_feature`](#admin_set_feature) | admin | Owner only: turns one feature on or off for a role. |
 | [`admin_get_settings`](#admin_get_settings) | admin | Owner only: the app switches (such as auto_approve) with their values and descriptions. |
+| [`admin_get_overrides`](#admin_get_overrides) | admin | Owner only: one account's per-user feature overrides (grant or deny). |
+| [`admin_set_override`](#admin_set_override) | admin | Owner only: grant or deny one feature for one account, or `clear` to go back to its role and level. |
 | [`admin_set_setting`](#admin_set_setting) | admin | Owner only: changes one app switch. |
 
 ## Parameter rules
@@ -801,6 +803,29 @@ Set by the server, never by the client: `_ctx`.
 Owner only: the app switches (such as auto_approve) with their values and descriptions.
 
 No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_get_overrides`
+
+Owner only: one account's per-user feature overrides (grant or deny).
+
+| Param | Type | Default |
+|---|---|---|
+| `target_id` | `int` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_set_override`
+
+Owner only: grant or deny one feature for one account, or `clear` to go back to its role and
+level. Audited; applies on that user's next request.
+
+| Param | Type | Default |
+|---|---|---|
+| `target_id` | `int` | required |
+| `feature` | `str` | required |
+| `mode` | `str` | required |
 
 Set by the server, never by the client: `_ctx`.
 

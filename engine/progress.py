@@ -205,7 +205,20 @@ def evaluate(user_id: int, _now: datetime | None = None) -> dict:
             up = None
     if up:
         auth.audit("level_up", actor_id=None, target_user_id=user_id, level=up)
+    _maybe_beta(user_id, snap["level"])
     return {**snap, "leveled_up": up}
+
+
+def _maybe_beta(user_id: int, level: int) -> None:
+    """Level config.BETA_LEVEL promotes a `user` to `beta`, considered once: `auto_beta` is set
+    either way, so an owner's later demotion back to User is never undone (#123)."""
+    from . import auth
+    if level < config.BETA_LEVEL:
+        return
+    with db.tx(user_id) as c:
+        done = c.value("UPDATE user_levels SET auto_beta=true WHERE user_id=:u AND NOT auto_beta RETURNING 1", u=user_id)
+    if done:
+        auth.auto_promote(user_id, "beta", level)
 
 
 def history(user_id: int, limit: int = 50) -> list[dict]:

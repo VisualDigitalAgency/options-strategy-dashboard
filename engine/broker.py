@@ -174,7 +174,7 @@ def connectable_brokers(user_id: int) -> list[str]:
     source of truth for "can this user connect broker X" — frontend components read this instead
     of each re-deriving role-and-broker checks locally."""
     user = auth.active_user(user_id)
-    return sorted(registry.CONNECTABLE) if user and permissions.allowed(user["role"], "live_trading") else []
+    return sorted(registry.CONNECTABLE) if permissions.user_allowed(user, "live_trading") else []
 
 
 def account_summary(user_id: int) -> dict:

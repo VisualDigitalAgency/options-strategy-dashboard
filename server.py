@@ -335,6 +335,17 @@ def profile_set(_ctx: Ctx, nickname: str | None = None, leaderboard_opt_in: bool
     return auth.set_profile(_ctx.user_id, nickname, leaderboard_opt_in)
 
 
+def admin_get_overrides(_ctx: Ctx, target_id: int):
+    """Owner only: one account's per-user feature overrides (grant or deny)."""
+    return permissions.overrides(target_id)
+
+
+def admin_set_override(_ctx: Ctx, target_id: int, feature: str, mode: str):
+    """Owner only: grant or deny one feature for one account, or `clear` to go back to its role and
+    level. Audited; applies on that user's next request."""
+    return permissions.set_override(_ctx.user_id, target_id, feature, mode, ip=_ctx.ip)
+
+
 def admin_get_settings(_ctx: Ctx):
     """Owner only: the app switches (such as auto_approve) with their values and descriptions."""
     return app_settings.all_settings()
@@ -504,6 +515,8 @@ ADMIN_METHODS = {
     "admin_get_features": admin_get_features,
     "admin_set_feature": admin_set_feature,
     "admin_get_settings": admin_get_settings,
+    "admin_get_overrides": admin_get_overrides,
+    "admin_set_override": admin_set_override,
     "admin_set_setting": admin_set_setting,
 }
 
@@ -514,6 +527,7 @@ REQUIRES = {
     "admin_set_role": "manage_roles",
     "admin_get_features": "owner", "admin_set_feature": "owner",
     "admin_get_settings": "owner", "admin_set_setting": "owner",
+    "admin_get_overrides": "owner", "admin_set_override": "owner",
     "broker_connect_url": "live_trading", "broker_exchange_token": "live_trading",
     "broker_preview_order": "live_trading", "broker_place_order": "live_trading",
     "va_set_autotrade": "autotrade", "va_autotrade_run_now": "autotrade",
@@ -630,7 +644,7 @@ def rpc():
         if ctx.user["must_change_password"] and name not in WHILE_MUST_CHANGE:
             return _error(req_id, MUST_CHANGE, "Set a new password to continue")
         need = REQUIRES.get(name)
-        if need and not permissions.allowed(ctx.user["role"], need):
+        if need and not permissions.user_allowed(ctx.user, need):
             return _error(req_id, FORBIDDEN, "You don't have access to this")
 
     try:
