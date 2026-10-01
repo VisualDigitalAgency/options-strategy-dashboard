@@ -117,3 +117,20 @@ export const addLot = (chain, legs, side, strike, action) =>
   netLegs(chain, [...legs, { side, strike, action, lots: 1 }])
 
 export const legAt = (legs, side, strike) => legs.find((l) => l.side === side && l.strike === strike)
+
+// Saved strategies (#150): rebuild a saved strategy's legs on `chain`. Same expiry: the exact
+// strikes at today's prices. Expired: each leg moves to the strike whose |delta| is closest to the
+// one it had when saved (or the nearest strike if no delta was kept).
+export function restoreLegs(chain, saved, moveByDelta) {
+  const legs = saved.legs.map((l) => {
+    let strike = l.strike
+    if (moveByDelta) {
+      const rows = chain.rows.filter((r) => r[l.side])
+      const score = (r) => (l.delta != null && r[l.side].delta != null
+        ? Math.abs(Math.abs(r[l.side].delta) - Math.abs(l.delta)) : Math.abs(r.strike - l.strike) / 1e6)
+      strike = rows.reduce((b, r) => (!b || score(r) < score(b) ? r : b), null)?.strike ?? l.strike
+    }
+    return makeLeg(chain, l.side, strike, l.action, l.lots)
+  })
+  return { legs: netLegs(chain, legs.filter(Boolean)), missing: legs.filter((l) => !l).length }
+}

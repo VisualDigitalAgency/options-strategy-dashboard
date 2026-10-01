@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-73 methods: 11 public, 4 account, 6 market data, 36 user, 16 admin.
+76 methods: 11 public, 4 account, 6 market data, 39 user, 16 admin.
 
 ## Tiers
 
@@ -62,6 +62,9 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`progress_get`](#progress_get) | user | Scores any newly passed lessons, moves up one level if every check passes, and returns the user's progress: level, XP, the next level's checks with live values, and gate metrics. |
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
 | [`card_create`](#card_create) | user | Makes (or reuses) a share card for a level reached or a course finished and returns its slug. |
+| [`strategy_save`](#strategy_save) | user | Saves the builder's current strategy under `name`, replacing one with the same name. |
+| [`strategy_list`](#strategy_list) | user | The user's strategies, newest first; `expired` is true once the expiry date has passed (IST). |
+| [`strategy_delete`](#strategy_delete) | user | Deletes one of the user's saved strategies. |
 | [`referral_get`](#referral_get) | user | The caller's invite link and how many people confirmed an account through it (#126). |
 | [`va_get_autotrade`](#va_get_autotrade) | user | The user's auto-trade settings, the next scheduled run, and whether a run is in progress. |
 | [`va_set_autotrade`](#va_set_autotrade) | user | Changes auto-trade settings; an omitted field keeps its value. |
@@ -605,6 +608,37 @@ slug. `show_return` adds the paper-trading % return; rupee amounts and email are
 | `kind` | `str` | required |
 | `ref` | `int` | required |
 | `show_return` | `bool` | `false` |
+
+Set by the server, never by the client: `user_id`.
+
+### `strategy_save`
+
+Saves the builder's current strategy under `name`, replacing one with the same name.
+
+| Param | Type | Default |
+|---|---|---|
+| `name` | `str` | required |
+| `symbol` | `str` | required |
+| `expiry` | `str` | required |
+| `legs` | `list` | required |
+
+Set by the server, never by the client: `user_id`.
+
+### `strategy_list`
+
+The user's strategies, newest first; `expired` is true once the expiry date has passed (IST).
+
+No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `strategy_delete`
+
+Deletes one of the user's saved strategies.
+
+| Param | Type | Default |
+|---|---|---|
+| `strategy_id` | `int` | required |
 
 Set by the server, never by the client: `user_id`.
 

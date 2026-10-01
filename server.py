@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, brand, broker, builder, cache, cards, config, data_fetch, db, leaderboard, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
+from engine import app_settings, auth, autotrade, brand, broker, builder, cache, cards, config, data_fetch, db, leaderboard, lessons, market_calendar, permissions, progress, risk_rules, span, strategies, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -535,6 +535,10 @@ USER_METHODS = {
     "progress_get": progress.evaluate,
     "progress_history": progress.history,
     "card_create": cards.create,
+    # Saved builder strategies (#150): need `saved_strategies` (Level 5).
+    "strategy_save": strategies.save,
+    "strategy_list": strategies.list_saved,
+    "strategy_delete": strategies.delete,
     "referral_get": auth.referral,
     # Auto-trade (virtual account only)
     "va_get_autotrade": autotrade.get_settings,
@@ -588,6 +592,7 @@ REQUIRES = {
     "va_set_autotrade": "autotrade", "va_autotrade_run_now": "autotrade",
     "get_market_calendar": "market_calendar",
     "get_screened_candidates": "screener", "get_trade_detail": "screener",
+    "strategy_save": "saved_strategies", "strategy_list": "saved_strategies", "strategy_delete": "saved_strategies",
 }
 assert set(ADMIN_METHODS) <= set(REQUIRES), "every admin method needs a REQUIRES entry"
 
