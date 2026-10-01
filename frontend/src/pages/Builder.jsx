@@ -104,11 +104,11 @@ function ChainTable({ chain, legs, onAdd, levels, onExpiry }) {
     const g = greeksOf(side, r)
     const cell = (k, v, d, cls = '') => <td key={k} className={`num chain-g ${s} ${cls}`}>{v == null ? '—' : num(v, d)}</td>
     return [
-      cell('v', g?.vega, 2, 'g-wide'), cell('t', g?.theta, 2, 'g-wide'), cell('g', g?.gamma, 4, 'g-wide'),
+      cell('v', g?.vega, 2), cell('t', g?.theta, 2), cell('g', g?.gamma, 4),
       cell('d', g?.delta, 2), cell('iv', q?.iv > 0 ? q.iv : null, 1),
     ]
   }
-  const head = tab === 'oi' ? [['OI', 'chain-oi']] : [['Vega', 'g-wide'], ['Θ', 'g-wide'], ['Γ', 'g-wide'], ['Δ', ''], ['IV', '']]
+  const head = tab === 'oi' ? [['OI', 'chain-oi']] : [['Vega', ''], ['Θ', ''], ['Γ', ''], ['Δ', ''], ['IV', '']]
   const span = head.length + 1
 
   return (
@@ -191,7 +191,7 @@ function ChainTable({ chain, legs, onAdd, levels, onExpiry }) {
           <div><dt>ATM IV</dt><dd className="num">{chain.summary.atm_iv == null ? '—' : num(chain.summary.atm_iv, 2)}</dd></div>
         </dl>
       )}
-      <p className="oi-legend small muted">Tap a strike to buy or sell. Strike bar: <span className="oi-chg down">red</span> call OI · <span className="oi-chg up">green</span> put OI. Price change is the last trade vs yesterday's close.</p>
+      <p className="oi-legend small muted">Tap a strike to buy or sell.{tab === 'greeks' && ' Swipe sideways to see every Greek.'} Strike bar: <span className="oi-chg down">red</span> call OI · <span className="oi-chg up">green</span> put OI. Price change is the last trade vs yesterday's close.</p>
     </>
   )
 }
