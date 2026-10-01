@@ -518,7 +518,8 @@ def me(user_id: int) -> dict:
                   u=user_id)
     with db.tx(user_id) as c:
         prefs = c.one("SELECT theme, palette FROM user_prefs WHERE user_id=:u", u=user_id) or {}
-    return {**u, "features": permissions.user_features(u["id"], u["role"]),
+        level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
+    return {**u, "level": level, "features": permissions.user_features(u["id"], u["role"]),
             "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette")}}
 
 

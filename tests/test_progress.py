@@ -134,6 +134,9 @@ check("XP and gate met, but not the minimum time", checks["100 XP"] and not chec
       and checks["Pass every Level 1 lesson quiz"] and checks["Close 5 trades"] and not s["next"]["ready"], checks)
 s = progress.evaluate(lv, _now=datetime.now(timezone.utc) + timedelta(days=61))
 check("after 60 days: Level 2 Apprentice", s["leveled_up"] == 2 and s["level"] == 2 and s["title"] == "Apprentice", s)
+check("next level reports its XP band and days for the progress page",
+      s["next"]["xp_from"] == 100 and s["next"]["xp_needed"] == 400 and s["next"]["days"] == 0 and s["next"]["min_days"] == 60, s["next"])
+check("auth_me carries the level for the nav badge", auth.me(lv)["level"] == 2)
 s = progress.evaluate(lv, _now=datetime.now(timezone.utc) + timedelta(days=200))
 check("no second jump: Level 2's own gate isn't met", s["level"] == 2 and not s["next"]["ready"], s["next"])
 with db.tx() as c:
