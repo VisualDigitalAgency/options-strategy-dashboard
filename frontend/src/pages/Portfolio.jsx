@@ -530,7 +530,7 @@ export default function Portfolio() {
             <p className="muted">Pick a setup from the screener and place a virtual order to start paper trading your strategy.</p>
             <Link className="btn primary" to="/">Open screener</Link>
           </> : <>
-            <p className="muted">Build a strategy on any Nifty 50 stock and place it on your ₹10 lakh virtual account. A short strangle below delta 0.15 is a good first trade.</p>
+            <p className="muted">Build a strategy on any Nifty 50 stock and place it on your virtual account. A credit spread (bull put or bear call) below delta 0.15 is a good first trade: its loss is capped and its margin fits a ₹2 lakh account.</p>
             <Link className="btn primary" to="/builder">Build your first trade</Link>
           </>}
         </div>

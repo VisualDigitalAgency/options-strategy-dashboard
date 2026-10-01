@@ -3,8 +3,8 @@ import sys
 import threading
 
 import server
-from engine import auth, users
-from support import EXP, SYM, stub
+from engine import auth
+from support import EXP, SYM, new_user, stub
 
 fails = []
 
@@ -20,7 +20,7 @@ server.ALLOWED_ORIGINS = {ORIGIN}
 server.universe = lambda: [SYM, "HDFCBANK"]
 app = server.app.test_client()
 stub(False)  # market closed, like Saturday: every order waits
-uid = users.create_user("wait@test.example", "Wait", status="active")
+uid = new_user("wait@test.example", 1_000_000)  # ₹10 lakh: each stubbed order blocks ₹1 lakh (#47 made ₹2 lakh the default)
 app.set_cookie(server.COOKIE, auth.new_session(uid, "127.0.0.1", "t"))
 LEGS = [{"side": "CE", "strike": 1100.0, "action": "SELL", "lots": 1}]
 
@@ -54,7 +54,7 @@ j = call("va_place_order", {"symbol": "HDFCBANK", "expiry": EXP, "legs": LEGS})
 check("other stock not affected", "result" in j, j.get("error"))
 
 # Double click: two requests at once with nothing waiting -> exactly one gets through.
-uid2 = users.create_user("dbl@test.example", "Dbl", status="active")
+uid2 = new_user("dbl@test.example", 1_000_000)
 tok = auth.new_session(uid2, "127.0.0.1", "t")
 res = []
 
@@ -73,7 +73,7 @@ check("double click: one placed, one refused", ok == 1, [r.get("error", {}).get(
 
 # Once the market is open and the order fills right away, nothing is left waiting: no prompt.
 stub(True)
-uid3 = users.create_user("fill@test.example", "Fill", status="active")
+uid3 = new_user("fill@test.example", 1_000_000)
 c3 = server.app.test_client()
 c3.set_cookie(server.COOKIE, auth.new_session(uid3, "127.0.0.1", "t"))
 a = call("va_place_order", {"symbol": SYM, "expiry": EXP, "legs": LEGS}, c3)

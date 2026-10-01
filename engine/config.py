@@ -99,8 +99,23 @@ CALENDAR_DAYS_AHEAD = 120   # corporate actions fetched this far ahead (covers t
 POSITIONS_REFRESH_MARKET_SECONDS = 60   # open positions re-priced every minute while NSE is open
 POSITIONS_REFRESH_OFF_SECONDS = 900     # every 15 min outside market hours
 
-# New virtual accounts start with this much capital (₹10,00,000); editable per user on reset.
-STARTING_CAPITAL = 1_000_000
+STARTING_CAPITAL = 200_000  # every new account (#47); more only by completing CAPITAL_TASKS
+# Task milestones that add virtual capital (#47): key -> (reward ₹, how many times it can pay).
+# Each is checked by engine/capital.py from data the server holds; each pays once per ref.
+CAPITAL_TASKS = {
+    "l1_lessons": (25_000, 1),       # pass every Level 1 lesson quiz
+    "first_sl_trade": (25_000, 1),   # close a short trade with its stop-loss on
+    "five_sl_trades": (50_000, 1),   # 5 closed trades, every short leg with its stop-loss on
+    "profit_month": (50_000, 6),     # a complete calendar month (IST) with realised profit
+    "low_delta_20": (50_000, 1),     # 20 closed short legs sold below DELTA_MAX_ABS
+    "adjustments": (50_000, 1),      # pass the Adjustments course (Level 6 lessons)
+    "invite_trades": (50_000, 10),   # someone you invited verified their email and closed a trade
+    "invite_level3": (50_000, 10),   # someone you invited reached Level 3
+    "share_card": (25_000, 2),       # share a level-up or course card (once per kind)
+}
+# Reaching level n adds this much (#47).
+LEVEL_CAPITAL = {2: 100_000, 3: 150_000, 4: 200_000, 5: 250_000, 6: 500_000, 7: 500_000, 8: 500_000,
+                 9: 500_000, 10: 500_000}
 
 
 # ---------- learning path (#120, #122) ----------

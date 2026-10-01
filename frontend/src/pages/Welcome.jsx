@@ -44,7 +44,7 @@ export default function Welcome() {
       <div className="auth-card">
         <div className="auth-brand"><Logo /></div>
         <h1 className="auth-title">Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</h1>
-        <p className="auth-lede">You start at <b>Level 1 · Learner</b> with a ₹10 lakh paper-trading account. Pick a
+        <p className="auth-lede">You start at <b>Level 1 · Learner</b> with a ₹2 lakh paper-trading account, and earn more by completing tasks. Pick a
           nickname: it's the only name other people ever see.</p>
         <form className="auth-form" onSubmit={submit} noValidate>
           <label>

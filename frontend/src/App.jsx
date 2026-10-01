@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Lock, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
+import { Coins, ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Lock, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -27,6 +27,7 @@ const BrokerAccount = lazy(() => import('./pages/BrokerAccount'))
 const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
 const Learn = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Learn })))
 const Progress = lazy(() => import('./pages/Progress'))
+const EarnCapital = lazy(() => import('./pages/EarnCapital'))
 const Leaderboard = lazy(() => import('./pages/Leaderboard'))
 const Welcome = lazy(() => import('./pages/Welcome'))
 const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
@@ -37,6 +38,7 @@ const NAV = [
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar', lock: 'Unlocks at Level 3' },
   { to: '/virtual', label: 'Virtual account', icon: PiggyBank },
+  { to: '/capital', label: 'Earn capital', icon: Coins },
   { to: '/broker', label: 'Broker', icon: Plug, feature: 'live_trading', lock: 'By invitation', open: true },
   { to: '/learn', label: 'Learn', icon: GraduationCap },
   { to: '/progress', label: 'Progress', icon: Trophy, badge: true },
@@ -348,6 +350,7 @@ function SignedIn() {
             <Route path="/learn" element={lazyPage(Learn)} />
             <Route path="/learn/:slug" element={lazyPage(Lesson)} />
             <Route path="/progress" element={lazyPage(Progress)} />
+            <Route path="/capital" element={lazyPage(EarnCapital)} />
             <Route path="/leaderboard" element={lazyPage(Leaderboard)} />
             <Route path="/account/password" element={<ChangePassword />} />
             {can(user, 'manage_users') && <Route path="/admin" element={lazyPage(Admin)} />}

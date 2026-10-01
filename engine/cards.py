@@ -60,6 +60,8 @@ def create(user_id: int, kind: str, ref: int, show_return: bool = False) -> dict
         c.run("INSERT INTO share_cards (slug, user_id, kind, ref, show_return, payload) "
               "VALUES (:sl, :u, :k, :r, :s, CAST(:p AS jsonb))",
               sl=slug, u=user_id, k=kind, r=ref, s=show_return, p=json.dumps(payload))
+    from . import capital
+    capital.evaluate(user_id)  # the first card of each kind pays a share reward (#47)
     return {"slug": slug}
 
 

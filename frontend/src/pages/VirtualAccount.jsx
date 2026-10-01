@@ -33,7 +33,6 @@ export default function VirtualAccount() {
   const [closed, setClosed] = useState(null)
   const [tab, setTab] = useState('orders')
   const [error, setError] = useState(null)
-  const [capital, setCapital] = useState(1000000)
   const [confirmReset, setConfirmReset] = useState(false)
   const [busy, setBusy] = useState(false)
   const [resetError, setResetError] = useState(null)
@@ -76,7 +75,7 @@ export default function VirtualAccount() {
     setBusy(true)
     setResetError(null)
     try {
-      await rpc('va_reset', { starting_capital: Number(capital) })
+      await rpc('va_reset')
       setConfirmReset(false)
       await load()
       refreshBudget()
@@ -164,10 +163,8 @@ export default function VirtualAccount() {
         <section className="card">
           <header className="card-head"><h2>Reset account</h2><span className="muted small">Clears all positions and history</span></header>
           <div className="reset-row">
-            <div className="field">
-              <label htmlFor="reset-cap">Starting capital (₹)</label>
-              <input id="reset-cap" type="number" inputMode="numeric" min="10000" step="100000" value={capital} onChange={(e) => setCapital(e.target.value)} />
-            </div>
+            <p className="muted small">Restarts with your capital of {acct ? rupee(acct.starting_capital) : '…'}: your start plus
+              everything you have earned. <Link to="/capital">Earn more capital</Link> by completing tasks.</p>
             <button className="btn danger-ghost" onClick={() => { setResetError(null); setConfirmReset(true) }}>
               <RotateCcw size={16} aria-hidden /> Reset
             </button>
@@ -244,7 +241,7 @@ export default function VirtualAccount() {
       {confirmReset && (
         <ConfirmDialog
           title="Reset virtual account?"
-          body={`All ${acct?.open_positions ?? 0} open positions, order history and P&L will be deleted. The account restarts with ${rupee(Number(capital))}. This can't be undone.`}
+          body={`All ${acct?.open_positions ?? 0} open positions, order history and P&L will be deleted. The account restarts with ${rupee(acct?.starting_capital ?? 0)}. This can't be undone.`}
           confirmLabel="Reset account"
           danger
           busy={busy}

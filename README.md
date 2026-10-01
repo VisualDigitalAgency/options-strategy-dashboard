@@ -131,7 +131,7 @@ DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://lo
 | **Real account** (`/broker/account`) | Real (or, until connected, approximate virtual-derived) available margin, cash, collateral, span, exposure and open positions |
 | **Admin** (`/admin`, roles with *manage users*) | Approve, reject or disable users, issue temporary passwords, change roles, sign-in activity log with client IPs. The owner also gets **Roles & features** |
 
-Accounts: every page needs a sign-in, except the lessons at `/learn`. New users sign up on `/register` and confirm their email with a 6-digit code. With **Approve new accounts automatically** on (the default, Admin → Roles & features, owner only), that's enough: they're signed in at once with ₹10,00,000 of virtual capital, as the *User* role, and the first screen asks for a public nickname and whether to appear on the leaderboard. With it off, confirmed accounts wait as pending until approved on the Admin page. Duplicate-account flags (same browser or network) still show there either way.
+Accounts: every page needs a sign-in, except the lessons at `/learn`. New users sign up on `/register` and confirm their email with a 6-digit code. With **Approve new accounts automatically** on (the default, Admin → Roles & features, owner only), that's enough: they're signed in at once with ₹2,00,000 of virtual capital, as the *User* role, and the first screen asks for a public nickname and whether to appear on the leaderboard. With it off, confirmed accounts wait as pending until approved on the Admin page. Duplicate-account flags (same browser or network) still show there either way.
 
 ## Learn (lessons and quizzes)
 
@@ -270,7 +270,7 @@ Every account can build its own strategy (#137); free accounts land here, since 
 
 ## Portfolio & virtual account
 
-Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹10 lakh; reset any time from **Virtual account** with a custom amount (₹10,000 to ₹1,000 crore).
+Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹2 lakh. More capital is earned only by completing tasks and reaching levels (**Earn capital** page, `engine/capital.py`, amounts in `config.CAPITAL_TASKS` / `LEVEL_CAPITAL`); each task pays once and never counts as profit. A reset from **Virtual account** restarts with the base plus everything earned; the amount can't be chosen. Accounts made before this change keep ₹10 lakh as their base.
 
 | Feature | Behaviour |
 |---|---|
