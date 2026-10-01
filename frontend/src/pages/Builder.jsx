@@ -91,6 +91,14 @@ function ChainTable({ chain, legs, onAdd, levels }) {
       <td key="i" className={`num chain-iv ${s}`}>{q.iv > 0 ? num(q.iv, 1) : '—'}</td>,
       <td key="o" className={`num chain-oi ${s}`} title={`Open interest ${int(q.oi)}`}>
         <span className="oi-bar" style={{ width: `${Math.round((q.oi / maxOi) * 100)}%` }} aria-hidden /><span>{compact(q.oi)}</span>
+        {/* Today's change (#154): rising OI = new positions written (sellers, red); falling = positions
+            closed, shorts bought back (buyers, blue). */}
+        {q.oi_chg != null && q.oi_chg !== 0 && (
+          <small className={`oi-chg ${q.oi_chg > 0 ? 'up' : 'down'}`}
+            title={q.oi_chg > 0 ? 'OI rising: new positions written (sellers)' : 'OI falling: positions closed (buyers covering)'}>
+            {q.oi_chg > 0 ? '+' : '−'}{compact(Math.abs(q.oi_chg))}
+          </small>
+        )}
       </td>,
       <Fragment key="a">{acts(r, side, leg)}</Fragment>,
     ]
@@ -103,13 +111,14 @@ function ChainTable({ chain, legs, onAdd, levels }) {
         <button type="button" className="btn small" aria-pressed={wide} onClick={() => setWide((w) => !w)}>{wide ? 'Near strikes' : 'All strikes'}</button>
         <Seg label="Show calls or puts" value={view} onChange={setView} options={[['CE', 'Calls'], ['PE', 'Puts']]} />
       </div>
+      <p className="oi-legend small muted">OI change today: <span className="oi-chg up">+ red</span> new positions written (sellers) · <span className="oi-chg down">− blue</span> positions closed (buyers covering)</p>
       <div className={`chain-wrap show-${view.toLowerCase()}`}>
         <table className="chain-table">
           <thead>
             <tr className="chain-sides"><th colSpan={5} className="ce">Calls</th><th /><th colSpan={5} className="pe">Puts</th></tr>
             <tr className="chain-cols">
               <th className="ce" />
-              <th className="ce chain-oi">OI</th>
+              <th className="ce chain-oi">OI <small>chg</small></th>
               <th className="ce chain-iv">IV</th>
               <th className="ce">Δ</th>
               <th className="ce">Bid <small>ask</small></th>
@@ -117,7 +126,7 @@ function ChainTable({ chain, legs, onAdd, levels }) {
               <th className="pe">Bid <small>ask</small></th>
               <th className="pe">Δ</th>
               <th className="pe chain-iv">IV</th>
-              <th className="pe chain-oi">OI</th>
+              <th className="pe chain-oi">OI <small>chg</small></th>
               <th className="pe" />
             </tr>
           </thead>
