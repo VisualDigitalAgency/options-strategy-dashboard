@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Hourglass, MailCheck } from 'lucide-react'
 import { useAuth } from '../auth'
@@ -78,10 +78,11 @@ function VerifyEmail({ email, intro }) {
   const [done, setDone] = useState(null)
   const [note, setNote] = useState(intro)
   const [sending, setSending] = useState(false)
+  const formRef = useRef(null)
   const { refresh } = useAuth()
   const nav = useNavigate()
   const { busy, error, submit } = useSubmit(async () => {
-    const r = await rpc('auth_verify_email', { email, code: code.replace(/\s/g, '') })
+    const r = await rpc('auth_verify_email', { email, code })
     // Auto-approved (#121): already signed in, so go straight in; the welcome step follows.
     if (r.signed_in) {
       nav('/', { replace: true })
@@ -100,6 +101,12 @@ function VerifyEmail({ email, intro }) {
       setSending(false)
     }
   }
+  // A full code confirms itself (#167): no extra press after typing or pasting the 6 digits.
+  const onCode = (v) => {
+    const digits = v.replace(/\D/g, '').slice(0, 6)
+    setCode(digits)
+    if (digits.length === 6 && !busy) setTimeout(() => formRef.current?.requestSubmit(), 0)
+  }
   if (done) {
     return (
       <Shell title="Email confirmed" foot={<Link to="/login">Back to sign in</Link>}>
@@ -116,11 +123,11 @@ function VerifyEmail({ email, intro }) {
         <MailCheck size={20} aria-hidden />
         <p role="status">{note}</p>
       </div>
-      <form className="auth-form" onSubmit={submit} noValidate>
-        <Field label="6-digit code" id="code" autoComplete="one-time-code" inputMode="numeric" maxLength={7} required
-          value={code} onChange={(e) => setCode(e.target.value)} hint={`Sent to ${email}. It expires in 10 minutes.`} />
+      <form ref={formRef} className="auth-form" onSubmit={submit} noValidate>
+        <Field label="6-digit code" id="code" autoComplete="one-time-code" inputMode="numeric" required autoFocus
+          value={code} onChange={(e) => onCode(e.target.value)} hint={`Sent to ${email}. It expires in 10 minutes.`} />
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="btn primary lg auth-submit" disabled={busy || code.replace(/\s/g, '').length !== 6}>
+        <button className="btn primary lg auth-submit" disabled={busy || code.length !== 6}>
           {busy ? 'Checking…' : 'Confirm email'}
         </button>
         <button type="button" className="link-btn" onClick={resend} disabled={sending}>
@@ -151,8 +158,8 @@ export function Login() {
   })
   if (verify) return <VerifyEmail email={email.trim().toLowerCase()} intro={verify} />
   return (
-    <Shell title="Sign in" lede="Your virtual account, screener and auto-trade settings."
-      foot={<>No account yet? <Link to="/register">Request access</Link></>}>
+    <Shell title="Sign in" lede="Your virtual account, lessons and progress."
+      foot={<>No account yet? <Link to="/register">Join free</Link></>}>
       <form className="auth-form" onSubmit={submit} noValidate>
         <Field label="Email" id="email" type="email" autoComplete="username" inputMode="email" required
           value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -258,6 +265,7 @@ function useInviteCode() {
 
 export function Register() {
   const ref = useInviteCode()
+  const { autoApprove } = useBrand()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -278,8 +286,11 @@ export function Register() {
     )
   }
   return (
-    <Shell title="Request access" lede="Confirm your email, then an admin approves the account. You start with ₹10,00,000 of virtual capital."
-      foot={<>Already approved? <Link to="/login">Sign in</Link></>}>
+    <Shell title={autoApprove ? 'Join free' : 'Request access'}
+      lede={autoApprove
+        ? 'Practise option selling on a ₹10,00,000 virtual account with live NSE prices. Confirm your email and you are in.'
+        : 'Confirm your email, then an admin approves the account. You start with ₹10,00,000 of virtual capital.'}
+      foot={<>Already have an account? <Link to="/login">Sign in</Link></>}>
       <form className="auth-form" onSubmit={submit} noValidate>
         <Field label="Name" id="name" autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} />
         <Field label="Email" id="email" type="email" autoComplete="email" inputMode="email" required
@@ -288,7 +299,7 @@ export function Register() {
           onChange={setPassword} hint={`At least ${MIN} characters. Leave out your name and email.`} />
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn primary lg auth-submit" disabled={busy || !name || !email || password.length < MIN}>
-          {busy ? 'Sending…' : 'Request access'}
+          {busy ? 'Sending…' : autoApprove ? 'Create free account' : 'Request access'}
         </button>
       </form>
     </Shell>

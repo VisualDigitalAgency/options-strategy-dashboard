@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, BellRing, ChartCandlestick, ChevronDown, Hourglass, LineChart, LogOut, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import { rpc } from '../rpc'
+import { can, useAuth } from '../auth'
+import GettingStarted from '../components/GettingStarted'
 import UpdatedTag from '../components/UpdatedTag'
 import { useBudget } from '../settings'
 import { num, pct, pnlClass, rupee, rupee2, int, shortDate, signed, signedRupee, todayIso } from '../format'
@@ -294,6 +296,7 @@ function PortfolioSkeleton() {
 }
 
 export default function Portfolio() {
+  const user = useAuth()?.user // pages are also rendered outside the auth provider in tests
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -438,6 +441,7 @@ export default function Portfolio() {
 
   return (
     <div className="detail">
+      <GettingStarted />
       <section className="page-head">
         <div>
           <h1 className="display">Portfolio</h1>
@@ -522,8 +526,13 @@ export default function Portfolio() {
       {mode === 'virtual' && data && data.groups.length === 0 && (
         <div className="card empty-state">
           <h2>No open positions</h2>
-          <p className="muted">Pick a setup from the screener and place a virtual order to start paper trading your strategy.</p>
-          <Link className="btn primary" to="/">Open screener</Link>
+          {can(user, 'screener') ? <>
+            <p className="muted">Pick a setup from the screener and place a virtual order to start paper trading your strategy.</p>
+            <Link className="btn primary" to="/">Open screener</Link>
+          </> : <>
+            <p className="muted">Build a strategy on any Nifty 50 stock and place it on your ₹10 lakh virtual account. A short strangle below delta 0.15 is a good first trade.</p>
+            <Link className="btn primary" to="/builder">Build your first trade</Link>
+          </>}
         </div>
       )}
 

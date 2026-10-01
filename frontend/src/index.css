@@ -2022,5 +2022,17 @@ img.brand-logo { object-fit: contain; }
 .public-nav a.active { color: var(--text); background: var(--hover); }
 @media (max-width: 640px) { .public-nav a span { display: none; } }
 
+/* Getting started (#167): the Level 1 checklist on Learn, Builder and Portfolio. */
+.getting-started { padding: 14px 16px; margin-bottom: 16px; border-color: var(--primary); }
+.getting-started header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.getting-started h2 { font-size: 16px; margin: 0; display: inline-flex; gap: 8px; align-items: center; }
+.getting-started p { margin: 4px 0 8px; }
+.gs-bar { height: 4px; border-radius: 4px; background: var(--border); overflow: hidden; margin-bottom: 10px; }
+.gs-bar span { display: block; height: 100%; background: var(--primary); transition: width .3s; }
+.getting-started ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.getting-started li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.getting-started li.ok { color: var(--text-muted); }
+.getting-started li.ok svg { color: var(--up); }
+.getting-started li.ok span:not(.sr-only) { text-decoration: line-through; }
 /* Locked menu items (#165): what unlocks them, muted. */
 .lock-tag { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
