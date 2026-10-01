@@ -117,10 +117,12 @@ with db.tx() as c:
     c.run("UPDATE role_features SET enabled=true WHERE role='user' AND feature='coin_store'")
 shop = users.create_user("shop@test.example", "Shop", status="active")
 check("role on, Level 1: still no coin store", "coin_store" not in permissions.user_features(shop, "user"))
+check("role on, Level 1: shown locked with its level", auth.me(shop)["level_locked"] == {"coin_store": 4})
 with db.tx(shop) as c:
     c.run("INSERT INTO user_levels (user_id, level, level_since) VALUES (:u, 4, now()) "
           "ON CONFLICT (user_id) DO UPDATE SET level = 4", u=shop)
 check("role on, Level 4: coin store", "coin_store" in permissions.user_features(shop, "user"))
+check("unlocked: no longer listed as locked", auth.me(shop)["level_locked"] == {})
 with db.tx() as c:
     c.run("UPDATE role_features SET enabled=false WHERE role='user' AND feature='coin_store'")
 check("role off, Level 4: no coin store", "coin_store" not in permissions.user_features(shop, "user"))

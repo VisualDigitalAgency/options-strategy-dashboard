@@ -19,10 +19,11 @@ let ok = true
 const check = (name, cond, got = '') => { ok &&= cond; console.log(`${cond ? 'PASS' : 'FAIL'} ${name}`, got) }
 const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 30)) })
 let features = []
+let levelLocked = {}
 globalThis.fetch = async (_url, opts) => {
   const { method, id } = JSON.parse(opts.body)
   const result = {
-    auth_me: { id: 1, name: 'Asha Rao', email: 'a@x', role: 'user', level: 2, features, prefs: {}, nickname: 'asha', status: 'active' },
+    auth_me: { id: 1, name: 'Asha Rao', email: 'a@x', role: 'user', level: 2, features, level_locked: levelLocked, prefs: {}, nickname: 'asha', status: 'active' },
     app_info: { name: 'Acme', logo: null },
   }[method]
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: result ?? null }) }
@@ -50,6 +51,16 @@ const cal = [...nav().querySelectorAll('a')].find((a) => a.textContent.includes(
 check('locked calendar: badge, leads to Progress', cal?.textContent.includes('Unlocks at Level 3') && cal.getAttribute('href') === '/progress', cal?.outerHTML)
 const brk = [...nav().querySelectorAll('a')].find((a) => a.textContent.includes('Broker'))
 check('broker: invitation badge, still opens its preview', brk?.textContent.includes('By invitation') && brk.getAttribute('href') === '/broker')
+check('coin store hidden while the owner keeps it off', !labels().some((l) => l.includes('Coin store')))
+levelLocked = { coin_store: 4 }
+await render()
+await settle()
+const store = [...nav().querySelectorAll('a')].find((a) => a.textContent.includes('Coin store'))
+check('coin store on for the role, below Level 4: locked, leads to Progress (#175)',
+  store?.textContent.includes('Unlocks at Level 4') && store.getAttribute('href') === '/progress', store?.outerHTML)
+levelLocked = {}
+await render()
+await settle()
 check('active page marked', nav().querySelector('a.active')?.textContent === 'Learn')
 await act(async () => menu().click())
 check('menu button shrinks to an icon rail', nav().classList.contains('shrunk') && document.querySelector('.app-shell.shrunk') !== null)

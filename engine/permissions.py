@@ -70,6 +70,16 @@ def user_features(user_id: int, role: str | None) -> list[str]:
     return [f for f in FEATURES if f in got]
 
 
+def level_locked(user_id: int, role: str | None, level: int) -> dict[str, int]:
+    """Features the role has on but the user's level hasn't reached yet (config.LEVEL_MIN), with the
+    level that opens each: the menu shows these locked rather than hiding them (#175)."""
+    if role == "owner":
+        return {}
+    have = set(user_features(user_id, role))
+    on = set(features_for(role))
+    return {f: lv for f, lv in config.LEVEL_MIN.items() if f in on and f not in have and level < lv}
+
+
 def user_allowed(user: dict | None, feature: str) -> bool:
     """`user` needs `id` and `role` (auth.active_user / ctx.user)."""
     if not user:

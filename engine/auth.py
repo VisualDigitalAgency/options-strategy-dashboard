@@ -525,6 +525,7 @@ def me(user_id: int) -> dict:
         prefs = c.one("SELECT theme, palette FROM user_prefs WHERE user_id=:u", u=user_id) or {}
         level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
     return {**u, "level": level, "features": permissions.user_features(u["id"], u["role"]),
+            "level_locked": permissions.level_locked(u["id"], u["role"], level),
             "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette")}}
 
 
