@@ -94,6 +94,7 @@ check('success links to Portfolio', text().includes('Order placed: 4 filled'))
 await act(async () => btn('Buy 1200 CE').click())
 await settle(500)
 check('naked buy: server reason shown', text().includes('unlocks at Level 6') && btn('Place on virtual account').disabled)
+check('bottom bar says it is a virtual order', [...document.querySelectorAll('.builder-dock button')].some((b) => b.textContent === 'Place virtual order'))
 
 // 3. Active legs in the chain (#144).
 let ls = addLot(chain, [], 'CE', 1100, 'SELL')
