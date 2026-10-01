@@ -1,28 +1,28 @@
-> A sold option has a small, known reward and a large, unknown risk. A **protective buy** caps that risk: you buy an option further out of the money, of the same type, so a big move can only cost so much.
+> You learnt spreads at Level 5 as trades you open on purpose. This lesson is about the moment a trade you **already hold** starts to worry you, and adding a protective buy to it, part way through.
 
-## The shape
+## When to add protection to a held trade
 
-- **Sold put + bought put further down** = a bull put spread. Below the bought strike, losses stop growing.
-- **Sold call + bought call further up** = a bear call spread.
-- Both together = an **iron condor**.
+- **An event appears** before your expiry that wasn't there when you opened (results moved, a dividend announced).
+- **The stock is drifting towards your sold strike**, your reason for the trade still holds, and you'd rather cap the risk than close.
+- **Margin is getting tight**, and capping the worst case frees some.
 
-The most you can lose is the gap between the strikes, times the lot size, minus the net premium you kept.
+If none of these apply, a hedge just costs premium. Leave the trade alone.
 
 ::visual payoff-put-spread
 
-## The cost
+## How to add it here
 
-- The bought option costs premium, so you keep less.
-- It usually lowers the margin, because the worst case is capped.
-- Far-away protection is cheap but only helps in a crash. Closer protection helps more and costs more.
+1. In the Strategy builder, open the same stock and expiry.
+2. Buy one option of the same type, further out of the money than your sold strike, no more lots than you sold.
+3. The order joins your existing group: the buy rule checks it against what you already hold, so a protective buy is allowed before Level 6.
 
-## Rules in the builder
+## Hedge or close?
 
-- Before Level 6, a buy must protect a sell: same type, further out of the money, and no more lots than you sold.
-- From Level 6 you may also buy options on their own. A bought leg with no sell left to protect has its own stop: it closes once it has lost half of what you paid.
+- Work out the cost of the hedge against the premium still left in your sold leg.
+- If the hedge costs most of what you could still keep, **close** instead: it's simpler and frees all the margin.
+- If the hedge is cheap compared with the loss it caps, add it and let the trade run under your rules.
 
-## When protection is worth it
+## Don't
 
-- Around **results or big events**, when a gap could jump past your stop before it can act.
-- When the margin it saves lets you trade the size you planned, instead of a riskier naked position.
-- Not as a reason to sell strikes closer than your delta rule allows.
+- Don't hedge *after* the stop is hit to avoid booking the loss. The stop decides.
+- Don't buy more lots than you sold to "make it back". That is a new bet, not a hedge.

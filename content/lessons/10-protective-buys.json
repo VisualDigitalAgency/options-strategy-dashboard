@@ -1,29 +1,64 @@
 {
-  "title": "Adjustments 2: protective buys",
+  "title": "Adjustments 2: hedging a trade you hold",
   "level": 6,
   "order": 10,
-  "summary": "Capping the risk of a sold option with a bought one further out: spreads, iron condors, what they cost and when they are worth it.",
+  "summary": "When to add a protective buy to a trade you already hold, how to do it in the builder, and when closing is the better choice.",
   "minutes": 5,
   "questions": [
-    {"q": "You sold the 900 put. Which buy protects it?",
-     "options": ["The 950 put", "The 850 put", "The 900 call", "The 1,000 call"],
-     "answer": 1,
-     "why": "A protective put has the same type and sits further out of the money: below the sold strike."},
-    {"q": "Sold 900 put for ₹6, bought 850 put for ₹2, lot size 100. What is the most you can lose?",
-     "options": ["₹400", "₹4,600", "₹5,000", "Unlimited"],
-     "answer": 1,
-     "why": "(900 − 850) × 100 = ₹5,000, minus the ₹400 net premium kept = ₹4,600."},
-    {"q": "What does a protective buy usually do to margin?",
-     "options": ["Raises it", "Lowers it, because the worst case is capped", "Nothing", "Doubles it"],
-     "answer": 1,
-     "why": "With the loss capped, less margin is needed to cover the worst case."},
-    {"q": "When is protection most worth its cost?",
-     "options": ["On quiet days", "Around results, when a gap can jump past your stop", "Only at expiry", "Never"],
-     "answer": 1,
-     "why": "A stop can't act inside a gap; a bought option can."},
-    {"q": "Before Level 6, the builder lets you buy an option only if it:",
-     "options": ["Is cheaper than ₹1", "Protects a sold leg of the same type, further out, with no more lots", "Expires this week", "Is at the money"],
-     "answer": 1,
-     "why": "Buying on its own unlocks at Level 6; before that a buy must protect a sell."}
+    {
+      "q": "Which is a good reason to hedge a trade you already hold?",
+      "options": [
+        "It made money yesterday",
+        "Results were announced for before your expiry",
+        "You want more XP",
+        "The market is quiet"
+      ],
+      "answer": 1,
+      "why": "A new event before expiry is the classic reason to add protection."
+    },
+    {
+      "q": "You sold the 900 put. Which buy hedges it?",
+      "options": [
+        "The 950 put",
+        "The 850 put",
+        "The 900 call",
+        "Two 850 puts for every one sold"
+      ],
+      "answer": 1,
+      "why": "Same type, further out of the money, no more lots than sold."
+    },
+    {
+      "q": "The hedge would cost most of the premium still left in your sold leg. Usually better:",
+      "options": [
+        "Buy it anyway",
+        "Close the trade",
+        "Sell more puts",
+        "Turn off the stop"
+      ],
+      "answer": 1,
+      "why": "When protection eats the remaining reward, closing is simpler and frees the margin."
+    },
+    {
+      "q": "Your stop has already been hit. Should you hedge instead of exiting?",
+      "options": [
+        "Yes, to avoid booking the loss",
+        "No: the stop decides",
+        "Only on Fridays",
+        "Only with calls"
+      ],
+      "answer": 1,
+      "why": "Hedging after the stop is a way of not taking the loss; the rule is to exit."
+    },
+    {
+      "q": "Before Level 6, can you add a protective buy to a sold leg you already hold?",
+      "options": [
+        "No, never",
+        "Yes, if it protects that sold leg: same type, further out, no more lots",
+        "Only at expiry",
+        "Only for calls"
+      ],
+      "answer": 1,
+      "why": "The buy rule checks the order against your open position, so a protective buy is allowed."
+    }
   ]
 }
