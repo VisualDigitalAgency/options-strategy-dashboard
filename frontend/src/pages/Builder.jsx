@@ -9,7 +9,7 @@ import { int, num, rupee, rupee2, shortDate } from '../format'
 import { BuilderPayoff } from '../components/Charts'
 import { sdRange } from '../bs'
 import {
-  SAFE_TEMPLATES, TEMPLATES, addLot, atmIv, curve, zoneAt as zoneOf, greeks, legAt, makeLeg, netLegs, pnlOn, probProfit, restoreLegs, scorecard, stats,
+  SAFE_TEMPLATES, TEMPLATES, addLot, atmIv, closeOrRoll, curve, heldLegs, resulting, zoneAt as zoneOf, greeks, legAt, makeLeg, netLegs, pnlOn, probProfit, restoreLegs, scorecard, stats,
 } from '../strategy'
 
 // Strategy builder (issue #137): any Nifty 50 stock, any expiry, any mix of sold and bought legs.
@@ -162,6 +162,11 @@ export default function Builder() {
   const [ivShift, setIvShift] = useState(0)
   const [baseline, setBaseline] = useState(null) // { legs, stats, margin } pinned for comparison
   const [safe, setSafe] = useState(false) // templates pick rule-safe strikes
+  // Adjust mode (from Portfolio): the open position on this stock and expiry is held fixed, the legs
+  // below are the adjustment, and the analysis shows the position after it against the one now.
+  const adjust = params.get('adjust') === '1'
+  const [held, setHeld] = useState([])
+  const [heldTick, setHeldTick] = useState(0)
 
   useEffect(() => { rpc('get_config').then((c) => setUniverse(c.universe)).catch((e) => setError(e.message)) }, [])
 
@@ -181,6 +186,16 @@ export default function Builder() {
     // `asked` records which request a chain answers, so a saved strategy waits for the right one.
     rpc('builder_chain', expiry ? { symbol, expiry } : { symbol }).then((c) => setChain({ ...c, asked: expiry })).catch((e) => setError(e.message))
   }, [symbol, expiry])
+
+  useEffect(() => {
+    setHeld([])
+    if (!adjust || !chain || chain.asked !== expiry) return
+    rpc('va_get_positions').then((p) => {
+      const grp = p.groups.find((x) => x.symbol === chain.symbol && x.expiry === chain.expiry)
+      if (grp) setHeld(heldLegs(chain, grp))
+      else setNotice(`No open ${chain.symbol} position for ${shortDate(chain.expiry)}: build a new strategy instead.`)
+    }).catch((e) => setNotice(e.message))
+  }, [adjust, chain, expiry, heldTick])
 
   useEffect(() => {
     setLevels(null)
@@ -225,6 +240,7 @@ export default function Builder() {
   const add = (side, strike, action) => {
     if (chain) { setLegs((ls) => addLot(chain, ls, side, strike, action)); setDone(null) }
   }
+  const adjustHeld = (h, roll) => { setLegs((ls) => netLegs(chain, [...ls, ...closeOrRoll(chain, h, roll)])); setDone(null) }
   const template = (key) => {
     const made = (safe && SAFE_TEMPLATES[key] ? SAFE_TEMPLATES[key](chain, levels) : TEMPLATES[key].legs(chain)).filter(([, k]) => k != null).map(([s, k, a]) => makeLeg(chain, s, k, a)).filter(Boolean)
     setLegs(netLegs(chain, made)); setDone(null)
@@ -252,20 +268,28 @@ export default function Builder() {
   }, [key, chain])
 
   const lot = chain?.lot_size || 0
-  const s = useMemo(() => (chain ? stats(legs, chain.spot, lot) : null), [legs, chain, lot])
+  // Everything below analyses `all`: the new legs, plus the held ones when adjusting.
+  const all = useMemo(() => [...held, ...legs], [held, legs])
+  const s = useMemo(() => (chain && all.length ? stats(all, chain.spot, lot) : null), [all, chain, lot])
+  const net = useMemo(() => (chain && legs.length ? stats(legs, chain.spot, lot).net : 0), [legs, chain, lot])
   const iv = chain ? atmIv(chain) : 0
-  const g = useMemo(() => (chain ? greeks(legs, chain.spot, chain.dte, lot, iv) : null), [legs, chain, lot, iv])
-  const card = chain ? scorecard(chain, legs, levels) : []
+  const g = useMemo(() => (chain ? greeks(all, chain.spot, chain.dte, lot, iv) : null), [all, chain, lot, iv])
+  const card = chain ? scorecard(chain, held.length ? resulting(chain, held, legs) : legs, levels) : []
   const failing = card.filter((r) => !r.ok).length
-  const pop = useMemo(() => (chain ? probProfit(legs, chain) : null), [legs, chain])
+  const pop = useMemo(() => (chain ? probProfit(all, chain) : null), [all, chain])
+  // When adjusting, the position as it is now is the baseline (margin 0: the preview gives the change).
+  const before = useMemo(() => (chain && held.length
+    ? { legs: held, stats: stats(held, chain.spot, lot), margin: 0, pop: probProfit(held, chain), delta: greeks(held, chain.spot, chain.dte, lot, atmIv(chain)).delta }
+    : null), [held, chain, lot])
+  const base = before ?? baseline
   const days = chain ? Math.min(daysAhead, chain.dte) : 0
-  const points = useMemo(() => (chain && legs.length ? curve(legs, chain, { daysAhead: days, ivShift, baseline: baseline?.legs }) : []),
-    [legs, chain, days, ivShift, baseline])
+  const points = useMemo(() => (chain && all.length ? curve(all, chain, { daysAhead: days, ivShift, baseline: base?.legs }) : []),
+    [all, chain, days, ivShift, base])
   const sd = chain && iv > 0 ? sdRange(chain.spot, iv, chain.dte, 1) : null
   const nowLabel = days === 0 ? 'Today' : days >= (chain?.dte ?? 0) ? 'Expiry' : `In ${days} day${days > 1 ? 's' : ''}`
-  const pnlThen = chain && legs.length ? pnlOn(legs, chain.spot, chain.dte, lot, chain.spot, Math.max(chain.dte - days, 0), ivShift, iv) : 0
+  const pnlThen = chain && all.length ? pnlOn(all, chain.spot, chain.dte, lot, chain.spot, Math.max(chain.dte - days, 0), ivShift, iv) : 0
   const margin = preview?.margin_change
-  const rom = s && margin > 0 && Number.isFinite(s.maxProfit) ? s.maxProfit / margin : null
+  const rom = !held.length && s && margin > 0 && Number.isFinite(s.maxProfit) ? s.maxProfit / margin : null
   const pin = () => setBaseline({ legs, stats: s, margin, pop })
   const needsConfirm = (preview?.illiquid?.length || preview?.waiting?.length) > 0
 
@@ -278,6 +302,7 @@ export default function Builder() {
         confirm_waiting: confirm, confirm_illiquid: confirm,
       }))
       setLegs([]); budget?.refresh?.()
+      if (adjust) setHeldTick((t) => t + 1) // reload what is now held
     } catch (e) { setPreviewError(e.message) } finally { setBusy(false); setConfirm(false) }
   }
 
@@ -285,7 +310,7 @@ export default function Builder() {
   const delta = (a, b, f) => (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b) ? '—' : `${a - b >= 0 ? '+' : '−'}${f(Math.abs(a - b))}`)
 
   const blocked = busy || !preview || !!preview.buy_rule || !preview.sufficient
-  const placeLabel = busy ? 'Placing…' : confirm ? 'Place anyway' : 'Place on virtual account'
+  const placeLabel = busy ? 'Placing…' : confirm ? 'Place anyway' : held.length ? 'Place adjustment on virtual account' : 'Place on virtual account'
   const dockNote = preview?.buy_rule ? 'Buy leg not allowed yet'
     : preview && !preview.sufficient ? 'Not enough free margin'
       : confirm ? 'Check the note above, then press again'
@@ -363,8 +388,26 @@ export default function Builder() {
             </label>
             {notice && <p className="alert builder-notice" role="status"><AlertTriangle size={16} aria-hidden /> {notice}</p>}
 
+            {held.length > 0 && (
+              <section className="card builder-held" aria-label="Open position">
+                <div className="card-head"><h2>Open position</h2><span className="muted small">held, priced from entry</span></div>
+                <ul className="leg-list">
+                  {held.map((h) => (
+                    <li key={`${h.side}${h.strike}`} className={`held-leg ${h.action === 'BUY' ? 'is-buy' : 'is-sell'}`}>
+                      <span className="side-pill">{h.action === 'BUY' ? 'Long' : 'Short'}</span>
+                      <span className="leg-name num">{h.lots > 1 ? `${h.lots}× ` : ''}{strikeText(h.strike)} {h.side}</span>
+                      <span className="leg-px num">{rupee2(h.premium)}<small>now {rupee2(h.mark)}</small></span>
+                      <button type="button" className="btn small" onClick={() => adjustHeld(h, false)} aria-label={`Close ${strikeText(h.strike)} ${h.side}`}>Close</button>
+                      <button type="button" className="btn small" onClick={() => adjustHeld(h, true)} aria-label={`Roll ${strikeText(h.strike)} ${h.side}`}>Roll out</button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted small">The legs below are the adjustment. Roll out closes a leg and opens it one strike further out; change that strike in the list.</p>
+              </section>
+            )}
+
             <section className="card builder-legs" aria-label="Legs">
-              <div className="card-head"><h2>Legs</h2>{legs.length > 0 && <span className="muted small">{legs.length} leg{legs.length > 1 ? 's' : ''}</span>}</div>
+              <div className="card-head"><h2>{held.length ? 'Adjustment' : 'Legs'}</h2>{legs.length > 0 && <span className="muted small">{legs.length} leg{legs.length > 1 ? 's' : ''}</span>}</div>
               {!legs.length && <p className="muted">Pick a template, or tap Sell or Buy on a strike in the chain.</p>}
               <ul className="leg-list">
                 {legs.map((l, i) => (
@@ -414,11 +457,12 @@ export default function Builder() {
 
           <aside className="card b-side" aria-label="Analysis">
             <div className="card-head"><h2>At expiry</h2></div>
-            {legs.length > 0 && s ? (
+            {all.length > 0 && s ? (
               <>
+                {held.length > 0 && <p className="small muted">{legs.length ? 'The position after this adjustment.' : 'The position as it is now. Add legs to adjust it.'}</p>}
                 <div className="b-net">
-                  <span>{s.net >= 0 ? 'Net credit' : 'Net debit'}</span>
-                  <strong className="num">{rupee(Math.abs(s.net))}</strong>
+                  <span>{held.length ? 'Adjustment ' : ''}{net >= 0 ? (held.length ? 'credit' : 'Net credit') : (held.length ? 'debit' : 'Net debit')}</span>
+                  <strong className="num">{rupee(Math.abs(net))}</strong>
                 </div>
                 <dl className="b-pl">
                   <div><dt>Max profit</dt><dd className="num pos">{money(s.maxProfit)}</dd></div>
@@ -452,15 +496,20 @@ export default function Builder() {
                     {(days || ivShift) ? <button type="button" className="link-btn" onClick={() => { setDaysAhead(0); setIvShift(0) }}>Reset</button> : null}</p>
                 </div>
                 <div className="baseline">
-                  {baseline ? (
+                  {base ? (
                     <>
-                      <div className="card-head"><h3>Against the pinned version</h3>
-                        <button type="button" className="btn small" onClick={() => setBaseline(null)}><PinOff size={14} aria-hidden /> Unpin</button></div>
+                      <div className="card-head"><h3>{before ? 'Change from the position now' : 'Against the pinned version'}</h3>
+                        {!before && <button type="button" className="btn small" onClick={() => setBaseline(null)}><PinOff size={14} aria-hidden /> Unpin</button>}</div>
                       <dl className="builder-stats">
-                        <div><dt>Net credit</dt><dd className="num">{delta(s.net, baseline.stats.net, rupee)}</dd></div>
-                        <div><dt>Max loss</dt><dd className="num">{delta(s.maxLoss, baseline.stats.maxLoss, rupee)}</dd></div>
-                        <div><dt>Margin</dt><dd className="num">{delta(margin, baseline.margin, rupee)}</dd></div>
-                        <div><dt>Probability of profit</dt><dd className="num">{delta(pop, baseline.pop, (v) => `${num(v * 100, 0)} pts`)}</dd></div>
+                        {before ? (
+                          <>
+                            <div><dt>Max profit</dt><dd className="num">{delta(s.maxProfit, base.stats.maxProfit, rupee)}</dd></div>
+                            <div><dt>Net delta</dt><dd className="num">{delta(g.delta, base.delta, (v) => num(v, 1))}</dd></div>
+                          </>
+                        ) : <div><dt>Net credit</dt><dd className="num">{delta(s.net, base.stats.net, rupee)}</dd></div>}
+                        <div><dt>Max loss</dt><dd className="num">{delta(s.maxLoss, base.stats.maxLoss, rupee)}</dd></div>
+                        <div><dt>Margin</dt><dd className="num">{delta(margin, base.margin, rupee)}</dd></div>
+                        <div><dt>Probability of profit</dt><dd className="num">{delta(pop, base.pop, (v) => `${num(v * 100, 0)} pts`)}</dd></div>
                       </dl>
                     </>
                   ) : (
@@ -469,7 +518,7 @@ export default function Builder() {
                     </button>
                   )}
                 </div>
-                <div className="builder-save">
+                {legs.length > 0 && <div className="builder-save">
                   {canSave ? (
                     <>
                       <label className="sr-only" htmlFor="b-save-name">Strategy name</label>
@@ -481,8 +530,8 @@ export default function Builder() {
                     <button className="btn" disabled title="Saved strategies unlock at Level 5"><Lock size={15} aria-hidden /> Save · unlocks at Level 5</button>
                   )}
                   {saveMsg && <p className={`small ${saveMsg.ok ? 'pos' : 'neg'}`} role="status">{saveMsg.text}</p>}
-                </div>
-                <div className="builder-place">
+                </div>}
+                {legs.length > 0 && <div className="builder-place">
                   {preview?.buy_rule && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {preview.buy_rule}</div>}
                   {preview && !preview.sufficient && (
                     <div className="alert" role="alert">Not enough free margin: needs {rupee(preview.margin_change)}, available {rupee(preview.available_margin)}</div>
@@ -494,7 +543,7 @@ export default function Builder() {
                   <button className="btn primary" onClick={place} disabled={blocked}>
                     <Plus size={15} aria-hidden /> {placeLabel}
                   </button>
-                </div>
+                </div>}
               </>
             ) : <p className="muted">Add legs to see the payoff, margin and Greeks.</p>}
             {done && (

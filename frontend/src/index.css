@@ -1961,3 +1961,7 @@ img.brand-logo { object-fit: contain; }
 @media (max-width: 1023px) {
   .chain-iv, .chain-oi { display: none; }
 }
+.builder-held .held-leg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.builder-held .held-leg .leg-px { margin-left: auto; }
+.builder-held .held-leg.is-sell .side-pill { color: var(--sell-text); }
+.builder-held .held-leg.is-buy .side-pill { color: var(--buy-text); }

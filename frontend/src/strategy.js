@@ -153,7 +153,8 @@ export function legValue(l, spot, dte, px, daysLeft, ivShift = 0, fallbackIv = 0
   const iv = legIv(l, fallbackIv)
   const intrNow = intrinsic(l.side, spot, l.strike)
   const tvNow = bsPrice(l.side, spot, l.strike, dte, iv) - intrNow
-  const k = tvNow > 1e-6 ? Math.max(l.premium - intrNow, 0) / tvNow : 1
+  // A held leg is calibrated to its current mark, not the price it was opened at.
+  const k = tvNow > 1e-6 ? Math.max((l.mark ?? l.premium) - intrNow, 0) / tvNow : 1
   const intr = intrinsic(l.side, px, l.strike)
   return intr + (bsPrice(l.side, px, l.strike, daysLeft, Math.max(iv + ivShift, 1)) - intr) * k
 }
@@ -271,4 +272,34 @@ export const SAFE_TEMPLATES = {
   },
   bull_put_spread: (c, lv) => { const pe = safeStrike(c, 'PE', lv, 2); return [['PE', pe.strike, 'SELL'], ['PE', hedgeFor(pe), 'BUY']] },
   bear_call_spread: (c, lv) => { const ce = safeStrike(c, 'CE', lv, 2); return [['CE', ce.strike, 'SELL'], ['CE', hedgeFor(ce), 'BUY']] },
+}
+
+// ---- Adjusting an open position ----
+
+/** Open virtual-account legs ({side, strike, qty, avg_price, iv, mark}) as builder legs. `premium` is
+ *  what was paid or received, `mark` today's value, so P&L counts from entry and curves from now. */
+export function heldLegs(chain, group) {
+  return group.legs.filter((l) => l.qty).map((l) => {
+    const q = chain.rows.find((r) => r.strike === l.strike)?.[l.side]
+    return {
+      side: l.side, strike: l.strike, action: l.qty < 0 ? 'SELL' : 'BUY', lots: l.lots || Math.abs(l.qty) / chain.lot_size,
+      premium: l.avg_price, mark: l.mark ?? q?.ltp ?? l.avg_price, iv: l.iv || q?.iv || 0, delta: q?.delta ?? null, held: true,
+    }
+  })
+}
+
+/** The position an adjustment leaves: held and new lots netted per strike, at chain prices (for the
+ *  rule check and the leg summary; P&L uses held + new legs as they are, each at its own price). */
+export const resulting = (chain, held, legs) => netLegs(chain, [...held, ...legs])
+
+/** Legs that close one held leg (`roll` also opens the same lots one strike further out). */
+export function closeOrRoll(chain, leg, roll) {
+  const out = [{ side: leg.side, strike: leg.strike, action: leg.action === 'SELL' ? 'BUY' : 'SELL', lots: leg.lots }]
+  if (roll) {
+    const ks = chain.rows.filter((r) => r[leg.side]).map((r) => r.strike)
+    const i = ks.indexOf(leg.strike)
+    const next = ks[i + (leg.side === 'CE' ? 1 : -1)]
+    if (next != null) out.push({ side: leg.side, strike: next, action: leg.action, lots: leg.lots })
+  }
+  return out
 }
