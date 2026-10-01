@@ -194,7 +194,7 @@ def start_scheduler(get_candidates) -> None:
             for uid in uids:  # one user at a time: they share the screen and quotes, so NSE load stays flat
                 try:
                     u = auth.active_user(uid)
-                    if not u or not permissions.allowed(u["role"], "autotrade"):  # the owner turned it off
+                    if not u or not permissions.user_allowed(u, "autotrade"):  # the owner turned it off
                         continue
                     s = get_settings(uid)
                     now = datetime.now(virtual.IST)

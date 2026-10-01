@@ -518,7 +518,7 @@ def me(user_id: int) -> dict:
                   u=user_id)
     with db.tx(user_id) as c:
         prefs = c.one("SELECT theme, palette FROM user_prefs WHERE user_id=:u", u=user_id) or {}
-    return {**u, "features": permissions.features_for(u["role"]),
+    return {**u, "features": permissions.user_features(u["id"], u["role"]),
             "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette")}}
 
 
@@ -640,6 +640,22 @@ def set_role(actor_id: int, target_id: int, role: str, ip: str | None = None) ->
     if old != role:
         audit("role_changed", actor_id=actor_id, target_user_id=target_id, ip=ip, was=old, role=role)
     return {"id": target_id, "role": role}
+
+
+AUTO_ROLE = "beta"
+
+
+def auto_promote(user_id: int, role: str, level: int) -> bool:
+    """The only automatic role change (#123): a `user` who reached config.BETA_LEVEL becomes `beta`.
+    Refuses any other target role outright, so no future caller can use it to hand out sub-admin
+    or owner. Touches only accounts that are still `user`. Returns whether it promoted."""
+    if role != AUTO_ROLE:
+        raise ValueError("Automatic promotion only ever goes to beta")
+    with db.tx() as c:
+        n = c.run("UPDATE users SET role=:r WHERE id=:u AND role='user'", r=AUTO_ROLE, u=user_id)
+    if n:
+        audit("role_changed", target_user_id=user_id, was="user", role=AUTO_ROLE, auto=True, level=level)
+    return bool(n)
 
 
 def set_status(admin_id: int, target_id: int, status: str, ip: str | None = None) -> dict:

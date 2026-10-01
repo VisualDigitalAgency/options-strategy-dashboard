@@ -158,6 +158,8 @@ Users climb Level 1 (Learner) to Level 10 (Theta Master) by paper-trading with d
   | Lesson quiz passed (first time) | +10 |
 
   Legs opened and closed within 5 minutes score nothing. Delta is saved when a sell fills at once; a limit order that fills later has no saved delta and earns no delta-based XP either way.
+- **Unlocks (#123):** a user's features are their role's toggles, plus what their level unlocks (`LEVEL_FEATURES` in `engine/config.py`: option builder at 2, leaderboard at 4, saved strategies and alerts at 5, hedges at 6, each starting to work once that feature ships), then the owner's per-user overrides (Admin → Roles & features → Per-user overrides: Default / Grant / Deny). Levels never grant real trading or admin powers.
+- **Level 6 → Beta:** a *User* who reaches Level 6 becomes *Beta* automatically. This happens once and is logged. If the owner moves them back to User, that sticks. Nothing is ever promoted automatically beyond Beta.
 - **Levelling up** from level n needs all of: total XP ≥ 100 × n², the minimum days at the level, and the level's gate, measured on legs closed since reaching the level or the last reset, whichever is later. One level at a time, checked nightly and whenever the user opens their progress. Gates for Levels 6+ need data the app doesn't record yet, so they show "Not available yet".
 
 ## Roles & features

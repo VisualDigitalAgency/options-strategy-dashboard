@@ -114,3 +114,8 @@ XP_PROFIT_BONUS = 5      # per profitable leg, capped per calendar month
 XP_PROFIT_CAP = 100
 XP_LESSON = 10           # per lesson quiz passed (first pass only)
 QUICK_FLIP_MINUTES = 5   # legs opened and closed faster than this score nothing
+
+# Features each level unlocks (#123), on top of the role's own toggles. A key that isn't in
+# engine/permissions.FEATURES yet (the feature hasn't shipped) is ignored until it exists.
+LEVEL_FEATURES = {2: ("option_builder",), 4: ("leaderboard",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
+BETA_LEVEL = 6           # reaching this level moves a `user` to `beta`, once; never higher

@@ -32,7 +32,7 @@ const FEATURES = {
 }
 const calls = []
 const SETTINGS = [{ key: 'auto_approve', value: true, label: 'New accounts can use the app as soon as their email is confirmed.' }]
-const RESULT = { admin_get_settings: SETTINGS, admin_set_setting: [{ ...SETTINGS[0], value: false }], admin_get_features: FEATURES, admin_set_role: { id: 2, role: 'beta' },
+const RESULT = { admin_get_overrides: [], admin_set_override: [{ feature: 'live_trading', mode: 'grant' }], admin_get_settings: SETTINGS, admin_set_setting: [{ ...SETTINGS[0], value: false }], admin_get_features: FEATURES, admin_set_role: { id: 2, role: 'beta' },
   admin_set_feature: { ...FEATURES, matrix: { ...FEATURES.matrix, beta: { live_trading: true, autotrade: true } } }, auth_me: ME, admin_list_users: USERS, admin_audit_log: LOG, admin_list_blocked: BLOCKED }
 globalThis.fetch = async (_url, opts) => {
   const { method, id, params } = JSON.parse(opts.body)
@@ -103,5 +103,19 @@ await act(async () => auto.click())
 await settle()
 check('settings: switching it off saves', calls.some((c) => c.method === 'admin_set_setting' && c.params.key === 'auto_approve' && c.params.value === false)
   && document.querySelector('[role=switch][aria-label="auto approve"]').getAttribute('aria-checked') === 'false')
+
+// Per-user overrides (#123)
+const acct = document.querySelector('select[aria-label="Account to override"]')
+check('overrides: owner not offered as a target', ![...acct.options].some((o) => o.textContent.includes('admin@test.example')))
+await act(async () => {
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(acct, '2')
+  acct.dispatchEvent(new Event('change', { bubbles: true }))
+})
+await settle()
+const grant = [...document.querySelectorAll('[aria-label="Override live trading"] button')].find((b) => b.textContent === 'Grant')
+await act(async () => grant.click())
+await settle()
+check('overrides: grant saves and shows', calls.some((c) => c.method === 'admin_set_override' && c.params.target_id === 2 && c.params.mode === 'grant')
+  && grant.getAttribute('aria-pressed') === 'true')
 
 process.exit(ok ? 0 : 1)

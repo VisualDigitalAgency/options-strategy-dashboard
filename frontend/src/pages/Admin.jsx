@@ -25,7 +25,8 @@ const ACTION = {
   email_code_sent: 'Sign-up code emailed', email_verified: 'Confirmed email', email_verify_failed: 'Wrong sign-up code',
   mail_failed: 'Email failed to send', signup_unblocked: 'Unblocked sign-up',
   password_reset: 'Temporary password issued', admin_password_set: 'Admin password set', sqlite_import: 'Data imported',
-  role_changed: 'Role changed', setting_changed: 'Setting changed', feature_on: 'Feature turned on', feature_off: 'Feature turned off',
+  role_changed: 'Role changed', setting_changed: 'Setting changed', level_up: 'Levelled up',
+  override_grant: 'Feature granted to user', override_deny: 'Feature denied to user', override_clear: 'Override removed', feature_on: 'Feature turned on', feature_off: 'Feature turned off',
   password_reset_requested: 'Password reset requested', password_reset_self: 'Reset own password',
   broker_connected: 'Broker connected', broker_disconnected: 'Broker disconnected',
   broker_order_placed: 'Real order placed', broker_order_failed: 'Real order failed',
@@ -124,6 +125,63 @@ function TempPassword({ user, password, onClose }) {
 
 // Owner only: which features each role has. Each switch saves at once and applies on that role's
 // next request; the owner's own column isn't shown because it always has everything.
+// Owner only (#123): one account's grant/deny per feature on top of its role and level.
+function UserOverrides({ users, features }) {
+  const [target, setTarget] = useState('')
+  const [rows, setRows] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const pick = async (id) => {
+    setTarget(id)
+    setError(null)
+    setRows(id ? await rpc('admin_get_overrides', { target_id: Number(id) }).catch((e) => { setError(e.message); return null }) : null)
+  }
+  const set = async (feature, mode) => {
+    setBusy(true)
+    setError(null)
+    try {
+      setRows(await rpc('admin_set_override', { target_id: Number(target), feature, mode }))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const modeOf = (f) => rows?.find((r) => r.feature === f)?.mode ?? 'clear'
+  return (
+    <div className="card overrides">
+      <h3>Per-user overrides</h3>
+      <p className="muted small">Grant or deny one feature for one person, on top of their role and level. Default follows the role and level.</p>
+      <label className="small">Account{' '}
+        <select value={target} onChange={(e) => pick(e.target.value)} aria-label="Account to override">
+          <option value="">Choose…</option>
+          {users?.filter((u) => u.role !== 'owner').map((u) => <option key={u.id} value={u.id}>{u.name} · {u.email}</option>)}
+        </select>
+      </label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {rows && (
+        <table className="admin-table feature-matrix">
+          <tbody>
+            {features.map((f) => (
+              <tr key={f.key}>
+                <td><b>{f.key.replaceAll('_', ' ')}</b></td>
+                <td data-label="Override">
+                  <div className="segmented" role="group" aria-label={`Override ${f.key.replaceAll('_', ' ')}`}>
+                    {[['clear', 'Default'], ['grant', 'Grant'], ['deny', 'Deny']].map(([m, label]) => (
+                      <button key={m} type="button" className={modeOf(f.key) === m ? 'active' : ''} aria-pressed={modeOf(f.key) === m}
+                        disabled={busy} onClick={() => set(f.key, m)}>{label}</button>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 function FeatureMatrix({ data, onToggle, settings, onSetting, busy }) {
   if (!data) return <p className="muted">Loading…</p>
   return (
@@ -329,6 +387,7 @@ export default function Admin() {
         </>
       )}
       {tab === 'features' && owner && <FeatureMatrix data={features} onToggle={toggle} settings={settings} onSetting={setSetting} busy={busy} />}
+      {tab === 'features' && owner && features && <UserOverrides users={users} features={features.features} />}
       {tab === 'blocked' && (
         <>
           <p className="muted small">Sign-ups that didn&apos;t confirm their email within 14 days. Unblock someone support has

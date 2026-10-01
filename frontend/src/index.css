@@ -1634,3 +1634,5 @@ td.out { color: var(--down-text); }
 .md-tip { margin: 0 0 14px; padding: 12px 14px; border-left: 3px solid var(--primary); background: var(--surface-2); border-radius: 0 8px 8px 0; }
 .check-row { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 8px; font-weight: 400; }
 .check-row input { width: auto; margin-top: 3px; }
+.overrides { padding: 16px; margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.overrides h3 { margin: 0; font-size: 16px; }
