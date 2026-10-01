@@ -34,6 +34,7 @@ const chain = {
   rows: [800, 850, 900, 950, 1000, 1050, 1100, 1150, 1200].map((k) => strike(k, Math.max(0.02, 0.5 - (k - 1000) / 500), -Math.max(0.02, 0.5 - (1000 - k) / 500))),
   events: [{ symbol: 'SBIN', date: '2026-11-05', type: 'results', risky: true }],
   rules: { min_dte: 30, delta_max_abs: 0.15, long_sl_pct: 50, time_exit_dte: 7 },
+  summary: { pcr: 0.7, max_pain: 1000, atm_strike: 1000, atm_iv: 20 },
 }
 const condor = TEMPLATES.iron_condor.legs(chain)
 check('iron condor: 4 legs, each buy 2 strikes beyond its sell', condor.length === 4
@@ -63,12 +64,22 @@ await act(async () => root.render(h(MemoryRouter, { initialEntries: ['/builder?s
 await settle(80)
 const text = () => document.body.textContent
 const btn = (t) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === t || b.getAttribute('aria-label') === t)
+
+// Buy/Sell are hidden until the strike row is tapped (#158).
+const tapTrade = async (label) => {
+  if (!btn(label)) {
+    const k = Number(label.split(' ')[1]).toLocaleString('en-IN')
+    const th = [...document.querySelectorAll('.chain-row th.chain-k')].find((t) => t.textContent.startsWith(k))
+    await act(async () => th.closest('tr').click())
+  }
+  await act(async () => btn(label).click())
+}
 check('chain loaded for the stock in the URL', calls.some((c) => c.method === 'builder_chain' && c.params.symbol === 'SBIN') && !!document.querySelector('.chain-table'))
 check('OI rising green (oi-chg up), falling red (down)', document.querySelector('td.chain-oi.ce .oi-chg.up')?.textContent === '+250'
   && document.querySelector('td.chain-oi.pe .oi-chg.down')?.textContent === '−300')
 check('OI legend explains the colours', document.querySelector('.oi-legend')?.textContent.includes('green'))
-check('price change: + green, − red, one decimal', document.querySelector('td.chain-px.ce .px-chg.up')?.textContent === '+4.3%'
-  && document.querySelector('td.chain-px.pe .px-chg.down')?.textContent === '−2.5%')
+check('price change: + green, − red, two decimals', document.querySelector('td.chain-ltp.ce .px-chg.up')?.textContent === '+4.25%'
+  && document.querySelector('td.chain-ltp.pe .px-chg.down')?.textContent === '−2.50%')
 check('OI bar is thin', !!document.querySelector('.oi-bar'))
 check('free account: buy rule explained up front', text().includes('until Level 6'))
 
@@ -80,7 +91,11 @@ check('warnings: DTE and results, never blocking', text().includes('20 days to e
 check('margin from the preview', text().includes('12,345'))
 check('payoff chart drawn', !!document.querySelector('.chart'))
 check('levels fetched for the stock', calls.some((c) => c.method === 'builder_levels' && c.params.symbol === 'SBIN'))
-check('chain shows IV and OI columns', [...document.querySelectorAll('.chain-cols th')].filter((t) => /^(IV|OI chg)$/.test(t.textContent)).length === 4)
+check('chain: OI tab, LTP both sides, strike in the middle', [...document.querySelectorAll('.chain-cols th')].map((t) => t.textContent).join('|') === 'OI|Call LTP|Strike|Put LTP|OI')
+check('Buy/Sell hidden until a strike row is tapped', !document.querySelector('.chain-actions') && !btn('Buy 1100 CE'))
+check('footer: PCR, max pain, ATM IV', ['PCR', 'Max pain', 'ATM IV'].every((t) => document.querySelector('.chain-foot')?.textContent.includes(t)))
+check('expiry pills, current one pressed', document.querySelector('.expiry-pills button[aria-pressed="true"]')?.textContent.startsWith(''))
+check('strike bar splits call and put OI', !!document.querySelector('.pair-bar .pb-ce') && !!document.querySelector('.pair-bar .pb-pe'))
 check('analysis: probability of profit, return on margin, vega, 1σ move', ['Probability of profit', 'Return on margin', 'Vega / IV pt', '1σ move by expiry'].every((t) => text().includes(t)))
 check('rule check lists rows and a count to review', !!document.querySelector('.builder-score') && /\d+ to review/.test(text()))
 check('rule check: a sold strike in the S/R zone is flagged', text().includes('resistance zone at 1110'))
@@ -100,8 +115,7 @@ await act(async () => btn('More lots').click())
 check('lot stepper adds a lot', document.querySelector('.builder-leg input[aria-label=Lots]').value === '2')
 await act(async () => btn('Iron condor').click())
 await settle(500)
-await act(async () => btn('Puts').click())
-check('phone chain toggles to puts', !!document.querySelector('.chain-wrap.show-pe'))
+check('phone shows calls and puts side by side (no toggle)', !btn('Puts') && !!document.querySelector('td.chain-ltp.ce') && !!document.querySelector('td.chain-ltp.pe'))
 
 await act(async () => btn('Place on virtual account').click())
 await settle()
@@ -109,10 +123,10 @@ const placed = calls.find((c) => c.method === 'va_place_order')
 check('places all 4 legs on the virtual account', placed?.params.legs.length === 4 && placed.params.symbol === 'SBIN', placed?.params)
 check('success links to Portfolio', text().includes('Order placed: 4 filled'))
 
-await act(async () => btn('Buy 1200 CE').click())
+await tapTrade('Buy 1200 CE')
 await settle(500)
 check('naked buy: server reason shown', text().includes('unlocks at Level 6') && btn('Place on virtual account').disabled)
-check('chain buttons read Buy then Sell', [...document.querySelectorAll('.chain-act')].find((td) => td.querySelector('.act'))?.textContent === 'BuySell')
+check('tapped row shows Buy then Sell', [...(document.querySelector('.act-strip')?.querySelectorAll('button') ?? [])].map((b) => b.textContent).join('') === 'BuySell')
 check('bottom bar says it is a virtual order', [...document.querySelectorAll('.builder-dock button')].some((b) => b.textContent === 'Place virtual order'))
 
 // 3. Analysis maths.
@@ -147,7 +161,7 @@ await act(async () => btn('One lot more of 1,200 CE').click())
 await settle(50)
 check('+ in the chain adds a lot (list agrees)', cellsOf('Bought 1,200 CE')?.textContent.includes('2')
   && document.querySelectorAll('.builder-leg').length === 1)
-await act(async () => btn('Sell 1100 CE').click())
+await tapTrade('Sell 1100 CE')
 await settle(50)
 check('sold strike shows light red in the chain', cellsOf('Sold 1,100 CE')?.className.includes('leg-sell')
   && document.querySelector('.builder-leg.is-sell') != null)
@@ -156,5 +170,8 @@ await settle(50)
 check('- on the last lot removes the leg everywhere', !cellsOf('Sold 1,100 CE') && !document.querySelector('.builder-leg.is-sell')
   && !!btn('Sell 1100 CE'))
 
+await act(async () => [...document.querySelectorAll('.chain-toolbar .seg button')].find((b) => b.textContent === 'Greeks').click())
+check('Greeks tab: IV, delta, gamma, theta, vega and LTP', [...document.querySelectorAll('.chain-cols th')].map((t) => t.textContent).join('|') === 'Vega|Θ|Γ|Δ|IV|Call LTP|Strike|Put LTP|IV|Δ|Γ|Θ|Vega'
+  && document.querySelectorAll('td.chain-g').length > 0)
 await act(async () => root.unmount())
 process.exit(ok ? 0 : 1)

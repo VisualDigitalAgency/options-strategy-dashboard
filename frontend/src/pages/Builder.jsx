@@ -1,13 +1,13 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, cloneElement, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Bookmark, CheckCircle2, Eraser, FolderOpen, Lock, Minus, Pin, PinOff, Plus, ShieldCheck, Trash2, Wrench } from 'lucide-react'
 import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
 import { useTitle } from '../brand'
-import { int, num, rupee, rupee2, shortDate } from '../format'
+import { int, num, rupee, rupee2, shortDate, todayIso } from '../format'
 import { BuilderPayoff } from '../components/Charts'
-import { sdRange } from '../bs'
+import { bsGreeks, sdRange } from '../bs'
 import {
   SAFE_TEMPLATES, TEMPLATES, addLot, atmIv, closeOrRoll, curve, heldLegs, resulting, zoneAt as zoneOf, greeks, legAt, makeLeg, netLegs, pnlOn, probProfit, restoreLegs, scorecard, stats,
 } from '../strategy'
@@ -45,113 +45,159 @@ function Seg({ label, value, options, onChange, tone }) {
   )
 }
 
-function ChainTable({ chain, legs, onAdd, levels }) {
-  const [view, setView] = useState('CE') // phones show one side at a time
+const pctText = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${num(Math.abs(v), 2)}%`
+const weeksText = (dte) => (dte < 14 ? `${dte} d` : dte < 56 ? `${Math.round(dte / 7)} wk` : `${Math.round(dte / 30)} mo`)
+
+// Broker-style option chain (#158): calls on the left, puts on the right, the strike in the middle
+// with a bar of call OI (red) vs put OI (green). Two tabs: OI and Greeks. Buy/Sell stay hidden until
+// a strike row is tapped; a strike already in the strategy keeps its tint and its lot count.
+function ChainTable({ chain, legs, onAdd, levels, onExpiry }) {
+  const [tab, setTab] = useState('oi')
   const [wide, setWide] = useState(false) // ±12 strikes, or the whole chain
+  const [open, setOpen] = useState(null) // the strike whose Buy/Sell strip is showing
   const maxOi = useMemo(() => Math.max(1, ...chain.rows.flatMap((r) => [r.CE?.oi ?? 0, r.PE?.oi ?? 0])), [chain])
-  const atm = useMemo(() => chain.rows.find((r) => r.strike >= chain.spot)?.strike, [chain])
+  const maxPair = useMemo(() => Math.max(1, ...chain.rows.map((r) => (r.CE?.oi ?? 0) + (r.PE?.oi ?? 0))), [chain])
+  const atm = chain.summary?.atm_strike ?? chain.rows.find((r) => r.strike >= chain.spot)?.strike
   const near = useMemo(() => {
     const i = chain.rows.findIndex((r) => r.strike >= chain.spot)
     const mid = i < 0 ? chain.rows.length : i
     return wide ? chain.rows : chain.rows.slice(Math.max(0, mid - 12), mid + 12)
   }, [chain, wide])
-  // A strike in the strategy shows its leg here (#144): tinted red for a sell, blue for a buy, with
-  // the lot count and -/+ in place of Sell/Buy. Minus on the last lot drops the leg.
   const zoneAt = (k) => zoneOf(levels, k)
-  const acts = (r, side, leg) => {
+  const greeksOf = (side, r) => {
+    const q = r[side]
+    return q && q.iv > 0 ? bsGreeks(side, chain.spot, r.strike, Math.max(chain.dte, 0.5), q.iv) : null
+  }
+
+  const ltpCell = (r, side) => {
+    const q = r[side]
+    const leg = legAt(legs, side, r.strike)
     const name = `${strikeText(r.strike)} ${side}`
-    if (leg) {
-      const less = leg.action === 'SELL' ? 'BUY' : 'SELL'
-      return (
-        <td className={`chain-act ${side.toLowerCase()} ${leg.action === 'SELL' ? 'leg-sell' : 'leg-buy'}`}>
-          <span className="chain-lots" role="group" aria-label={`${leg.action === 'SELL' ? 'Sold' : 'Bought'} ${name}`}>
-            <button type="button" onClick={() => onAdd(side, r.strike, less)} aria-label={`One lot less of ${name}`}><Minus size={13} /></button>
-            <b className="num">{leg.action === 'SELL' ? 'S' : 'B'}&thinsp;{leg.lots}</b>
-            <button type="button" onClick={() => onAdd(side, r.strike, leg.action)} aria-label={`One lot more of ${name}`}><Plus size={13} /></button>
-          </span>
-        </td>
-      )
-    }
     return (
-      <td className={`chain-act ${side.toLowerCase()}`}>
-        <button className="act buy" onClick={() => onAdd(side, r.strike, 'BUY')} aria-label={`Buy ${r.strike} ${side}`}>Buy</button>
-        <button className="act sell" onClick={() => onAdd(side, r.strike, 'SELL')} aria-label={`Sell ${r.strike} ${side}`}>Sell</button>
+      <td className={`num chain-ltp ${side.toLowerCase()}${leg ? (leg.action === 'SELL' ? ' leg-sell' : ' leg-buy') : ''}`}>
+        <span>{q ? num(q.ltp) : '—'}</span>
+        {q?.pchg != null && <small className={`px-chg ${q.pchg > 0 ? 'up' : q.pchg < 0 ? 'down' : ''}`} title="Last trade vs yesterday's close">{pctText(q.pchg)}</small>}
+        {leg && (
+          <span className="chain-lots" role="group" aria-label={`${leg.action === 'SELL' ? 'Sold' : 'Bought'} ${name}`} onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => onAdd(side, r.strike, leg.action === 'SELL' ? 'BUY' : 'SELL')} aria-label={`One lot less of ${name}`}><Minus size={12} /></button>
+            <b className="num">{leg.action === 'SELL' ? 'S' : 'B'}&thinsp;{leg.lots}</b>
+            <button type="button" onClick={() => onAdd(side, r.strike, leg.action)} aria-label={`One lot more of ${name}`}><Plus size={12} /></button>
+          </span>
+        )}
       </td>
     )
   }
-  const cells = (r, side) => {
+  // The columns outside the LTP for one side, outermost first (calls read right-to-left).
+  const sideCells = (r, side) => {
     const q = r[side]
-    const leg = legAt(legs, side, r.strike)
-    const s = `${side.toLowerCase()}${leg ? (leg.action === 'SELL' ? ' leg-sell' : ' leg-buy') : ''}`
-    const itm = side === 'CE' ? r.strike < chain.spot : r.strike > chain.spot
-    if (!q) return <td colSpan={5} className={`muted ${s}`}>—</td>
-    const parts = [
-      <td key="p" className={`num chain-px ${s}${itm ? ' itm' : ''}`}><span>{num(q.bid)}</span><small>{num(q.ask)}</small>
-        {q.pchg != null && (
-          <small className={`px-chg ${q.pchg > 0 ? 'up' : q.pchg < 0 ? 'down' : ''}`} title="Last traded price vs yesterday's close">
-            {q.pchg > 0 ? '+' : q.pchg < 0 ? '−' : ''}{num(Math.abs(q.pchg), 1)}%
-          </small>
-        )}
-      </td>,
-      <td key="d" className={`num chain-d ${s}${itm ? ' itm' : ''}`}>{q.delta == null ? '—' : num(q.delta, 2)}</td>,
-      <td key="i" className={`num chain-iv ${s}`}>{q.iv > 0 ? num(q.iv, 1) : '—'}</td>,
-      <td key="o" className={`num chain-oi ${s}`} title={`Open interest ${int(q.oi)}`}>
-        <span className="oi-bar" style={{ width: `${Math.round((q.oi / maxOi) * 100)}%` }} aria-hidden /><span>{compact(q.oi)}</span>
-        {/* Today's change: rising OI green, falling red (#156). */}
-        {q.oi_chg != null && q.oi_chg !== 0 && (
-          <small className={`oi-chg ${q.oi_chg > 0 ? 'up' : 'down'}`}
-            title={q.oi_chg > 0 ? 'OI rising today: new positions opened' : 'OI falling today: positions closed'}>
-            {q.oi_chg > 0 ? '+' : '−'}{compact(Math.abs(q.oi_chg))}
-          </small>
-        )}
-      </td>,
-      <Fragment key="a">{acts(r, side, leg)}</Fragment>,
+    const s = side.toLowerCase()
+    if (tab === 'oi') {
+      return [
+        <td key="oi" className={`num chain-oi ${s}`} title={q ? `Open interest ${int(q.oi)}` : undefined}>
+          {q ? <>
+            <span className="oi-bar" style={{ width: `${Math.round((q.oi / maxOi) * 100)}%` }} aria-hidden /><span>{compact(q.oi)}</span>
+            {q.oi_chg != null && q.oi_chg !== 0 && <small className={`oi-chg ${q.oi_chg > 0 ? 'up' : 'down'}`}>{q.oi_chg > 0 ? '+' : '−'}{compact(Math.abs(q.oi_chg))}</small>}
+          </> : '—'}
+        </td>,
+      ]
+    }
+    const g = greeksOf(side, r)
+    const cell = (k, v, d, cls = '') => <td key={k} className={`num chain-g ${s} ${cls}`}>{v == null ? '—' : num(v, d)}</td>
+    return [
+      cell('v', g?.vega, 2, 'g-wide'), cell('t', g?.theta, 2, 'g-wide'), cell('g', g?.gamma, 4, 'g-wide'),
+      cell('d', g?.delta, 2), cell('iv', q?.iv > 0 ? q.iv : null, 1),
     ]
-    return side === 'CE' ? parts.reverse() : parts
   }
+  const head = tab === 'oi' ? [['OI', 'chain-oi']] : [['Vega', 'g-wide'], ['Θ', 'g-wide'], ['Γ', 'g-wide'], ['Δ', ''], ['IV', '']]
+  const span = head.length + 1
+
   return (
     <>
       <div className="chain-toolbar">
         <h2>Option chain</h2>
+        <Seg label="Chain view" value={tab} onChange={setTab} options={[['oi', 'OI'], ['greeks', 'Greeks']]} />
         <button type="button" className="btn small" aria-pressed={wide} onClick={() => setWide((w) => !w)}>{wide ? 'Near strikes' : 'All strikes'}</button>
-        <Seg label="Show calls or puts" value={view} onChange={setView} options={[['CE', 'Calls'], ['PE', 'Puts']]} />
       </div>
-      <p className="oi-legend small muted">Today: <span className="oi-chg up">+ green</span> OI or price up · <span className="oi-chg down">− red</span> OI or price down. Price change is the last trade vs yesterday's close.</p>
-      <div className={`chain-wrap show-${view.toLowerCase()}`}>
-        <table className="chain-table">
+      <div className="expiry-pills" role="group" aria-label="Expiry">
+        {chain.expiries.map((x) => {
+          const dte = Math.max(0, Math.round((new Date(x) - new Date(todayIso())) / 864e5))
+          return (
+            <button key={x} type="button" aria-pressed={x === chain.expiry} onClick={() => x !== chain.expiry && onExpiry(x)}>
+              {shortDate(x)} <small>({weeksText(dte)})</small>
+            </button>
+          )
+        })}
+      </div>
+      <div className="chain-wrap">
+        <table className={`chain-table chain-v2 tab-${tab}`}>
           <thead>
-            <tr className="chain-sides"><th colSpan={5} className="ce">Calls</th><th /><th colSpan={5} className="pe">Puts</th></tr>
             <tr className="chain-cols">
-              <th className="ce" />
-              <th className="ce chain-oi">OI <small>chg</small></th>
-              <th className="ce chain-iv">IV</th>
-              <th className="ce">Δ</th>
-              <th className="ce">Bid <small>ask</small></th>
+              {head.map(([t, c]) => <th key={`c${t}`} className={`ce ${c}`}>{t}</th>)}
+              <th className="ce">Call LTP</th>
               <th className="chain-k">Strike</th>
-              <th className="pe">Bid <small>ask</small></th>
-              <th className="pe">Δ</th>
-              <th className="pe chain-iv">IV</th>
-              <th className="pe chain-oi">OI <small>chg</small></th>
-              <th className="pe" />
+              <th className="pe">Put LTP</th>
+              {[...head].reverse().map(([t, c]) => <th key={`p${t}`} className={`pe ${c}`}>{t}</th>)}
             </tr>
           </thead>
           <tbody>
-            {near.map((r) => (
-              <tr key={r.strike} className={r.strike === atm ? 'atm' : ''}>
-                {cells(r, 'CE')}
-                <th scope="row" className={`num chain-k${zoneAt(r.strike) ? ` in-zone ${zoneAt(r.strike).type}` : ''}`}
-                  title={zoneAt(r.strike) ? `In a ${zoneAt(r.strike).type} zone` : undefined}>
-                  {strikeText(r.strike)}{r.strike === atm && <span className="spot-tag">Spot {num(chain.spot)}</span>}
-                </th>
-                {cells(r, 'PE')}
-              </tr>
-            ))}
+            {near.map((r) => {
+              const ceOi = r.CE?.oi ?? 0
+              const peOi = r.PE?.oi ?? 0
+              const zone = zoneAt(r.strike)
+              const isOpen = open === r.strike
+              return (
+                <Fragment key={r.strike}>
+                  <tr className={`chain-row${r.strike === atm ? ' atm' : ''}${isOpen ? ' open' : ''}`}
+                    onClick={() => setOpen(isOpen ? null : r.strike)} aria-expanded={isOpen}>
+                    {sideCells(r, 'CE').map((c) => cloneWithItm(c, r.strike < chain.spot))}
+                    {cloneWithItm(ltpCell(r, 'CE'), r.strike < chain.spot)}
+                    <th scope="row" className={`num chain-k${zone ? ` in-zone ${zone.type}` : ''}`} title={zone ? `In a ${zone.type} zone` : undefined}>
+                      <span className={r.strike === atm ? 'atm-chip' : ''}>{strikeText(r.strike)}</span>
+                      <span className="pair-bar" aria-label={`Call OI ${compact(ceOi)}, put OI ${compact(peOi)}`}
+                        style={{ width: `${Math.max(12, Math.round(((ceOi + peOi) / maxPair) * 100))}%` }}>
+                        <i className="pb-ce" style={{ flexGrow: ceOi || 0.0001 }} /><i className="pb-pe" style={{ flexGrow: peOi || 0.0001 }} />
+                      </span>
+                    </th>
+                    {cloneWithItm(ltpCell(r, 'PE'), r.strike > chain.spot)}
+                    {[...sideCells(r, 'PE')].reverse().map((c) => cloneWithItm(c, r.strike > chain.spot))}
+                  </tr>
+                  {isOpen && (
+                    <tr className="chain-actions">
+                      {['CE', null, 'PE'].map((side) => side === null
+                        ? <td key="k" className="chain-k" />
+                        : (
+                          <td key={side} colSpan={span} className={side.toLowerCase()}>
+                            {r[side] ? (
+                              <div className="act-strip">
+                                <span className="num muted small">Bid {num(r[side].bid)} · Ask {num(r[side].ask)}</span>
+                                <button className="act buy" onClick={() => onAdd(side, r.strike, 'BUY')} aria-label={`Buy ${r.strike} ${side}`}>Buy</button>
+                                <button className="act sell" onClick={() => onAdd(side, r.strike, 'SELL')} aria-label={`Sell ${r.strike} ${side}`}>Sell</button>
+                              </div>
+                            ) : <span className="muted small">No {side === 'CE' ? 'call' : 'put'} quoted</span>}
+                          </td>
+                        ))}
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>
+      {chain.summary && (
+        <dl className="chain-foot">
+          <div><dt>PCR</dt><dd className="num">{chain.summary.pcr ?? '—'}</dd></div>
+          <div><dt>Max pain</dt><dd className="num">{chain.summary.max_pain == null ? '—' : strikeText(chain.summary.max_pain)}</dd></div>
+          <div><dt>ATM IV</dt><dd className="num">{chain.summary.atm_iv == null ? '—' : num(chain.summary.atm_iv, 2)}</dd></div>
+        </dl>
+      )}
+      <p className="oi-legend small muted">Tap a strike to buy or sell. Strike bar: <span className="oi-chg down">red</span> call OI · <span className="oi-chg up">green</span> put OI. Price change is the last trade vs yesterday's close.</p>
     </>
   )
 }
+
+// Shades the in-the-money side of a strike (calls below spot, puts above).
+const cloneWithItm = (el, itm) => (itm ? cloneElement(el, { className: `${el.props.className} itm` }) : el)
 
 export default function Builder() {
   useTitle('Strategy builder')
@@ -566,7 +612,7 @@ export default function Builder() {
           </aside>
 
           <section className="card b-chain" aria-label="Option chain">
-            <ChainTable chain={chain} legs={legs} onAdd={add} levels={levels} />
+            <ChainTable chain={chain} legs={legs} onAdd={add} levels={levels} onExpiry={(x) => choose({ symbol, expiry: x })} />
           </section>
         </div>
       )}
