@@ -23,7 +23,7 @@ globalThis.fetch = async (_url, opts) => {
   const { method, id } = JSON.parse(opts.body)
   const result = {
     auth_me: { id: 1, name: 'Asha Rao', email: 'a@x', role: 'user', level: 2, features, prefs: {}, nickname: 'asha', status: 'active' },
-    app_info: { name: 'Theta Desk', logo: null },
+    app_info: { name: 'Acme', logo: null },
   }[method]
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: result ?? null }) }
 }
