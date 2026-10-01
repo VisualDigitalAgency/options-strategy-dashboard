@@ -1,5 +1,6 @@
 // My progress (issue #126): XP bar against the next threshold, the gate checklist as returned,
-// days left at the level, ledger reasons in plain English, and the one-time level-up screen.
+// days left at the level, ledger reasons in plain English, the one-time level-up screen, and sharing
+// (level and finished-course cards, % return off unless ticked, share links point at /c/<slug>).
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 
 GlobalRegistrator.register({ width: 375, height: 800 })
@@ -22,14 +23,19 @@ let prog = {
     checks: [{ label: '400 XP', ok: false, value: 250 }, { label: '60 days at this level', ok: false, value: 20 },
       { label: 'Not available yet', ok: false, value: null }] },
 }
+const calls = []
 globalThis.fetch = async (_url, opts) => {
-  const { method, id } = JSON.parse(opts.body)
+  const { method, id, params } = JSON.parse(opts.body)
+  calls.push({ method, params })
   const result = {
     auth_me: { id: 1, name: 'Asha', email: 'a@x', role: 'user', level: prog.level, features: [], prefs: {} },
     progress_get: prog,
     progress_history: [{ ts: '2026-09-30', points: 20, reason: 'trade_ok', ref: 'trade:1' },
       { ts: '2026-09-29', points: -30, reason: 'no_sl', ref: 'trade:2' },
       { ts: '2026-09-28', points: 50, reason: 'lesson', ref: 'lesson:what-is-an-option' }],
+    lessons_list: [{ slug: 'a', level: 1 }, { slug: 'b', level: 1 }, { slug: 'c', level: 2 }],
+    lesson_progress: [{ slug: 'a', passed_at: 'x' }, { slug: 'b', passed_at: 'x' }, { slug: 'c', passed_at: null }],
+    card_create: { slug: 'Abc123xyz' },
   }[method]
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: result ?? null }) }
 }
@@ -67,5 +73,19 @@ check('closing records the level', !document.querySelector('.levelup') && localS
 await render()
 await settle()
 check('not shown again', !document.querySelector('.levelup'))
+
+// ---- sharing
+const shareBtns = [...document.querySelectorAll('.share-list button')].map((b) => b.textContent)
+check('share: current level and only finished courses', shareBtns.join('|') === 'Level 3 · Seller|Level 1 course complete', shareBtns)
+await act(async () => document.querySelectorAll('.share-list button')[1].click())
+const make = [...document.querySelectorAll('.share-modal button')].find((b) => b.textContent.includes('Make share link'))
+await act(async () => make.click())
+await settle()
+const sent = calls.findLast((c) => c.method === 'card_create')
+check('share: % return off unless ticked', sent.params.kind === 'course' && sent.params.ref === 1 && sent.params.show_return === false, sent)
+const links = [...document.querySelectorAll('.share-links a')].map((a) => a.getAttribute('href'))
+check('share: WhatsApp, X, Telegram and image links carry the card URL', links.length === 4
+  && links.slice(0, 3).every((h) => h.includes(encodeURIComponent('/c/Abc123xyz'))) && links[3] === '/c/Abc123xyz.png', links)
+check('share: preview image shown', document.querySelector('.share-preview')?.getAttribute('src') === '/c/Abc123xyz.png')
 
 process.exit(ok ? 0 : 1)

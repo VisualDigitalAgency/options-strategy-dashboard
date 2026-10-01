@@ -1656,3 +1656,9 @@ td.out { color: var(--down-text); }
 .levelup svg { color: var(--primary); margin: 0 auto 8px; }
 .levelup h2 { margin-bottom: 6px; }
 .levelup .modal-actions { justify-content: center; margin-top: 16px; }
+.share-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.share-modal { max-width: 520px; }
+.share-modal .modal-head h2 { display: inline-flex; align-items: center; gap: 8px; }
+.share-opt { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.share-preview { width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); margin: 8px 0 12px; }
+.share-links { display: flex; flex-wrap: wrap; gap: 8px; }

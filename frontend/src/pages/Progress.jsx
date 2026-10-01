@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Circle, Clock, PartyPopper, Trophy } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Circle, Clock, PartyPopper, Share2, Trophy } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
+import ShareCard from '../components/ShareCard'
 
 // Learning-path progress (issue #126): level, XP bar, the next level's checks and the XP ledger.
 // The checks are the gate output itself, so the page always matches what evaluate() decides.
@@ -18,14 +19,17 @@ const REASONS = {
 const reasonText = (r) => REASONS[r] ?? r
 const refText = (ref) => (ref?.startsWith('lesson:') ? ref.slice(7).replaceAll('-', ' ') : '')
 
-function Celebration({ level, title, onClose }) {
+function Celebration({ level, title, onClose, onShare }) {
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="lvl-up">
       <div className="modal levelup">
         <PartyPopper size={40} aria-hidden />
         <h2 id="lvl-up">Level {level} · {title}</h2>
         <p className="muted">You moved up a level. Keep the stop-loss on and the delta low to keep climbing.</p>
-        <div className="modal-actions"><button className="btn primary" onClick={onClose} autoFocus>Keep going</button></div>
+        <div className="modal-actions">
+          <button className="btn" onClick={onShare}><Share2 size={15} aria-hidden /> Share</button>
+          <button className="btn primary" onClick={onClose} autoFocus>Keep going</button>
+        </div>
       </div>
     </div>
   )
@@ -37,6 +41,8 @@ export default function Progress() {
   const [hist, setHist] = useState([])
   const [error, setError] = useState(null)
   const [party, setParty] = useState(false)
+  const [courses, setCourses] = useState([])
+  const [share, setShare] = useState(null)
 
   useEffect(() => {
     document.title = 'My progress · Theta Desk'
@@ -48,6 +54,12 @@ export default function Progress() {
       if (r.level !== user?.level) refresh()
     }).catch((e) => setError(e.message))
     rpc('progress_history', { limit: 50 }).then(setHist).catch(() => {})
+    // A course is every lesson of one level; finished ones can be shared.
+    Promise.all([rpc('lessons_list'), rpc('lesson_progress')]).then(([list, done]) => {
+      const passed = new Set(done.filter((d) => d.passed_at).map((d) => d.slug))
+      const levels = [...new Set(list.map((l) => l.level))]
+      setCourses(levels.filter((lv) => list.filter((l) => l.level === lv).every((l) => passed.has(l.slug))))
+    }).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const close = () => { markSeen(p.level); setParty(false); refresh() }
@@ -101,6 +113,20 @@ export default function Progress() {
           )}
 
           <section className="card">
+            <div className="card-head"><h2><Share2 size={16} aria-hidden /> Share</h2></div>
+            <div className="share-list">
+              <button className="btn" onClick={() => setShare({ kind: 'level', refNo: p.level, label: `Level ${p.level} · ${p.title}` })}>
+                Level {p.level} · {p.title}
+              </button>
+              {courses.map((c) => (
+                <button key={c} className="btn" onClick={() => setShare({ kind: 'course', refNo: c, label: `Level ${c} course complete` })}>
+                  Level {c} course complete
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="card">
             <div className="card-head"><h2>XP history</h2></div>
             {hist.length ? (
               <ul className="xp-list">
@@ -115,7 +141,9 @@ export default function Progress() {
           </section>
         </>
       )}
-      {party && p && <Celebration level={p.level} title={p.title} onClose={close} />}
+      {party && p && <Celebration level={p.level} title={p.title} onClose={close}
+        onShare={() => { close(); setShare({ kind: 'level', refNo: p.level, label: `Level ${p.level} · ${p.title}` }) }} />}
+      {share && <ShareCard {...share} onClose={() => setShare(null)} />}
     </div>
   )
 }

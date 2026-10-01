@@ -45,6 +45,12 @@
 			header_up X-Forwarded-For {vars.visitor_ip}
 		}
 	}
+	# Public share cards (#126): server-rendered so link previews work.
+	handle /c/* {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-For {vars.visitor_ip}
+		}
+	}
 	handle {
 		root * /srv
 		@assets path /assets/*

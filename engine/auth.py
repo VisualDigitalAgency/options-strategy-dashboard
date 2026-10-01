@@ -447,7 +447,8 @@ def _reset_token_hash(token: str) -> str:
     return hashlib.sha256(f"reset:{token}".encode()).hexdigest()
 
 
-def _reset_base_url() -> str:
+def public_url() -> str:
+    """The site's public origin, for links that leave the app (reset emails, share cards)."""
     url = os.environ.get("PUBLIC_URL") or os.environ.get("ALLOWED_ORIGINS", "").split(",")[0]
     return (url or "http://localhost:5173").rstrip("/")
 
@@ -474,7 +475,7 @@ def request_password_reset(email: str, ip: str | None = None) -> dict:
     if not u:
         return message
     cache._call(lambda r: (r.incr(key), r.expire(key, 3600, nx=True)))
-    link = f"{_reset_base_url()}/reset-password?token={token}"
+    link = f"{public_url()}/reset-password?token={token}"
     try:
         mail.send(email, "Reset your Theta Desk password",
                   f"Someone asked to reset the password on this account.\n\n"
