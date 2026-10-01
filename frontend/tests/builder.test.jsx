@@ -28,7 +28,7 @@ st = stats([L('CE', 1100, 'BUY', 5)], 1000, 100)
 check('long call: debit, unlimited profit, loss = premium', st.net === -500 && st.maxProfit === Infinity && st.maxLoss === -500, st)
 
 // 2. Page.
-const strike = (k, cd, pd) => ({ strike: k, CE: { bid: 5, ask: 5.2, ltp: 5.1, iv: 20, oi: 1000, oi_chg: 250, delta: cd }, PE: { bid: 4, ask: 4.2, ltp: 4.1, iv: 20, oi: 1000, oi_chg: -300, delta: pd } })
+const strike = (k, cd, pd) => ({ strike: k, CE: { bid: 5, ask: 5.2, ltp: 5.1, iv: 20, oi: 1000, oi_chg: 250, pchg: 4.25, delta: cd }, PE: { bid: 4, ask: 4.2, ltp: 4.1, iv: 20, oi: 1000, oi_chg: -300, pchg: -2.5, delta: pd } })
 const chain = {
   symbol: 'SBIN', expiry: '2026-12-29', expiries: ['2026-11-24', '2026-12-29'], spot: 1000, dte: 20, lot_size: 100,
   rows: [800, 850, 900, 950, 1000, 1050, 1100, 1150, 1200].map((k) => strike(k, Math.max(0.02, 0.5 - (k - 1000) / 500), -Math.max(0.02, 0.5 - (1000 - k) / 500))),
@@ -64,9 +64,12 @@ await settle(80)
 const text = () => document.body.textContent
 const btn = (t) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === t || b.getAttribute('aria-label') === t)
 check('chain loaded for the stock in the URL', calls.some((c) => c.method === 'builder_chain' && c.params.symbol === 'SBIN') && !!document.querySelector('.chain-table'))
-check('OI rising shows red (sellers), falling blue (buyers)', document.querySelector('td.chain-oi.ce .oi-chg.up')?.textContent === '+250'
+check('OI rising green (oi-chg up), falling red (down)', document.querySelector('td.chain-oi.ce .oi-chg.up')?.textContent === '+250'
   && document.querySelector('td.chain-oi.pe .oi-chg.down')?.textContent === '−300')
-check('OI legend explains the colours', document.querySelector('.oi-legend')?.textContent.includes('sellers'))
+check('OI legend explains the colours', document.querySelector('.oi-legend')?.textContent.includes('green'))
+check('price change: + green, − red, one decimal', document.querySelector('td.chain-px.ce .px-chg.up')?.textContent === '+4.3%'
+  && document.querySelector('td.chain-px.pe .px-chg.down')?.textContent === '−2.5%')
+check('OI bar is thin', !!document.querySelector('.oi-bar'))
 check('free account: buy rule explained up front', text().includes('until Level 6'))
 
 await act(async () => btn('Iron condor').click())

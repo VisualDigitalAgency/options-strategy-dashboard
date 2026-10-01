@@ -1929,7 +1929,8 @@ img.brand-logo { object-fit: contain; }
 .chain-toolbar h2 { margin-right: auto; }
 .chain-oi { position: relative; min-width: 64px; color: var(--text-muted); }
 .chain-oi > span:last-child { position: relative; }
-.oi-bar { position: absolute; top: 25%; bottom: 25%; background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 2px; }
+/* Thin light-red OI bar (#156) */
+.oi-bar { position: absolute; bottom: 3px; height: 3px; background: color-mix(in srgb, var(--down) 45%, transparent); border-radius: 2px; }
 .chain-oi.ce .oi-bar { right: 4px; }
 .chain-oi.pe .oi-bar { left: 4px; }
 .chain-iv { color: var(--text-muted); }
@@ -1963,8 +1964,9 @@ img.brand-logo { object-fit: contain; }
 }
 /* OI change (#154): rising = sellers writing (red), falling = buyers covering (blue) */
 .chain-oi .oi-chg { position: relative; display: block; font-size: 11px; font-weight: 600; }
-.oi-chg.up { color: var(--sell-text); }
-.oi-chg.down { color: var(--buy-text); }
+.oi-chg.up, .px-chg.up { color: var(--up-text); }
+.oi-chg.down, .px-chg.down { color: var(--down-text); }
+.chain-px .px-chg { display: block; font-size: 10.5px; font-weight: 600; }
 .oi-legend { margin: 0 0 8px; }
 .builder-held .held-leg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .builder-held .held-leg .leg-px { margin-left: auto; }

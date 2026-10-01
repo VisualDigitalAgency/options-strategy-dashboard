@@ -86,16 +86,21 @@ function ChainTable({ chain, legs, onAdd, levels }) {
     const itm = side === 'CE' ? r.strike < chain.spot : r.strike > chain.spot
     if (!q) return <td colSpan={5} className={`muted ${s}`}>—</td>
     const parts = [
-      <td key="p" className={`num chain-px ${s}${itm ? ' itm' : ''}`}><span>{num(q.bid)}</span><small>{num(q.ask)}</small></td>,
+      <td key="p" className={`num chain-px ${s}${itm ? ' itm' : ''}`}><span>{num(q.bid)}</span><small>{num(q.ask)}</small>
+        {q.pchg != null && (
+          <small className={`px-chg ${q.pchg > 0 ? 'up' : q.pchg < 0 ? 'down' : ''}`} title="Last traded price vs yesterday's close">
+            {q.pchg > 0 ? '+' : q.pchg < 0 ? '−' : ''}{num(Math.abs(q.pchg), 1)}%
+          </small>
+        )}
+      </td>,
       <td key="d" className={`num chain-d ${s}${itm ? ' itm' : ''}`}>{q.delta == null ? '—' : num(q.delta, 2)}</td>,
       <td key="i" className={`num chain-iv ${s}`}>{q.iv > 0 ? num(q.iv, 1) : '—'}</td>,
       <td key="o" className={`num chain-oi ${s}`} title={`Open interest ${int(q.oi)}`}>
         <span className="oi-bar" style={{ width: `${Math.round((q.oi / maxOi) * 100)}%` }} aria-hidden /><span>{compact(q.oi)}</span>
-        {/* Today's change (#154): rising OI = new positions written (sellers, red); falling = positions
-            closed, shorts bought back (buyers, blue). */}
+        {/* Today's change: rising OI green, falling red (#156). */}
         {q.oi_chg != null && q.oi_chg !== 0 && (
           <small className={`oi-chg ${q.oi_chg > 0 ? 'up' : 'down'}`}
-            title={q.oi_chg > 0 ? 'OI rising: new positions written (sellers)' : 'OI falling: positions closed (buyers covering)'}>
+            title={q.oi_chg > 0 ? 'OI rising today: new positions opened' : 'OI falling today: positions closed'}>
             {q.oi_chg > 0 ? '+' : '−'}{compact(Math.abs(q.oi_chg))}
           </small>
         )}
@@ -111,7 +116,7 @@ function ChainTable({ chain, legs, onAdd, levels }) {
         <button type="button" className="btn small" aria-pressed={wide} onClick={() => setWide((w) => !w)}>{wide ? 'Near strikes' : 'All strikes'}</button>
         <Seg label="Show calls or puts" value={view} onChange={setView} options={[['CE', 'Calls'], ['PE', 'Puts']]} />
       </div>
-      <p className="oi-legend small muted">OI change today: <span className="oi-chg up">+ red</span> new positions written (sellers) · <span className="oi-chg down">− blue</span> positions closed (buyers covering)</p>
+      <p className="oi-legend small muted">Today: <span className="oi-chg up">+ green</span> OI or price up · <span className="oi-chg down">− red</span> OI or price down. Price change is the last trade vs yesterday's close.</p>
       <div className={`chain-wrap show-${view.toLowerCase()}`}>
         <table className="chain-table">
           <thead>

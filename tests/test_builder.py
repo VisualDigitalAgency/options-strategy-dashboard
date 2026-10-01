@@ -105,7 +105,7 @@ stub(market=True)
 cache_exps = [EXP, str((pd.Timestamp(EXP) + pd.Timedelta(days=28)).date())]
 data_fetch.fetch_expiries = lambda s: [pd.Timestamp(e) for e in ["2020-01-30", *cache_exps]]
 df = pd.DataFrame([
-    {"strikePrice": 1000.0, "CE_LTP": 30.0, "CE_BID": 29.5, "CE_ASK": 30.5, "CE_IV": 20.0, "CE_OI": 500, "CE_OI_CHG": 120,
+    {"strikePrice": 1000.0, "CE_LTP": 30.0, "CE_BID": 29.5, "CE_ASK": 30.5, "CE_IV": 20.0, "CE_OI": 500, "CE_OI_CHG": 120, "CE_PCHG": 12.345,
      "PE_OI_CHG": -40,
      "PE_LTP": 25.0, "PE_BID": 24.5, "PE_ASK": 25.5, "PE_IV": 20.0, "PE_OI": 400},
     {"strikePrice": 1200.0, "CE_LTP": 1.0, "CE_BID": 0.9, "CE_ASK": 1.1, "CE_IV": 25.0, "CE_OI": 900,
@@ -119,6 +119,7 @@ check("free account gets the chain (no Pro needed)", j["symbol"] == "SBIN" and l
 check("past expiries dropped", "2020-01-30" not in j["expiries"], j["expiries"])
 check("deltas computed; a dead side is null", j["rows"][1]["PE"] is None and 0 < j["rows"][1]["CE"]["delta"] < 0.15, j["rows"][1])
 check("OI change per side (#154)", j["rows"][0]["CE"]["oi_chg"] == 120 and j["rows"][0]["PE"]["oi_chg"] == -40, j["rows"][0])
+check("price % change rounded; missing is null (#156)", j["rows"][0]["CE"]["pchg"] == 12.35 and j["rows"][0]["PE"]["pchg"] is None, j["rows"][0])
 check("missing OI change is null, not 0", j["rows"][1]["CE"]["oi_chg"] is None, j["rows"][1]["CE"])
 check("results date listed", j["events"] and j["events"][0]["type"] == "results", j["events"])
 check("rules for warnings", j["rules"]["min_dte"] == 30 and j["rules"]["delta_max_abs"] == 0.15, j["rules"])
