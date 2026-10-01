@@ -109,5 +109,10 @@ for bad in ("sub_admin", "owner", "user"):
         check(f"auto_promote refuses {bad}", True)
 check("a direct auto_promote to beta still only touches `user` accounts", auth.auto_promote(sub, "beta", 9) is False)
 
+# Coin store (#175): off for every role by default, and no level ever unlocks it.
+check("coin store off for every toggled role", not any("coin_store" in permissions.features_for(r)
+                                                        for r in permissions.TOGGLED_ROLES))
+check("no level unlocks the coin store", "coin_store" not in permissions.level_features(10))
+
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)
