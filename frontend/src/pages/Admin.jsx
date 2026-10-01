@@ -160,12 +160,13 @@ function UserOverrides({ users, features }) {
     <div className="card overrides">
       <h3>Per-user overrides</h3>
       <p className="muted small">Grant or deny one feature for one person, on top of their role and level. Default follows the role and level.</p>
-      <label className="small">Account{' '}
-        <select value={target} onChange={(e) => pick(e.target.value)} aria-label="Account to override">
+      <div className="field">
+        <label htmlFor="ov-target">Account</label>
+        <select id="ov-target" value={target} onChange={(e) => pick(e.target.value)} aria-label="Account to override">
           <option value="">Choose…</option>
           {users?.filter((u) => u.role !== 'owner').map((u) => <option key={u.id} value={u.id}>{u.name} · {u.email}</option>)}
         </select>
-      </label>
+      </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       {rows && (
         <table className="admin-table feature-matrix">
@@ -173,7 +174,7 @@ function UserOverrides({ users, features }) {
             {features.map((f) => (
               <tr key={f.key}>
                 <td><b>{f.key.replaceAll('_', ' ')}</b></td>
-                <td data-label="Override">
+                <td>
                   <div className="segmented" role="group" aria-label={`Override ${f.key.replaceAll('_', ' ')}`}>
                     {[['clear', 'Default'], ['grant', 'Grant'], ['deny', 'Deny']].map(([m, label]) => (
                       <button key={m} type="button" className={modeOf(f.key) === m ? 'active' : ''} aria-pressed={modeOf(f.key) === m}
