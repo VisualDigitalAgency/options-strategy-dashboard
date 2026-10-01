@@ -1,7 +1,7 @@
 {
   "title": "The short strangle",
-  "level": 2,
-  "order": 6,
+  "level": 5,
+  "order": 12,
   "summary": "Selling a call and a put together: breakevens, when it fits, what goes wrong, and how it's managed.",
   "minutes": 6,
   "questions": [

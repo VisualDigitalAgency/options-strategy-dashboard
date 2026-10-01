@@ -1,0 +1,29 @@
+{
+  "title": "The iron condor",
+  "level": 2,
+  "order": 8,
+  "summary": "Two credit spreads around the price: premium from both sides, a capped loss on both, and margin close to one spread's.",
+  "minutes": 6,
+  "questions": [
+    {"q": "An iron condor is:",
+     "options": ["A bull put spread plus a bear call spread", "Two sold calls", "A bought straddle", "A sold strangle with no protection"],
+     "answer": 0,
+     "why": "One spread below the price and one above it."},
+    {"q": "It makes its full profit when the stock at expiry is:",
+     "options": ["Far above the call strikes", "Between the two sold strikes", "Far below the put strikes", "Exactly at a bought strike"],
+     "answer": 1,
+     "why": "Both sold options expire worthless and you keep the whole credit."},
+    {"q": "Why can only one side of a condor lose at expiry?",
+     "options": ["The broker closes the other", "The stock can't be below the puts and above the calls at once", "Calls never lose", "It can lose on both"],
+     "answer": 1,
+     "why": "The price ends in one place, so at most one spread is in trouble."},
+    {"q": "Put gap 20, call gap 20, lot 250, total credit ₹2,000. Worst case?",
+     "options": ["₹2,000", "₹3,000", "₹5,000", "₹10,000"],
+     "answer": 1,
+     "why": "20 × 250 = ₹5,000, minus the ₹2,000 credit = ₹3,000."},
+    {"q": "One side is tested by a strong move. The disciplined response is:",
+     "options": ["Move the sold strike further out to give it room", "Let the stop-loss close that side", "Sell more on the tested side", "Remove the bought leg"],
+     "answer": 1,
+     "why": "Moving or adding to a tested side turns a capped loss into a bigger one."}
+  ]
+}

@@ -116,6 +116,7 @@ check("profitable-month streak counts complete months", progress._profitable_str
 
 # 9. Levels: XP, minimum time and the gate all have to pass; one step at a time.
 lv = new_user("climber@test.example", 1_000_000)
+n_l1 = sum(1 for l in lessons.list_lessons() if l["level"] == 1)
 with db.tx(lv) as c:
     for l in lessons.list_lessons():
         if l["level"] == 1:
@@ -125,9 +126,10 @@ with db.tx(lv) as c:
         c.run("INSERT INTO trade_results (user_id, symbol, expiry, side, strike, short, lots, avg_price, realized_pnl,"
               " capital, opened_at, exit_reason, had_sl, entry_delta) VALUES (:u, 'SBIN', :e, 'CE', 1200, true, 1, 5, 100,"
               " 1000000, now(), 'manual', true, 0.05)", u=lv, e=EXP)
-    c.run("INSERT INTO xp_ledger (user_id, points, reason, ref) VALUES (:u, 60, 'seed', 'seed')", u=lv)
+    c.run("INSERT INTO xp_ledger (user_id, points, reason, ref) VALUES (:u, :p, 'seed', 'seed')", u=lv,
+          p=100 - n_l1 * config.XP_LESSON)  # exactly 100 XP with the lesson passes
 s = progress.evaluate(lv)
-check("lesson passes score XP once", sum(x["points"] for x in ledger(lv) if x["reason"] == "lesson") == 4 * config.XP_LESSON)
+check("lesson passes score XP once", sum(x["points"] for x in ledger(lv) if x["reason"] == "lesson") == n_l1 * config.XP_LESSON)
 check("starts at Level 1 Learner", s["level"] == 1 and s["title"] == "Learner" and s["xp"] == 100, s)
 checks = {ch["label"]: ch["ok"] for ch in s["next"]["checks"]}
 check("XP and gate met, but not the minimum time", checks["100 XP"] and not checks["60 days at this level"]

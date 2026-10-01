@@ -1,0 +1,29 @@
+{
+  "title": "Selling one option naked",
+  "level": 3,
+  "order": 10,
+  "summary": "A single sold call or put with no bought leg: more premium, an open-ended loss, more margin, and the stop-loss as your only floor.",
+  "minutes": 5,
+  "questions": [
+    {"q": "Compared with a spread, a naked sold put:",
+     "options": ["Has a capped loss", "Has no floor under the loss", "Blocks less margin", "Needs no stop-loss"],
+     "answer": 1,
+     "why": "Without a bought put, the loss grows the further the stock falls."},
+    {"q": "Why is the margin for a naked sale larger?",
+     "options": ["It is a penalty", "The exchange blocks for a big move, not a capped one", "Naked sales are taxed", "It isn't larger"],
+     "answer": 1,
+     "why": "Margin follows the worst case, which is much larger without a floor."},
+    {"q": "With a naked sale, what limits the loss in practice?",
+     "options": ["Nothing", "The stop-loss", "The expiry date", "The lot size"],
+     "answer": 1,
+     "why": "With no bought leg, the stop-loss is the only floor."},
+    {"q": "A single naked sale would block half your account's capital. You should:",
+     "options": ["Place it anyway", "Sell a spread instead", "Turn the stop-loss off", "Sell two lots"],
+     "answer": 1,
+     "why": "One bad move shouldn't be able to decide your month."},
+    {"q": "When do you unlock selling both sides naked (the short strangle)?",
+     "options": ["Level 1", "Level 3", "Level 5", "Never"],
+     "answer": 2,
+     "why": "The strangle comes at Level 5, after months of discipline."}
+  ]
+}

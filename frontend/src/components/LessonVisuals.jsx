@@ -172,6 +172,12 @@ const VISUALS = {
       <Payoff xs={[0, 10]} pts={[[0, -50], [3, -50], [5, 30], [10, 30]]} marks={[[3, 'bought'], [5, 'sold']]} winX={190} loseX={90} />
     </Figure>
   ),
+  'payoff-iron-condor': () => (
+    <Figure label="Iron condor payoff: flat profit between the two sold strikes, a falling line beyond each sold strike, then flat again beyond each bought strike, so the loss is capped on both sides."
+      caption="Two spreads around the price: you keep the credit while it stays between the sold strikes, and both sides have a floor.">
+      <Payoff xs={[0, 12]} pts={[[0, -50], [2, -50], [4, 30], [8, 30], [10, -50], [12, -50]]} marks={[[2, 'bought'], [4, 'sold'], [8, 'sold'], [10, 'bought']]} winX={170} loseX={40} />
+    </Figure>
+  ),
   'roll-out': () => (
     <Figure h={150} label="A price line climbing towards a sold call strike; the leg is closed and a new call is sold at a higher strike, further from the price."
       caption="Rolling: close the call the price is closing in on, and sell a new one further out. The loss on the old one is booked.">

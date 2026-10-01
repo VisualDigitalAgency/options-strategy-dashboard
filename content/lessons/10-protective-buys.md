@@ -1,4 +1,4 @@
-> You learnt spreads at Level 5 as trades you open on purpose. This lesson is about the moment a trade you **already hold** starts to worry you, and adding a protective buy to it, part way through.
+> You learnt spreads at Level 1 as trades you open on purpose. This lesson is about the moment a trade you **already hold** starts to worry you, and adding a protective buy to it, part way through.
 
 ## When to add protection to a held trade
 
