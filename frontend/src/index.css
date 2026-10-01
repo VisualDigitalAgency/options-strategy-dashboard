@@ -1741,7 +1741,7 @@ img.brand-logo { object-fit: contain; }
 
 .builder-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-areas: "main side" "chain side"; gap: 20px; align-items: start; }
 .b-main { grid-area: main; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.b-side { grid-area: side; position: sticky; top: 120px; display: flex; flex-direction: column; gap: 16px; }
+.b-side { grid-area: side; position: sticky; top: calc(var(--topbar-h, 104px) + 16px); display: flex; flex-direction: column; gap: 16px; }
 .b-side .card-head { margin-bottom: 0; }
 .b-chain { grid-area: chain; min-width: 0; }
 
