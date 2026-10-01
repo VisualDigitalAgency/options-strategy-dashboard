@@ -10,6 +10,7 @@ export default defineConfig({
       '/rpc': 'http://127.0.0.1:8000',
       '/healthz': 'http://127.0.0.1:8000',
       '^/c/': 'http://127.0.0.1:8000',
+      '^/brand/': 'http://127.0.0.1:8000',
     },
   },
 })

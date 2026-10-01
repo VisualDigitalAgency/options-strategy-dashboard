@@ -1,6 +1,6 @@
 > Think of it like a promise with a small fee. Someone pays you a little money today. In return, you promise to pay them if a stock's price crosses a line by a certain date. If the price never crosses the line, you keep the fee.
 
-That promise is called an **option**. The person who pays is the **buyer**. The person who gets paid and makes the promise is the **seller**. On Theta Desk, you are the seller.
+That promise is called an **option**. The person who pays is the **buyer**. The person who gets paid and makes the promise is the **seller**. Here, you are the seller.
 
 ::visual option-ticket
 
@@ -34,4 +34,4 @@ Small, likely win. Rare, big loss. The rest of this course is about keeping that
 
 ## One more rule
 
-Stock options in India end with real shares changing hands if they are in the money. Theta Desk closes every position when fewer than 7 days are left, so your practice trades never get there.
+Stock options in India end with real shares changing hands if they are in the money. The app closes every position when fewer than 7 days are left, so your practice trades never get there.

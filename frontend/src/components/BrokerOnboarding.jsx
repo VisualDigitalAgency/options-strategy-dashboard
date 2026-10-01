@@ -52,7 +52,7 @@ export default function BrokerOnboarding() {
       <p className="confirm-body">
         {connectable.length
           ? 'Zerodha is connectable now, real money and all — every order still needs your explicit confirmation. Other brokers are previews for now.'
-          : "Theta Desk is virtual-only for now. Once broker execution is wired up, you'll connect one of these accounts to place real orders — no setup needed today."}
+          : "Paper trading only for now. Once broker execution is wired up, you'll connect one of these accounts to place real orders — no setup needed today."}
       </p>
       {error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
       <div className="broker-grid broker-grid-popup">

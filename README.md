@@ -293,6 +293,10 @@ docker compose exec api python scripts/set_admin.py you@example.com
 
 Point the domain's DNS A record at the server first: Caddy fetches the certificate on start. To try it on a laptop, use `DOMAIN=localhost`, `HTTPS_PORT=8443`, `PUBLIC_URL=https://localhost:8443` [...]
 
+## Branding (name, logo, favicon)
+
+The app's name and logo are not in the code (issue #133). The owner sets them under **Admin → Features & settings → Branding**: the name (1–40 characters) and a logo (PNG or WebP, up to 1 MB). No other role can change them, whatever features it has. The server re-encodes every upload to PNG and makes the favicon (32 px) and home-screen icon (180 px) from it; SVG and other formats are refused. Until a logo is uploaded, the built-in dial mark and `/favicon.svg` are used. The name shows on every page and tab title, in emails, the default sender, share cards and Zerodha alert names. `APP_NAME` sets the name on a fresh install; the owner's setting overrides it. The domain stays the `PUBLIC_URL`/`DOMAIN` env vars, since a wrong value would lock everyone out. `scripts/check_brand.py` (run in CI) fails if the name is hard-coded anywhere else: read it from `engine/brand.py` or `useBrand()` in `frontend/src/brand.jsx`.
+
 ## Known limits
 
 - NSE's option-chain API is unofficial. It can change or block requests without notice (it already moved from `option-chain-equities` to `option-chain-v3`). The server throttles its own NSE calls[...]

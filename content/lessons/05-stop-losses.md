@@ -1,6 +1,6 @@
 > Think of a seat belt. You put it on before the drive, not during the crash. A **stop-loss** is a rule you set before the trade: "if it goes this wrong, I get out".
 
-## Theta Desk's stop-loss rule
+## Our stop-loss rule
 
 ::visual stoploss-timeline
 

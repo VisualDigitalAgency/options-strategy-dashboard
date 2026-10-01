@@ -4,13 +4,10 @@ import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Clock, GraduationCap,
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import Markdown from '../components/Markdown'
+import { useTitle } from '../brand'
 
 const LEVEL = { 1: 'Level 1 · Learner', 2: 'Level 2 · Apprentice', 3: 'Level 3 · Seller' }
 const DISCLAIMER = 'Educational content, not investment advice. Practise with paper trading only.'
-
-function useTitle(title) {
-  useEffect(() => { document.title = title ? `${title} · Theta Desk` : 'Theta Desk' }, [title])
-}
 
 // Signed-in users see which quizzes they've passed; signed-out visitors see the course only.
 function useProgress(user) {

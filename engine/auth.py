@@ -29,7 +29,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlalchemy.exc import IntegrityError
 
-from . import app_settings, cache, db, mail, permissions, users
+from . import app_settings, brand, cache, db, mail, permissions, users
 
 _ph = PasswordHasher(time_cost=3, memory_cost=64 * 1024, parallelism=2)
 _DUMMY_HASH = _ph.hash(secrets.token_hex(16))  # verify against this for unknown emails: same timing
@@ -341,8 +341,8 @@ def _send_code(user_id: int, email: str, ip: str | None) -> bool:
               "email_code_expires_at=now() + make_interval(secs => :ttl) WHERE id=:u",
               h=_code_hash(user_id, code), ttl=CODE_TTL, u=user_id)
     try:
-        mail.send(email, f"{code} is your Theta Desk code",
-                  f"Your Theta Desk verification code is {code}\n\n"
+        mail.send(email, f"{code} is your {brand.name()} code",
+                  f"Your {brand.name()} verification code is {code}\n\n"
                   f"It expires in {CODE_TTL // 60} minutes. If you didn't sign up, ignore this email.\n")
     except mail.MailError as e:
         audit("mail_failed", target_user_id=user_id, ip=ip, kind="verify_code", error=str(e)[:300])
@@ -436,7 +436,7 @@ def verify_email(email: str, code: str, ip: str | None = None, ua: str | None = 
     token = new_session(uid, ip, ua)
     see_device(uid, device, ip)
     audit("login", actor_id=uid, target_user_id=uid, ip=ip)
-    return token, {"message": "Email confirmed. Welcome to Theta Desk!", "signed_in": True, "user": me(uid)}
+    return token, {"message": f"Email confirmed. Welcome to {brand.name()}!", "signed_in": True, "user": me(uid)}
 
 
 # ---------- forgot password (#79) ----------
@@ -481,7 +481,7 @@ def request_password_reset(email: str, ip: str | None = None) -> dict:
     cache._call(lambda r: (r.incr(key), r.expire(key, 3600, nx=True)))
     link = f"{public_url()}/reset-password?token={token}"
     try:
-        mail.send(email, "Reset your Theta Desk password",
+        mail.send(email, f"Reset your {brand.name()} password",
                   f"Someone asked to reset the password on this account.\n\n"
                   f"Reset it here (valid 24 hours): {link}\n\n"
                   f"If this wasn't you, ignore this email; your password stays unchanged.\n")

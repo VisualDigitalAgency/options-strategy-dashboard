@@ -216,6 +216,22 @@ Legs that can't fill now (market shut, or a limit away from the touch) come back
 {"jsonrpc": "2.0", "id": 1, "result": {"placed": [{"id": 1, "leg_index": 0, "broker_order_id": "<Kite order id>"}]}}
 ```
 
+### Upload the logo (owner only)
+
+The logo is too big for an RPC call, so it has its own endpoint with the same Origin, session and owner checks. Send the raw image as the body; `Content-Type` must be `image/png` or `image/webp`, up to 1 MB. The reply is the same as `app_info`:
+
+```
+POST /brand/logo
+Content-Type: image/png
+Origin: https://your.domain
+```
+
+```json
+{"jsonrpc": "2.0", "id": null, "result": {"name": "Theta Desk", "logo": "0936931b67d6bfb4"}}
+```
+
+`GET /brand/logo.png`, `/brand/touch.png` and `/brand/favicon.png` serve the re-encoded images (404 while the built-in mark is used); pages add `?v=<logo>` so a new upload is a new URL.
+
 ## Changing the API
 
 Register the method in one table in `server.py`, give it a docstring, and run `make rpc-docs`. CI regenerates [rpc.md](rpc.md) and fails when the committed copy differs or any method lacks a docstring. [CONTRIBUTING.md](../../CONTRIBUTING.md) has the rest of the conventions.

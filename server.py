@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, broker, cache, cards, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
+from engine import app_settings, auth, brand, autotrade, broker, cache, cards, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -311,6 +311,12 @@ def lessons_get(_ctx: Ctx, slug: str):
     return lessons.get_lesson(slug)
 
 
+def app_info(_ctx: Ctx):
+    """The app's name and logo version (null while the built-in mark is used). Public; every page
+    loads it to show the brand."""
+    return brand.info()
+
+
 def auth_me(_ctx: Ctx):
     """The signed-in user with their saved theme and palette, or null when signed out."""
     return auth.me(_ctx.user_id) if _ctx.user else None
@@ -356,6 +362,22 @@ def admin_get_settings(_ctx: Ctx):
 def admin_set_setting(_ctx: Ctx, key: str, value: bool):
     """Owner only: changes one app switch. Audited; applies at once."""
     return app_settings.set_value(_ctx.user_id, key, value, ip=_ctx.ip)
+
+
+def admin_set_brand_name(_ctx: Ctx, name: str):
+    """Owner only: renames the app everywhere it is shown (pages, emails, share cards). Audited."""
+    was = brand.name()
+    value = brand.set_name(_ctx.user_id, name)
+    auth.audit("brand_changed", actor_id=_ctx.user_id, ip=_ctx.ip, field="name", was=was, value=value)
+    return brand.info()
+
+
+def admin_reset_logo(_ctx: Ctx):
+    """Owner only: drops the uploaded logo and favicon and goes back to the built-in ones. Audited.
+    Uploading a logo is POST /brand/logo (see doc/api/README.md)."""
+    brand.reset_logo()
+    auth.audit("brand_changed", actor_id=_ctx.user_id, ip=_ctx.ip, field="logo", value=None)
+    return brand.info()
 
 
 def prefs_set(_ctx: Ctx, theme: str | None = None, palette: str | None = None):
@@ -451,7 +473,7 @@ def broker_exchange_token(user_id: int, request_token: str, state: str):
 PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me,
                   "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code,
                   "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password,
-                  "lessons_list": lessons_list, "lessons_get": lessons_get}
+                  "lessons_list": lessons_list, "lessons_get": lessons_get, "app_info": app_info}
 
 ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set,
                    "profile_set": profile_set}
@@ -519,6 +541,8 @@ ADMIN_METHODS = {
     "admin_get_features": admin_get_features,
     "admin_set_feature": admin_set_feature,
     "admin_get_settings": admin_get_settings,
+    "admin_set_brand_name": admin_set_brand_name,
+    "admin_reset_logo": admin_reset_logo,
     "admin_get_overrides": admin_get_overrides,
     "admin_set_override": admin_set_override,
     "admin_set_setting": admin_set_setting,
@@ -531,6 +555,7 @@ REQUIRES = {
     "admin_set_role": "manage_roles",
     "admin_get_features": "owner", "admin_set_feature": "owner",
     "admin_get_settings": "owner", "admin_set_setting": "owner",
+    "admin_set_brand_name": "owner", "admin_reset_logo": "owner",
     "admin_get_overrides": "owner", "admin_set_override": "owner",
     "broker_connect_url": "live_trading", "broker_exchange_token": "live_trading",
     "broker_preview_order": "live_trading", "broker_place_order": "live_trading",
@@ -624,9 +649,9 @@ def _finite(v):
 # Plain GET pages, not RPC: WhatsApp and X fetch them without cookies or JavaScript.
 CARD_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{big} · Theta Desk</title>
+<title>{big} · {site}</title>
 <meta name="description" content="{small}. {label}.">
-<meta property="og:type" content="website"><meta property="og:site_name" content="Theta Desk">
+<meta property="og:type" content="website"><meta property="og:site_name" content="{site}">
 <meta property="og:title" content="{big}"><meta property="og:description" content="{small}. {label}.">
 <meta property="og:url" content="{url}"><meta property="og:image" content="{url}.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
@@ -650,9 +675,10 @@ def _card(slug: str) -> dict:
 @app.get("/c/<slug>")
 def card_page(slug: str):
     p = _card(slug)
-    big, small = cards.headline(p)
+    app_name = brand.name()
+    big, small = cards.headline(p, app_name)
     base = auth.public_url()
-    html = CARD_PAGE.format(big=escape(big), small=escape(small), label=escape(cards.LABEL),
+    html = CARD_PAGE.format(big=escape(big), small=escape(small), label=escape(cards.LABEL), site=escape(app_name),
                             url=escape(f"{base}/c/{slug}"), base=escape(base), slug=escape(slug),
                             ref=escape(auth.ref_code(cards.owner(slug))))
     resp = Response(html, mimetype="text/html")
@@ -663,11 +689,51 @@ def card_page(slug: str):
 
 @app.get("/c/<slug>.png")
 def card_png(slug: str):
-    # A card is frozen when made, so its image never changes.
+    # The card's facts are frozen when made; the brand on it follows the current name and logo.
     site = auth.public_url().split("://", 1)[-1]
-    resp = Response(cards.png(_card(slug), site), mimetype="image/png")
-    resp.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    logo = brand.asset("logo")
+    resp = Response(cards.png(_card(slug), site, brand.name(), logo and logo[0]), mimetype="image/png")
+    resp.headers["Cache-Control"] = "public, max-age=3600"
     return resp
+
+
+@app.get("/brand/<kind>.png")
+def brand_png(kind: str):
+    """The owner's uploaded logo, touch icon or favicon. 404 while the built-in ones are used."""
+    found = brand.asset(kind) if kind in brand.SIZES else None
+    if found is None:
+        abort(404)
+    data, sha = found
+    if request.if_none_match.contains(sha):
+        return Response(status=304)
+    resp = Response(data, mimetype="image/png")
+    resp.set_etag(sha)
+    # Pages ask for ?v=<sha>, so a new upload is a new URL.
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    resp.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    return resp
+
+
+@app.post("/brand/logo")
+def brand_upload():
+    """Owner only: the raw PNG or WebP body becomes the new logo. Outside /rpc because a logo is
+    far larger than the RPC body limit; the same Origin, session and owner checks apply."""
+    if request.headers.get("Origin") not in ALLOWED_ORIGINS:
+        return _error(None, FORBIDDEN, "Requests from this origin are not allowed", 403)
+    if request.mimetype not in ("image/png", "image/webp"):
+        return _error(None, -32000, "Upload a PNG or WebP image", 415)
+    ctx = Ctx()
+    if not ctx.user:
+        return _error(None, NOT_SIGNED_IN, "Sign in to continue", 401)
+    if ctx.user["must_change_password"] or not permissions.user_allowed(ctx.user, "owner"):
+        return _error(None, FORBIDDEN, "You don't have access to this", 403)
+    request.max_content_length = brand.MAX_UPLOAD
+    try:
+        brand.set_logo(ctx.user_id, request.get_data(cache=False))
+    except brand.BrandError as e:
+        return _error(None, -32000, str(e), 400)
+    auth.audit("brand_changed", actor_id=ctx.user_id, ip=ctx.ip, field="logo")
+    return jsonify({"jsonrpc": "2.0", "id": None, "result": brand.info()})
 
 
 @app.post("/rpc")

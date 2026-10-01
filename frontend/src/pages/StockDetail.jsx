@@ -18,6 +18,7 @@ import DetailSkeleton from '../components/DetailSkeleton'
 import StrategyLab from '../components/StrategyLab'
 import UpdatedTag from '../components/UpdatedTag'
 import { int, num, pct, rupee, rupee2, shortDate, signed, signedPct, suggestLots, todayIso } from '../format'
+import { useTitle } from '../brand'
 
 function Stat({ label, value, sub, tone }) {
   return (
@@ -102,8 +103,8 @@ export default function StockDetail() {
     return () => { live = false }
   }, [symbol, expiry, screen?.generated_at])
 
+  useTitle(symbol)
   useEffect(() => {
-    document.title = `${symbol} · Theta Desk`
     window.scrollTo(0, 0)
   }, [symbol])
 

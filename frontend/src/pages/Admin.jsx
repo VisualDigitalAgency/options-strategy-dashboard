@@ -4,6 +4,7 @@ import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { dateTime } from '../format'
 import Modal, { ConfirmDialog } from '../components/Modal'
+import BrandSettings from '../components/BrandSettings'
 
 const STATUS = { pending: 'Waiting', active: 'Active', rejected: 'Rejected', disabled: 'Disabled' }
 const ROLE = { owner: 'Owner', sub_admin: 'Sub-admin', beta: 'Beta', user: 'User' }
@@ -393,6 +394,7 @@ export default function Admin() {
           </div>
         </>
       )}
+      {tab === 'features' && owner && <BrandSettings />}
       {tab === 'features' && owner && <FeatureMatrix data={features} onToggle={toggle} settings={settings} onSetting={setSetting} busy={busy} />}
       {tab === 'features' && owner && features && <UserOverrides users={users} features={features.features} />}
       {tab === 'blocked' && (

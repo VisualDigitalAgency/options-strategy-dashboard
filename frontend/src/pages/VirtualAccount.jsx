@@ -12,6 +12,7 @@ import UpdatedTag from '../components/UpdatedTag'
 import PalettePicker from '../components/PalettePicker'
 import StatCard from '../components/StatCard'
 import EquityBar from '../components/EquityBar'
+import { useTitle } from '../brand'
 
 const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry' }
 
@@ -51,8 +52,8 @@ export default function VirtualAccount() {
     }
   }, [])
 
+  useTitle('Virtual account')
   useEffect(() => {
-    document.title = 'Virtual account · Theta Desk'
     load()
   }, [load])
 

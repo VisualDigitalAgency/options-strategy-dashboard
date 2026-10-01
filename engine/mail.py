@@ -5,7 +5,8 @@ MAIL_BACKEND picks how mail leaves:
   - `smtp`:   any SMTP server. SMTP_HOST, SMTP_PORT (587, STARTTLS; 465 is implicit TLS),
               SMTP_USER, SMTP_PASS.
   - `log`:    the default. Nothing is sent; the message is written to the log. For dev and tests.
-MAIL_FROM is the sender, e.g. `Theta Desk <no-reply@example.com>`. Secrets use the same
+MAIL_FROM is the sender, e.g. `My App <no-reply@example.com>`; unset, it is the app name at
+no-reply@ the PUBLIC_URL host. Secrets use the same
 NAME_FILE-or-env-var lookup as the DB passwords (settings.secret).
 
 Transient failures (network, timeouts, HTTP 429/5xx, SMTP 4xx) are retried a few times.
@@ -44,7 +45,11 @@ def backend() -> str:
 
 
 def _sender() -> str:
-    return os.environ.get("MAIL_FROM") or "Theta Desk <no-reply@theta.local>"
+    if os.environ.get("MAIL_FROM"):
+        return os.environ["MAIL_FROM"]
+    from . import auth, brand  # both import this module
+    host = auth.public_url().split("://", 1)[-1].split(":")[0].split("/")[0]
+    return f"{brand.name()} <no-reply@{host}>"
 
 
 def _resend(to: str, subject: str, text: str) -> None:

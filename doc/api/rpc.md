@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-67 methods: 9 public, 4 account, 5 market data, 36 user, 13 admin.
+70 methods: 10 public, 4 account, 5 market data, 36 user, 15 admin.
 
 ## Tiers
 
@@ -29,6 +29,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`auth_reset_password`](#auth_reset_password) | public | Sets a new password from the emailed reset token. |
 | [`lessons_list`](#lessons_list) | public | Every lesson in the learning path (title, level, order, summary, minutes, question count). |
 | [`lessons_get`](#lessons_get) | public | One lesson's body and quiz questions (never the answers), plus the previous and next lesson. |
+| [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used). |
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
 | [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
@@ -84,6 +85,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_get_features`](#admin_get_features) | admin | Owner only: which features each role (sub_admin, beta, user) has, and the feature list. |
 | [`admin_set_feature`](#admin_set_feature) | admin | Owner only: turns one feature on or off for a role. |
 | [`admin_get_settings`](#admin_get_settings) | admin | Owner only: the app switches (such as auto_approve) with their values and descriptions. |
+| [`admin_set_brand_name`](#admin_set_brand_name) | admin | Owner only: renames the app everywhere it is shown (pages, emails, share cards). |
+| [`admin_reset_logo`](#admin_reset_logo) | admin | Owner only: drops the uploaded logo and favicon and goes back to the built-in ones. |
 | [`admin_get_overrides`](#admin_get_overrides) | admin | Owner only: one account's per-user feature overrides (grant or deny). |
 | [`admin_set_override`](#admin_set_override) | admin | Owner only: grant or deny one feature for one account, or `clear` to go back to its role and level. |
 | [`admin_set_setting`](#admin_set_setting) | admin | Owner only: changes one app switch. |
@@ -233,6 +236,15 @@ lesson. Public.
 | Param | Type | Default |
 |---|---|---|
 | `slug` | `str` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `app_info`
+
+The app's name and logo version (null while the built-in mark is used). Public; every page
+loads it to show the brand.
+
+No params.
 
 Set by the server, never by the client: `_ctx`.
 
@@ -827,6 +839,25 @@ Set by the server, never by the client: `_ctx`.
 ### `admin_get_settings`
 
 Owner only: the app switches (such as auto_approve) with their values and descriptions.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_set_brand_name`
+
+Owner only: renames the app everywhere it is shown (pages, emails, share cards). Audited.
+
+| Param | Type | Default |
+|---|---|---|
+| `name` | `str` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_reset_logo`
+
+Owner only: drops the uploaded logo and favicon and goes back to the built-in ones. Audited.
+Uploading a logo is POST /brand/logo (see doc/api/README.md).
 
 No params.
 

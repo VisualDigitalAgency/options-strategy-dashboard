@@ -9,11 +9,11 @@ import SettingsPanel from './components/SettingsPanel'
 import ThemeToggle from './components/ThemeToggle'
 import DetailSkeleton from './components/DetailSkeleton'
 import Overview from './pages/Overview'
-import DialMark from './components/DialMark'
 import { AuthProvider, can, useAuth } from './auth'
 import { markSeen, seenLevel } from './levelSeen'
 import { ChangePassword, ForgotPassword, Login, Register, ResetPassword } from './pages/AuthPages'
 import BrokerOnboarding from './components/BrokerOnboarding'
+import { Logo, useBrand } from './brand'
 
 const StockDetail = lazy(() => import('./pages/StockDetail'))
 const Portfolio = lazy(() => import('./pages/Portfolio'))
@@ -141,6 +141,7 @@ function TopBar() {
   const clock = useMarketClock()
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
+  const { name } = useBrand()
   // A level reached since this browser last celebrated one lights a dot on Progress (issue #126).
   const seen = seenLevel()
   if (seen === null && user?.level) markSeen(user.level)
@@ -149,9 +150,9 @@ function TopBar() {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <Link to="/" className="brand" aria-label="Theta Desk home">
-          <DialMark />
-          <span className="wordmark">Theta Desk</span>
+        <Link to="/" className="brand" aria-label={`${name} home`}>
+          <Logo />
+          <span className="wordmark">{name}</span>
         </Link>
         <nav className="main-nav" aria-label="Main">
           {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, short, icon: Icon, end, badge }) => (
@@ -201,7 +202,7 @@ const lazyPage = (Page) => (
 function Splash() {
   return (
     <div className="auth-page" aria-busy="true">
-      <DialMark />
+      <Logo />
     </div>
   )
 }
@@ -250,13 +251,14 @@ function SignedIn() {
 
 // Lessons are public, so search and shared links land on real content with a way in.
 function PublicShell({ children }) {
+  const { name } = useBrand()
   return (
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <Link to="/learn" className="brand" aria-label="Theta Desk lessons">
-            <DialMark />
-            <span className="wordmark">Theta Desk</span>
+          <Link to="/learn" className="brand" aria-label={`${name} lessons`}>
+            <Logo />
+            <span className="wordmark">{name}</span>
           </Link>
           <div className="public-bar-actions">
             <ThemeToggle />

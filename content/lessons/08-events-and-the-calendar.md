@@ -27,7 +27,7 @@ RBI announcements, the Union Budget, and big US news can move every stock at onc
 
 ## Using the Market Calendar
 
-- Before you sell, check for **results or dividends before your end date**. Theta Desk marks these as risky.
+- Before you sell, check for **results or dividends before your end date**. The screener marks these as risky.
 - Events are grouped by expiry, so you can see which month is clean.
 - The **Economic calendar** on the same page shows the whole-market days.
 - Already in a trade and an event shows up? Decide **before** the event whether to stay or leave. Never decide during it.
