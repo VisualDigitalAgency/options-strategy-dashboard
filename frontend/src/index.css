@@ -1643,6 +1643,9 @@ td.out { color: var(--down-text); }
 .learn-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--text-muted); margin-top: auto; }
 .learn-meta span { display: inline-flex; align-items: center; gap: 4px; }
 .learn-passed { color: var(--up); }
+.learn-locked { color: var(--text-muted); }
+.learn-card.locked { opacity: .65; }
+.learn-practice { margin: 0 0 12px; max-width: 70ch; }
 .learn-disclaimer { margin: 0; }
 .lesson { max-width: 760px; }
 .back-link { display: inline-flex; align-items: center; gap: 4px; }

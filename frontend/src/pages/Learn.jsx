@@ -1,21 +1,30 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Clock, GraduationCap, XCircle } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Clock, GraduationCap, Lock, XCircle } from 'lucide-react'
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import Markdown from '../components/Markdown'
 import { useTitle } from '../brand'
 
-const LEVEL = { 1: 'Level 1 · Learner', 2: 'Level 2 · Apprentice', 3: 'Level 3 · Seller' }
+const LEVEL = {
+  1: 'Level 1 · Learner', 2: 'Level 2 · Apprentice', 3: 'Level 3 · Seller', 4: 'Level 4 · Disciplined',
+  5: 'Level 5 · Consistent', 6: 'Level 6 · Risk manager', 7: 'Level 7 · Strategist', 8: 'Level 8 · Expert', 9: 'Level 9 · Master',
+}
+// Levels with no lessons are practice (#161): say so, so the course doesn't seem to skip a step.
+const PRACTICE = {
+  4: 'No lessons at this level: it is practice. Hold 3 profitable months in a row and never sell a short leg at delta 0.15 or more, using what Levels 1–3 taught. Lessons continue at Level 5.',
+  7: 'No lessons from here on: Levels 7–9 are about your track record. Keep profitable months coming with a small drawdown; your Progress page shows each check.',
+}
 const DISCLAIMER = 'Educational content, not investment advice. Practise with paper trading only.'
 
 // Signed-in users see which quizzes they've passed; signed-out visitors see the course only.
-function useProgress(user) {
-  const [done, setDone] = useState({})
+// null until loaded, so a lock never flashes up before the record arrives.
+function useProgress(user, slug) {
+  const [done, setDone] = useState(null)
   useEffect(() => {
     if (!user) return
     rpc('lesson_progress').then((rows) => setDone(Object.fromEntries(rows.map((r) => [r.slug, r])))).catch(() => {})
-  }, [user])
+  }, [user, slug]) // refetched per lesson, so passing one unlocks the next
   return done
 }
 
@@ -27,8 +36,13 @@ export function Learn() {
   useTitle('Learn option selling')
   useEffect(() => { rpc('lessons_list').then(setList).catch((e) => setError(e.message)) }, [])
 
-  const levels = [...new Set((list ?? []).map((l) => l.level))]
-  const passed = Object.values(done).filter((d) => d.passed_at).length
+  const levels = list ? [...new Set([...list.map((l) => l.level), ...Object.keys(PRACTICE).map(Number)])].sort((a, b) => a - b) : []
+  const passed = Object.values(done ?? {}).filter((d) => d.passed_at).length
+  // Quizzes unlock in course order (#161): every lesson after the first unpassed one is locked.
+  const locked = new Set()
+  if (user && done && list) {
+    list.forEach((l, i) => { if (i > 0 && !done[l.slug]?.passed_at && !done[list[i - 1].slug]?.passed_at) locked.add(l.slug) })
+  }
   return (
     <div className="detail learn">
       <header className="page-head">
@@ -42,14 +56,16 @@ export function Learn() {
       {levels.map((lv) => (
         <section key={lv} className="learn-level" aria-labelledby={`lv-${lv}`}>
           <h2 id={`lv-${lv}`}>{LEVEL[lv] ?? `Level ${lv}`}</h2>
+          {PRACTICE[lv] && <p className="muted learn-practice">{PRACTICE[lv]}</p>}
           <div className="learn-grid">
             {list.filter((l) => l.level === lv).map((l) => (
-              <Link key={l.slug} to={`/learn/${l.slug}`} className="card learn-card">
+              <Link key={l.slug} to={`/learn/${l.slug}`} className={`card learn-card${locked.has(l.slug) ? ' locked' : ''}`}>
                 <b>{l.title}</b>
                 <span className="muted small">{l.summary}</span>
                 <span className="learn-meta small">
                   <span><Clock size={13} aria-hidden /> {l.minutes} min · {l.questions} questions</span>
-                  {done[l.slug]?.passed_at && <span className="learn-passed"><CheckCircle2 size={13} aria-hidden /> Passed</span>}
+                  {done?.[l.slug]?.passed_at && <span className="learn-passed"><CheckCircle2 size={13} aria-hidden /> Passed</span>}
+                  {locked.has(l.slug) && <span className="learn-locked"><Lock size={13} aria-hidden /> Locked</span>}
                 </span>
               </Link>
             ))}
@@ -128,6 +144,7 @@ function Quiz({ lesson, onDone }) {
 export function Lesson() {
   const { slug } = useParams()
   const { user } = useAuth()
+  const done = useProgress(user, slug)
   // Keyed by slug, so moving to the next lesson never shows the previous one's text or error.
   const [loaded, setLoaded] = useState({})
   const lesson = loaded.slug === slug ? loaded.data : null
@@ -159,7 +176,15 @@ export function Lesson() {
       </header>
       <Markdown source={lesson.body} />
       <p className="muted small learn-disclaimer">{DISCLAIMER}</p>
-      {user ? <Quiz key={lesson.slug} lesson={lesson} /> : (
+      {user ? (!done ? null : lesson.prev && !done[lesson.slug]?.passed_at && !done[lesson.prev]?.passed_at ? (
+        <section className="card quiz-cta" role="status">
+          <h2><Lock size={18} aria-hidden /> Quiz locked</h2>
+          <p>Lessons unlock in order. Pass the previous lesson's quiz to unlock this one.</p>
+          <div className="quiz-cta-actions">
+            <Link to={`/learn/${lesson.prev}`} className="btn primary"><ArrowLeft size={15} aria-hidden /> Previous lesson</Link>
+          </div>
+        </section>
+      ) : <Quiz key={lesson.slug} lesson={lesson} />) : (
         <section className="card quiz-cta">
           <h2>Take the quiz and practise for free</h2>
           <p>Create a free account to take this quiz, track your progress through the levels, and practise

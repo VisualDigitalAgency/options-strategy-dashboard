@@ -1,5 +1,5 @@
 // Learning path (issue #124): lesson list with passed marks, lesson body rendered from the markdown
-// subset, quiz needs every answer before submitting, results shown, and signed-out visitors get the
+// subset, quizzes unlocking in order (#161), quiz needs every answer before submitting, results shown, and signed-out visitors get the
 // "Join free" call to action instead of the quiz.
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 
@@ -20,6 +20,7 @@ const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 20
 const LIST = [
   { slug: 'what-is-an-option', title: 'What is an option?', level: 1, order: 1, summary: 'Calls and puts', minutes: 6, questions: 2 },
   { slug: 'stop-losses', title: 'Stop-losses', level: 2, order: 5, summary: 'Day 15 rule', minutes: 5, questions: 2 },
+  { slug: 'short-strangle', title: 'The short strangle', level: 2, order: 6, summary: 'Two sells', minutes: 5, questions: 2 },
 ]
 const LESSON = {
   slug: 'what-is-an-option', title: 'What is an option?', level: 1, order: 1, summary: 'Calls and puts', minutes: 6,
@@ -33,7 +34,8 @@ globalThis.fetch = async (_url, opts) => {
   const { method, id, params } = JSON.parse(opts.body)
   calls.push({ method, params })
   const result = {
-    auth_me: me, lessons_list: LIST, lessons_get: LESSON,
+    auth_me: me, lessons_list: LIST,
+    lessons_get: params?.slug === 'short-strangle' ? { ...LESSON, slug: 'short-strangle', prev: 'stop-losses', next: null } : LESSON,
     lesson_progress: [{ slug: 'what-is-an-option', passed_at: '2026-09-30T10:00:00Z' }],
     lesson_submit_quiz: { score: 50, passed: false, first_pass: false, pass_pct: 80, retry_at: '2026-10-01T10:00:00Z',
       results: [{ correct: true, why: 'Seller gets it.' }, { correct: false, why: '₹6 × 500 = ₹3,000.' }] },
@@ -55,9 +57,20 @@ const render = (path) => act(async () => {
 await render('/learn')
 await settle()
 const cards = [...document.querySelectorAll('.learn-card')]
-check('list: one card per lesson, grouped by level', cards.length === 2 && document.querySelectorAll('.learn-level').length === 2)
+check('list: one card per lesson, grouped by level', cards.length === 3 && document.querySelectorAll('.learn-level').length === 4)
 check('list: passed lesson marked', cards[0].textContent.includes('Passed') && !cards[1].textContent.includes('Passed'))
-check('list: progress summary', document.querySelector('.lede').textContent.includes('passed 1 of 2'))
+check('list: progress summary', document.querySelector('.lede').textContent.includes('passed 1 of 3'))
+check('list: next lesson open, the one after it locked (#161)', !cards[1].classList.contains('locked')
+  && cards[2].classList.contains('locked') && cards[2].textContent.includes('Locked'))
+check('list: Level 4 explained as practice', document.querySelector('#lv-4')?.textContent.includes('Level 4')
+  && document.querySelector('.learn-practice')?.textContent.includes('delta 0.15'))
+
+// ---- a locked lesson: readable, quiz replaced by the unlock message
+await render('/learn/short-strangle')
+await settle()
+check('locked lesson: body readable, no quiz', !!document.querySelector('.md') && !document.querySelector('.quiz')
+  && document.querySelector('.quiz-cta')?.textContent.includes('Quiz locked')
+  && !!document.querySelector('.quiz-cta a[href="/learn/stop-losses"]'))
 
 // ---- lesson body
 await render('/learn/what-is-an-option')
