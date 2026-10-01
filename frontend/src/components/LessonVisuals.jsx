@@ -160,6 +160,24 @@ const VISUALS = {
       <Payoff xs={[0, 12]} pts={[[0, -60], [3, 30], [9, 30], [12, -60]]} marks={[[2, 'breakeven'], [10, 'breakeven']]} winX={128} />
     </Figure>
   ),
+  'payoff-put-spread': () => (
+    <Figure label="Bull put spread payoff: flat profit above the sold strike, a falling line between the two strikes, then flat again below the bought strike, so the loss stops growing."
+      caption="Sold put + bought put further down: below the bought strike the loss stops growing. The most you can lose is known before you trade.">
+      <Payoff xs={[0, 10]} pts={[[0, -50], [3, -50], [5, 30], [10, 30]]} marks={[[3, 'bought'], [5, 'sold']]} winX={190} loseX={90} />
+    </Figure>
+  ),
+  'roll-out': () => (
+    <Figure h={150} label="A price line climbing towards a sold call strike; the leg is closed and a new call is sold at a higher strike, further from the price."
+      caption="Rolling: close the call the price is closing in on, and sell a new one further out. The loss on the old one is booked.">
+      <line x1="20" x2="320" y1="70" y2="70" stroke={C.down} strokeDasharray="4 3" />
+      <T x="24" y="64" anchor="start" size={10} fill={C.down}>old strike (closed)</T>
+      <line x1="200" x2="320" y1="30" y2="30" stroke={C.up} strokeDasharray="4 3" />
+      <T x="316" y="24" anchor="end" size={10} fill={C.up}>new strike, further out</T>
+      <path d="M20 130 L70 120 L120 112 L170 96 L200 84" fill="none" stroke={C.main} strokeWidth="2.5" />
+      <path d="M200 84 L200 32" fill="none" stroke={C.muted} strokeWidth="1.5" strokeDasharray="2 3" />
+      <T x="206" y="110" anchor="start" size={10} fill={C.muted}>roll here</T>
+    </Figure>
+  ),
   'sigma-bands': () => (
     <Figure h={150} label="A bell curve with a darker middle band marked 68 percent for one sigma and a wider band marked 95 percent for two sigma."
       caption="About 68 in 100 months the price ends inside 1σ, about 95 in 100 inside 2σ. Put your strikes outside 1σ.">

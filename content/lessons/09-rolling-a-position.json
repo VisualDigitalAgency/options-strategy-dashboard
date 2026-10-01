@@ -1,0 +1,29 @@
+{
+  "title": "Adjustments 1: rolling a position",
+  "level": 6,
+  "order": 9,
+  "summary": "When to roll a short leg further out or into a later expiry, how to do it here, and why one roll is the limit.",
+  "minutes": 5,
+  "questions": [
+    {"q": "Rolling a short call means:",
+     "options": ["Adding more of the same call", "Closing it and selling a new call further out or later", "Turning off its stop-loss", "Waiting for expiry"],
+     "answer": 1,
+     "why": "A roll closes the leg under pressure and opens a new one further away or in a later expiry."},
+    {"q": "What happens to the old leg's result when you roll?",
+     "options": ["It is cancelled", "Its profit or loss is booked", "It moves to the new leg's strike", "Nothing until expiry"],
+     "answer": 1,
+     "why": "Closing the old leg books its profit or loss; the new leg is a fresh trade."},
+    {"q": "Which new leg breaks the app's rules?",
+     "options": ["Delta 0.10, 45 days out", "Delta 0.12, 35 days out, no results before expiry", "Delta 0.25, 20 days out", "Delta 0.08, 60 days out"],
+     "answer": 2,
+     "why": "Delta 0.25 is above the 0.15 limit, and 20 days is under the 30-day minimum."},
+    {"q": "The old leg has already reached its stop-loss. What should you do?",
+     "options": ["Roll it to avoid the loss", "Close it: the stop decides", "Turn the stop off", "Sell another one to average"],
+     "answer": 1,
+     "why": "Rolling is only for trades that still fit your rules, before the stop is hit."},
+    {"q": "Why set a limit of one roll per trade?",
+     "options": ["The exchange limits rolls", "Endless rolling hides losses while keeping the same risk", "Rolling is always unprofitable", "Margin can only be used once"],
+     "answer": 1,
+     "why": "Each roll books a loss; rolling forever turns one bad trade into many."}
+  ]
+}

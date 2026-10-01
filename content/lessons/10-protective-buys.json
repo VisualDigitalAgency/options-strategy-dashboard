@@ -1,0 +1,29 @@
+{
+  "title": "Adjustments 2: protective buys",
+  "level": 6,
+  "order": 10,
+  "summary": "Capping the risk of a sold option with a bought one further out: spreads, iron condors, what they cost and when they are worth it.",
+  "minutes": 5,
+  "questions": [
+    {"q": "You sold the 900 put. Which buy protects it?",
+     "options": ["The 950 put", "The 850 put", "The 900 call", "The 1,000 call"],
+     "answer": 1,
+     "why": "A protective put has the same type and sits further out of the money: below the sold strike."},
+    {"q": "Sold 900 put for ₹6, bought 850 put for ₹2, lot size 100. What is the most you can lose?",
+     "options": ["₹400", "₹4,600", "₹5,000", "Unlimited"],
+     "answer": 1,
+     "why": "(900 − 850) × 100 = ₹5,000, minus the ₹400 net premium kept = ₹4,600."},
+    {"q": "What does a protective buy usually do to margin?",
+     "options": ["Raises it", "Lowers it, because the worst case is capped", "Nothing", "Doubles it"],
+     "answer": 1,
+     "why": "With the loss capped, less margin is needed to cover the worst case."},
+    {"q": "When is protection most worth its cost?",
+     "options": ["On quiet days", "Around results, when a gap can jump past your stop", "Only at expiry", "Never"],
+     "answer": 1,
+     "why": "A stop can't act inside a gap; a bought option can."},
+    {"q": "Before Level 6, the builder lets you buy an option only if it:",
+     "options": ["Is cheaper than ₹1", "Protects a sold leg of the same type, further out, with no more lots", "Expires this week", "Is at the money"],
+     "answer": 1,
+     "why": "Buying on its own unlocks at Level 6; before that a buy must protect a sell."}
+  ]
+}

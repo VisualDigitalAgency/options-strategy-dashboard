@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Check, Copy, KeyRound, UserCheck, UserX } from 'lucide-react'
+import { AlertTriangle, Award, Check, Copy, KeyRound, UserCheck, UserX } from 'lucide-react'
 import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { dateTime } from '../format'
@@ -46,6 +46,8 @@ const CONFIRM = {
     body: (u) => `${u.name} is signed out everywhere at once, and auto-trade stops for them. Their positions stay as they are.` },
   reset: { title: 'Issue a temporary password?', label: 'Issue password', danger: false,
     body: (u) => `${u.name} is signed out everywhere and must set a new password after signing in with the temporary one.` },
+  final: { title: 'Approve the Level 10 final assessment?', label: 'Approve Level 10', danger: false,
+    body: (u) => `${u.name} has passed every other Level 9 check. Approving moves them to Level 10, Theta Master, at once. It can't be undone from here.` },
 }
 
 function UserRow({ u, me, onAct, onRole, busy }) {
@@ -94,6 +96,9 @@ function UserRow({ u, me, onAct, onRole, busy }) {
               )}
               {u.status === 'active' && (
                 <>
+                  {u.final_ready && me.role === 'owner' && (
+                    <button className="btn small primary" onClick={() => onAct(u, 'final')}><Award size={15} aria-hidden /> Approve Level 10</button>
+                  )}
                   <button className="btn small ghost" onClick={() => onAct(u, 'reset')}><KeyRound size={15} aria-hidden /> Reset password</button>
                   <button className="btn small ghost danger-text" onClick={() => onAct(u, 'disabled')}>Disable</button>
                 </>
@@ -322,7 +327,9 @@ export default function Admin() {
   const run = async (u, action) => {
     setBusy(true)
     try {
-      if (action === 'reset') {
+      if (action === 'final') {
+        await rpc('admin_approve_final', { target_id: u.id })
+      } else if (action === 'reset') {
         const r = await rpc('admin_reset_password', { target_id: u.id })
         setTemp({ user: u, password: r.temporary_password })
       } else {

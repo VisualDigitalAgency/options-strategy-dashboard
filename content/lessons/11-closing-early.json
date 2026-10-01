@@ -1,0 +1,29 @@
+{
+  "title": "Adjustments 3: closing early",
+  "level": 6,
+  "order": 11,
+  "summary": "The app's profit and time exits, when to close earlier yourself, and the habit that empties accounts.",
+  "minutes": 4,
+  "questions": [
+    {"q": "When does the app's profit exit close a group?",
+     "options": ["At 50% of the premium decayed", "At 90% of the premium decayed", "At expiry", "Never"],
+     "answer": 1,
+     "why": "Once 90% of the premium has decayed, the last 10% isn't worth the remaining risk."},
+    {"q": "Why does the app close every leg with fewer than 7 days left?",
+     "options": ["To pay less tax", "Stock options settle by physical delivery and margins rise near expiry", "Prices stop moving", "The broker requires it"],
+     "answer": 1,
+     "why": "Physical delivery and rising margins make the last week risky for little reward."},
+    {"q": "Results are announced before your expiry and you didn't plan for them. A sound move is:",
+     "options": ["Sell more of the same", "Close the trade or add protection", "Turn off the stop", "Ignore it"],
+     "answer": 1,
+     "why": "A results gap can jump past the stop; closing or protecting caps that risk."},
+    {"q": "Which habit empties accounts?",
+     "options": ["Closing at the profit exit", "Closing winners fast and holding losers", "Using the time exit", "Checking positions weekly"],
+     "answer": 1,
+     "why": "Small wins and large held losses add up to a losing account."},
+    {"q": "The weekly check for each open group asks:",
+     "options": ["Has it made money yet?", "Would I open this trade today, at these prices?", "Is it Friday?", "Is the stop off?"],
+     "answer": 1,
+     "why": "If you wouldn't open it today, there's little reason to keep holding it."}
+  ]
+}
