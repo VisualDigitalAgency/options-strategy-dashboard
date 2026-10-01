@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Lock, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -35,9 +35,9 @@ const NAV = [
   { to: '/', label: 'Screener', icon: LayoutGrid, end: true, pro: true },
   { to: '/builder', label: 'Builder', icon: Wrench },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar' },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays, feature: 'market_calendar', lock: 'Unlocks at Level 3' },
   { to: '/virtual', label: 'Virtual account', icon: PiggyBank },
-  { to: '/broker', label: 'Broker', icon: Plug },
+  { to: '/broker', label: 'Broker', icon: Plug, feature: 'live_trading', lock: 'By invitation', open: true },
   { to: '/learn', label: 'Learn', icon: GraduationCap },
   { to: '/progress', label: 'Progress', icon: Trophy, badge: true },
   { to: '/leaderboard', label: 'Leaderboard', icon: Medal },
@@ -212,10 +212,15 @@ function Sidebar({ sb }) {
           </div>
         )}
         <ul>
-          {NAV.filter((n) => !n.feature || can(user, n.feature)).map(({ to, label, icon: Icon, end, badge, pro }) => (
+          {/* Locked items stay in the menu with what unlocks them (#165); a level lock leads to Progress.
+              `open` pages (Broker) still show their preview while locked. */}
+          {NAV.map(({ to, label, icon: Icon, end, badge, pro, feature, lock, open }) => {
+            const locked = feature && !can(user, feature)
+            return (
             <li key={to}>
               <NavLink
-                to={pro && !can(user, 'screener') ? '/pro' : to}
+                to={pro && !can(user, 'screener') ? '/pro' : locked && !open ? '/progress' : to}
+                aria-label={locked ? `${label}: ${lock}` : undefined}
                 end={end}
                 title={sb.shrunk ? label : undefined}
                 onClick={sb.close}
@@ -224,10 +229,12 @@ function Sidebar({ sb }) {
                 <Icon size={18} aria-hidden />
                 <span className="sb-label">{label}</span>
                 {pro && !can(user, 'screener') && <span className="pro-tag">Pro</span>}
+                {locked && <span className="lock-tag" title={lock}><Lock size={11} aria-hidden /> <span className="sb-label">{lock}</span></span>}
                 {badge && levelUp && <span className="nav-dot" role="status" aria-label="New level reached" />}
               </NavLink>
             </li>
-          ))}
+            )
+          })}
         </ul>
         {sb.desktop && (
           <button className="sb-toggle" onClick={sb.toggle} aria-label={sb.shrunk ? 'Expand menu' : 'Shrink menu'} title={sb.shrunk ? 'Expand menu' : 'Shrink menu'}>

@@ -2034,3 +2034,5 @@ img.brand-logo { object-fit: contain; }
 .getting-started li.ok { color: var(--text-muted); }
 .getting-started li.ok svg { color: var(--up); }
 .getting-started li.ok span:not(.sr-only) { text-decoration: line-through; }
+/* Locked menu items (#165): what unlocks them, muted. */
+.lock-tag { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }

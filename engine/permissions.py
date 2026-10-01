@@ -29,7 +29,7 @@ FEATURES = {
     "live_trading": "Connect a real broker and place real orders (manual confirm only)",
     "screener": "Pro: the screener and its stock analysis pages",
     "autotrade": "Auto-trade on the virtual account (needs the screener)",
-    "market_calendar": "Market Calendar page",
+    "market_calendar": "Market Calendar page (Level 3 unlock)",
     "saved_strategies": "Save strategies in the builder and open them again (Level 5 unlock)",
     "hedges": "Buy option legs on their own in the strategy builder (Level 6 unlock); without it a buy must protect a sell",
 }
