@@ -2021,3 +2021,6 @@ img.brand-logo { object-fit: contain; }
 .public-nav a { padding: 6px 10px; border-radius: 8px; color: var(--text-muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
 .public-nav a.active { color: var(--text); background: var(--hover); }
 @media (max-width: 640px) { .public-nav a span { display: none; } }
+
+/* Locked menu items (#165): what unlocks them, muted. */
+.lock-tag { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
