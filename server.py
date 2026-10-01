@@ -18,7 +18,7 @@ import requests
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from engine import auth, autotrade, broker, cache, config, data_fetch, db, lessons, market_calendar, permissions, risk_rules, span, users, virtual
+from engine import app_settings, auth, autotrade, broker, cache, config, data_fetch, db, lessons, market_calendar, permissions, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -269,8 +269,14 @@ def auth_login(_ctx: Ctx, email: str, password: str):
 
 def auth_verify_email(_ctx: Ctx, email: str, code: str):
     """Confirms the sign-up email with the emailed code (spaces are ignored). CODE_TRIES guesses per
-    code and VERIFY_PER_IP checks per IP in 15 minutes. An unknown email gets the same answer as a wrong code."""
-    return auth.verify_email(email, code, ip=_ctx.ip)
+    code and VERIFY_PER_IP checks per IP in 15 minutes. An unknown email gets the same answer as a wrong code.
+    With the owner's auto_approve setting on, the account becomes active and is signed in
+    (`signed_in: true` and `user` in the answer); otherwise it waits for approval."""
+    token, answer = auth.verify_email(email, code, ip=_ctx.ip, ua=_ctx.ua, device=_ctx.device)
+    if token:  # auto-approved (#121): signed in straight away, with a fresh token
+        auth.end_session(_ctx.token)
+        _ctx.set_cookie = token
+    return answer
 
 
 def auth_resend_code(_ctx: Ctx, email: str):
@@ -321,6 +327,22 @@ def auth_change_password(_ctx: Ctx, current_password: str, new_password: str):
     """Changes the password and clears the temporary-password flag. Other sessions are signed out;
     this one stays."""
     return auth.change_password(_ctx.user_id, current_password, new_password, _ctx.token, ip=_ctx.ip)
+
+
+def profile_set(_ctx: Ctx, nickname: str | None = None, leaderboard_opt_in: bool | None = None):
+    """Sets the public nickname (3-20 letters, digits or _, unique) and/or leaderboard opt-in; an
+    omitted field keeps its value. Returns the signed-in user."""
+    return auth.set_profile(_ctx.user_id, nickname, leaderboard_opt_in)
+
+
+def admin_get_settings(_ctx: Ctx):
+    """Owner only: the app switches (such as auto_approve) with their values and descriptions."""
+    return app_settings.all_settings()
+
+
+def admin_set_setting(_ctx: Ctx, key: str, value: bool):
+    """Owner only: changes one app switch. Audited; applies at once."""
+    return app_settings.set_value(_ctx.user_id, key, value, ip=_ctx.ip)
 
 
 def prefs_set(_ctx: Ctx, theme: str | None = None, palette: str | None = None):
@@ -418,7 +440,8 @@ PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "aut
                   "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password,
                   "lessons_list": lessons_list, "lessons_get": lessons_get}
 
-ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set}
+ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set,
+                   "profile_set": profile_set}
 
 METHODS = {
     "get_screened_candidates": get_screened_candidates,
@@ -478,6 +501,8 @@ ADMIN_METHODS = {
     "admin_set_role": admin_set_role,
     "admin_get_features": admin_get_features,
     "admin_set_feature": admin_set_feature,
+    "admin_get_settings": admin_get_settings,
+    "admin_set_setting": admin_set_setting,
 }
 
 REQUIRES = {
@@ -486,6 +511,7 @@ REQUIRES = {
     "admin_list_blocked": "manage_users", "admin_unblock_signup": "manage_users",
     "admin_set_role": "manage_roles",
     "admin_get_features": "owner", "admin_set_feature": "owner",
+    "admin_get_settings": "owner", "admin_set_setting": "owner",
     "broker_connect_url": "live_trading", "broker_exchange_token": "live_trading",
     "broker_preview_order": "live_trading", "broker_place_order": "live_trading",
     "va_set_autotrade": "autotrade", "va_autotrade_run_now": "autotrade",

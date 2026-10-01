@@ -13,17 +13,24 @@ const { AuthProvider } = await import('../src/auth.jsx')
 const { act, createElement: h } = React
 
 const calls = []
+const ME = { id: 7, name: 'New User', email: 'new@test.example', role: 'user', status: 'active', features: [], prefs: {}, nickname: null }
+let signedIn = false
 globalThis.fetch = async (_url, opts) => {
   const { method, id, params } = JSON.parse(opts.body)
   calls.push({ method, params })
   const reply = (body) => ({ status: 200, json: async () => ({ jsonrpc: '2.0', id, ...body }) })
   if (method === 'auth_register') return reply({ result: { verify: true, email: params.email, message: 'We emailed a code' } })
   if (method === 'auth_verify_email') {
+    if (params.code === '654321') {  // auto-approve on (#121): signed in straight away
+      signedIn = true
+      return reply({ result: { message: 'Welcome', signed_in: true, user: ME } })
+    }
     return params.code === '123456' ? reply({ result: { message: 'Email confirmed. Waiting for approval.' } })
       : reply({ error: { code: -32000, message: 'That code is wrong' } })
   }
   if (method === 'auth_resend_code') return reply({ result: { message: 'A new code is on its way' } })
   if (method === 'auth_login') return reply({ error: { code: -32005, message: 'Confirm your email to continue' } })
+  if (method === 'auth_me') return reply({ result: signedIn ? ME : null })
   return reply({ result: null })
 }
 
@@ -78,6 +85,16 @@ check('unverified sign-in shows the code form', !!document.getElementById('code'
 await act(async () => type('code', '123456'))
 await submit()
 check('the code is checked for the typed email', calls.at(-1).method === 'auth_verify_email' && calls.at(-1).params.email === 'new@test.example', calls.at(-1))
+root.unmount()
+
+// 3. Auto-approved: the right code signs in and refreshes the session instead of "wait for approval".
+root = await render(Register)
+await act(async () => { type('name', 'New User'); type('email', 'new@test.example'); type('new-password', 'plenty-long-passphrase') })
+await submit()
+await act(async () => type('code', '654321'))
+await submit()
+check('auto-approved: no waiting message', !text().includes('Waiting for approval') && !text().includes('Email confirmed'), text())
+check('auto-approved: session refreshed', calls.at(-1).method === 'auth_me' && signedIn, calls.at(-1))
 root.unmount()
 
 process.exit(ok ? 0 : 1)

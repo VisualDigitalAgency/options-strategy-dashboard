@@ -29,7 +29,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlalchemy.exc import IntegrityError
 
-from . import cache, db, mail, permissions, users
+from . import app_settings, cache, db, mail, permissions, users
 
 _ph = PasswordHasher(time_cost=3, memory_cost=64 * 1024, parallelism=2)
 _DUMMY_HASH = _ph.hash(secrets.token_hex(16))  # verify against this for unknown emails: same timing
@@ -397,7 +397,10 @@ def resend_code(email: str, ip: str | None = None) -> dict:
                        "Codes can be resent once a minute"}
 
 
-def verify_email(email: str, code: str, ip: str | None = None) -> dict:
+def verify_email(email: str, code: str, ip: str | None = None, ua: str | None = None,
+                 device: str | None = None) -> tuple[str | None, dict]:
+    """Returns (session token or None, answer). With auto_approve on (#121) a confirmed email is
+    enough: the account becomes active and is signed in at once. Off, it waits in `pending`."""
     key = f"rl:verifyip:{ip or '-'}"
     n = cache._call(lambda r: r.incr(key))
     cache._call(lambda r: r.expire(key, FAIL_WINDOW, nx=True))
@@ -417,11 +420,19 @@ def verify_email(email: str, code: str, ip: str | None = None) -> dict:
         if uid:
             audit("email_verify_failed", target_user_id=uid, ip=ip)
         raise AuthError(BAD_CODE)
+    auto = app_settings.get("auto_approve")
     with db.tx() as c:
-        c.run("UPDATE users SET status='pending', email_verified_at=now(), email_code_hash=NULL, "
-              "email_code_expires_at=NULL WHERE id=:u AND status='unverified'", u=uid)
+        n = c.run("UPDATE users SET status=:s, email_verified_at=now(), email_code_hash=NULL, email_code_expires_at=NULL, "
+                  "approved_at=CASE WHEN :s='active' THEN now() END, last_login_at=CASE WHEN :s='active' THEN now() END "
+                  "WHERE id=:u AND status='unverified'", s="active" if auto else "pending", u=uid)
     audit("email_verified", target_user_id=uid, ip=ip)
-    return {"message": "Email confirmed. Your request is waiting for approval. Sign in once an admin has approved it."}
+    if not auto or not n:
+        return None, {"message": "Email confirmed. Your request is waiting for approval. Sign in once an admin has approved it."}
+    audit("user_active", target_user_id=uid, ip=ip, auto=True)
+    token = new_session(uid, ip, ua)
+    see_device(uid, device, ip)
+    audit("login", actor_id=uid, target_user_id=uid, ip=ip)
+    return token, {"message": "Email confirmed. Welcome to Theta Desk!", "signed_in": True, "user": me(uid)}
 
 
 # ---------- forgot password (#79) ----------
@@ -502,7 +513,8 @@ def confirm_password_reset(token: str, new_password: str, ip: str | None = None)
 
 def me(user_id: int) -> dict:
     with db.tx() as c:
-        u = c.one("SELECT id, name, email, role, status, must_change_password, created_at FROM users WHERE id=:u",
+        u = c.one("SELECT id, name, email, role, status, must_change_password, created_at, nickname, leaderboard_opt_in "
+                  "FROM users WHERE id=:u",
                   u=user_id)
     with db.tx(user_id) as c:
         prefs = c.one("SELECT theme, palette FROM user_prefs WHERE user_id=:u", u=user_id) or {}
@@ -533,6 +545,26 @@ def change_password(user_id: int, current: str, new: str, token: str | None, ip:
               h=hash_password(new), u=user_id)
     ended = end_all_sessions(user_id, keep=token)  # other devices sign in again with the new password
     audit("password_changed", actor_id=user_id, target_user_id=user_id, ip=ip, other_sessions_ended=ended)
+    return me(user_id)
+
+
+NICKNAME_RE = re.compile(r"[A-Za-z0-9_]{3,20}")
+
+
+def set_profile(user_id: int, nickname: str | None = None, leaderboard_opt_in: bool | None = None) -> dict:
+    """First-login onboarding (#121) and later edits: the public nickname (3-20 letters, digits or _,
+    unique ignoring case) and whether to appear on the leaderboard. Returns the updated user."""
+    if nickname is not None:
+        nickname = nickname.strip()
+        if not NICKNAME_RE.fullmatch(nickname):
+            raise AuthError("Nickname must be 3 to 20 letters, digits or _")
+    try:
+        with db.tx() as c:
+            c.run("UPDATE users SET nickname=COALESCE(:n, nickname), "
+                  "leaderboard_opt_in=COALESCE(:o, leaderboard_opt_in) WHERE id=:u",
+                  n=nickname, o=leaderboard_opt_in, u=user_id)
+    except IntegrityError:
+        raise AuthError("That nickname is taken") from None
     return me(user_id)
 
 

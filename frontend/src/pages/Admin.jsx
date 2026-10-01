@@ -25,7 +25,7 @@ const ACTION = {
   email_code_sent: 'Sign-up code emailed', email_verified: 'Confirmed email', email_verify_failed: 'Wrong sign-up code',
   mail_failed: 'Email failed to send', signup_unblocked: 'Unblocked sign-up',
   password_reset: 'Temporary password issued', admin_password_set: 'Admin password set', sqlite_import: 'Data imported',
-  role_changed: 'Role changed', feature_on: 'Feature turned on', feature_off: 'Feature turned off',
+  role_changed: 'Role changed', setting_changed: 'Setting changed', feature_on: 'Feature turned on', feature_off: 'Feature turned off',
   password_reset_requested: 'Password reset requested', password_reset_self: 'Reset own password',
   broker_connected: 'Broker connected', broker_disconnected: 'Broker disconnected',
   broker_order_placed: 'Real order placed', broker_order_failed: 'Real order failed',
@@ -124,10 +124,31 @@ function TempPassword({ user, password, onClose }) {
 
 // Owner only: which features each role has. Each switch saves at once and applies on that role's
 // next request; the owner's own column isn't shown because it always has everything.
-function FeatureMatrix({ data, onToggle, busy }) {
+function FeatureMatrix({ data, onToggle, settings, onSetting, busy }) {
   if (!data) return <p className="muted">Loading…</p>
   return (
     <>
+      {settings && (
+        <div className="card table-scroll">
+          <table className="admin-table feature-matrix">
+            <thead><tr><th>Sign-ups</th><th>On</th></tr></thead>
+            <tbody>
+              {settings.map((s) => (
+                <tr key={s.key}>
+                  <td><b>{s.key === 'auto_approve' ? 'Approve new accounts automatically' : s.key.replaceAll('_', ' ')}</b>
+                    <span className="muted small block">{s.label}</span></td>
+                  <td data-label="On">
+                    <button type="button" role="switch" aria-checked={s.value} className="switch" disabled={busy}
+                      aria-label={s.key.replaceAll('_', ' ')} onClick={() => onSetting(s.key, !s.value)}>
+                      <span className="switch-thumb" aria-hidden />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <p className="muted small">You (the owner) always have every feature. Changes apply on each person&apos;s next
         click; the menu and pages they see update when they reload.</p>
       <div className="card table-scroll">
@@ -170,6 +191,7 @@ export default function Admin() {
   const [note, setNote] = useState(null)
   const [roleFilter, setRoleFilter] = useState('all')
   const [features, setFeatures] = useState(null)
+  const [settings, setSettings] = useState(null)
   const owner = me?.role === 'owner'
 
   const load = useCallback(async () => {
@@ -185,7 +207,9 @@ export default function Admin() {
   }, [])
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    if (owner) rpc('admin_get_features').then(setFeatures).catch((e) => setError(e.message))
+    if (!owner) return
+    rpc('admin_get_features').then(setFeatures).catch((e) => setError(e.message))
+    rpc('admin_get_settings').then(setSettings).catch((e) => setError(e.message))
   }, [owner])
 
   const setRole = async (u, role) => {
@@ -194,6 +218,17 @@ export default function Admin() {
     try {
       await rpc('admin_set_role', { target_id: u.id, role })
       await load()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const setSetting = async (key, value) => {
+    setBusy(true)
+    setError(null)
+    try {
+      setSettings(await rpc('admin_set_setting', { key, value }))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -293,7 +328,7 @@ export default function Admin() {
           </div>
         </>
       )}
-      {tab === 'features' && owner && <FeatureMatrix data={features} onToggle={toggle} busy={busy} />}
+      {tab === 'features' && owner && <FeatureMatrix data={features} onToggle={toggle} settings={settings} onSetting={setSetting} busy={busy} />}
       {tab === 'blocked' && (
         <>
           <p className="muted small">Sign-ups that didn&apos;t confirm their email within 14 days. Unblock someone support has

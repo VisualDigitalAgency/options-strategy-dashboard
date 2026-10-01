@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-58 methods: 9 public, 3 account, 5 market data, 32 user, 9 admin.
+61 methods: 9 public, 4 account, 5 market data, 32 user, 11 admin.
 
 ## Tiers
 
@@ -32,6 +32,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
 | [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
+| [`profile_set`](#profile_set) | account | Sets the public nickname (3-20 letters, digits or _, unique) and/or leaderboard opt-in; an omitted field keeps its value. |
 | [`get_screened_candidates`](#get_screened_candidates) | market data | Returns the cached screen instantly. |
 | [`get_trade_detail`](#get_trade_detail) | market data | One stock's full screen row for `expiry` (YYYY-MM-DD). |
 | [`get_config`](#get_config) | market data | The screening thresholds the UI shows (engine/config.py) and the current Nifty 50 list. |
@@ -78,6 +79,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_set_role`](#admin_set_role) | admin | Changes an account's role to sub_admin, beta or user. |
 | [`admin_get_features`](#admin_get_features) | admin | Owner only: which features each role (sub_admin, beta, user) has, and the feature list. |
 | [`admin_set_feature`](#admin_set_feature) | admin | Owner only: turns one feature on or off for a role. |
+| [`admin_get_settings`](#admin_get_settings) | admin | Owner only: the app switches (such as auto_approve) with their values and descriptions. |
+| [`admin_set_setting`](#admin_set_setting) | admin | Owner only: changes one app switch. |
 
 ## Parameter rules
 
@@ -161,6 +164,8 @@ Set by the server, never by the client: `_ctx`.
 
 Confirms the sign-up email with the emailed code (spaces are ignored). CODE_TRIES guesses per
 code and VERIFY_PER_IP checks per IP in 15 minutes. An unknown email gets the same answer as a wrong code.
+With the owner's auto_approve setting on, the account becomes active and is signed in
+(`signed_in: true` and `user` in the answer); otherwise it waits for approval.
 
 | Param | Type | Default |
 |---|---|---|
@@ -260,6 +265,18 @@ its value. Returns the saved prefs.
 |---|---|---|
 | `theme` | `str \| None` | `null` |
 | `palette` | `str \| None` | `null` |
+
+Set by the server, never by the client: `_ctx`.
+
+### `profile_set`
+
+Sets the public nickname (3-20 letters, digits or _, unique) and/or leaderboard opt-in; an
+omitted field keeps its value. Returns the signed-in user.
+
+| Param | Type | Default |
+|---|---|---|
+| `nickname` | `str \| None` | `null` |
+| `leaderboard_opt_in` | `bool \| None` | `null` |
 
 Set by the server, never by the client: `_ctx`.
 
@@ -755,5 +772,24 @@ Owner only: turns one feature on or off for a role. Applies on the role's next r
 | `role` | `str` | required |
 | `feature` | `str` | required |
 | `enabled` | `bool` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_get_settings`
+
+Owner only: the app switches (such as auto_approve) with their values and descriptions.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_set_setting`
+
+Owner only: changes one app switch. Audited; applies at once.
+
+| Param | Type | Default |
+|---|---|---|
+| `key` | `str` | required |
+| `value` | `bool` | required |
 
 Set by the server, never by the client: `_ctx`.
