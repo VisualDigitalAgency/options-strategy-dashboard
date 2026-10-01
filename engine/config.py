@@ -131,4 +131,8 @@ L9_MAX_DD_PCT = 10.0
 L9_MENTEES = 3                    # ...and this many people they invited reached MENTEE_LEVEL
 MENTEE_LEVEL = 3
 L9_TRACK_MONTHS = 18              # ...over a track record at least this long, then the owner's sign-off
+# Strategy gate (#170): margin-ascending path. Below NAKED_LEVEL every sold leg needs a protecting
+# buy (spreads, condors); below STRANGLE_LEVEL only one side may be sold without one.
+NAKED_LEVEL = 3
+STRANGLE_LEVEL = 5
 BETA_LEVEL = 6           # reaching this level moves a `user` to `beta`, once; never higher

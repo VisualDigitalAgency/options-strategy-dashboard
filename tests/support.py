@@ -25,6 +25,9 @@ def stub(market: bool, bid: float = 5.0, oi: int = 10_000):
     virtual.quote = lambda s, e, side, k: {"spot": 1000.0, "ltp": 5.0, "bid": bid, "ask": bid + 0.1 if bid else 0.0,
                                             "iv": 20.0, "oi": oi}
     virtual.market_open = lambda: market
+    # Order-mechanics tests sell naked from Level 1 accounts; the strategy gate (#170) has its own
+    # test (test_strategy_gate.py), which doesn't use this stub.
+    virtual._strategy_rule = lambda *a: None
     data_fetch.fetch_lot_size = lambda s, e: 100
 
     def gm(symbol, expiry, legs, spot):
