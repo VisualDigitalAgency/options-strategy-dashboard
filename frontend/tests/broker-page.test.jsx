@@ -41,7 +41,7 @@ check('one card per broker', cards.length === BROKERS.length, cards.length)
 check('every card marked coming soon', [...cards].every((c) => c.querySelector('.broker-soon')?.textContent === 'Coming soon'))
 check('every card has a logo image', [...cards].every((c) => c.querySelector('.broker-logo img')))
 check('connect buttons are disabled', [...document.querySelectorAll('.broker-card button')].every((b) => b.disabled))
-check('shows the rollout note, not a connect flow', text().includes('rolled out to admin accounts first'))
+check('shows the rollout note, not a connect flow', text().includes("isn't switched on for your account yet"))
 await act(async () => root.unmount())
 
 // 2. Zerodha connectable (admin, not yet connected): only Zerodha's card goes live

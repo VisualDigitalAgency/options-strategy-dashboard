@@ -45,7 +45,7 @@ Live: https://theta.connectbiomedical.com (sign-in required; new users confirm t
 - **NSE Option Chain API v3** — Live option premiums, Greeks, open interest
 - **NSE SPAN Files** — Real margin requirements per strike & expiry
 - **yfinance** — Historical price data, volatility calibration
-- **Zerodha Kite API** — Real broker execution (admin-only, phase 1)
+- **Zerodha Kite API** — Real broker execution (phase 1; roles with *live trading*, owner-only by default)
 
 ### Language Composition
 
@@ -266,7 +266,7 @@ Point the domain's DNS A record at the server first: Caddy fetches the certifica
 - Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator.
 - Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
 - Market hours are fixed at 09:15–15:30 IST on weekdays. Scheduled screens skip NSE holidays once the worker has fetched the holiday list, but the market clock and SL monitor don't yet. Event badges are informational: auto-trade does not skip stocks with results before expiry.
-- Real broker execution (Zerodha) is admin-only for now, manual-confirm-only for entries (from day 15 a filled real leg gets a Kite alert-triggered buy-back at the premium collected; see the Real account page), and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account[...]
+- Real broker execution (Zerodha) is limited to roles with *live trading* (only the owner until they switch it on for a role), manual-confirm-only for entries (from day 15 a filled real leg gets a Kite alert-triggered buy-back at the premium collected; see the Real account page), and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account[...]
 - This is primarily a paper-trading and research tool, not investment advice.
 
 ## Contributing, security, licence
