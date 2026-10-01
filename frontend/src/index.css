@@ -1924,3 +1924,44 @@ img.brand-logo { object-fit: contain; }
 .saved-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .saved-name .muted { overflow-wrap: anywhere; }
 .builder-notice { display: flex; gap: 8px; align-items: flex-start; }
+
+/* Strategy builder analysis: chain IV/OI, rule check, what-if sliders, baseline, chart legend. */
+.chain-toolbar h2 { margin-right: auto; }
+.chain-oi { position: relative; min-width: 64px; color: var(--text-muted); }
+.chain-oi > span:last-child { position: relative; }
+.oi-bar { position: absolute; top: 25%; bottom: 25%; background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 2px; }
+.chain-oi.ce .oi-bar { right: 4px; }
+.chain-oi.pe .oi-bar { left: 4px; }
+.chain-iv { color: var(--text-muted); }
+.chain-k.in-zone { box-shadow: inset 3px 0 0 var(--warn); }
+.safe-toggle { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; color: var(--text-muted); cursor: pointer; }
+.safe-toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+.builder-score ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.builder-score li { display: flex; gap: 8px; align-items: flex-start; }
+.builder-score li div { display: grid; gap: 1px; min-width: 0; }
+.builder-score li b { font-size: 13px; font-weight: 600; }
+.builder-score li .small { color: var(--text-muted); }
+.builder-score li svg { flex: none; margin-top: 2px; }
+.builder-score li.ok svg { color: var(--up-text); }
+.builder-score li.warn svg { color: var(--warn); }
+.builder-score .chip.pos { color: var(--up-text); }
+.builder-score .chip.neg { color: var(--warn); }
+.whatif { display: grid; gap: 10px; padding: 12px; margin: 4px 0 12px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.whatif label { display: grid; gap: 4px; font-size: 13px; }
+.whatif input[type="range"] { width: 100%; accent-color: var(--accent); }
+.whatif p { margin: 0; }
+.baseline { margin-bottom: 12px; }
+.baseline h3 { font-size: 13px; margin: 0; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--up); }
+.chart-legend .lg-dash { border-top: 2px dashed var(--accent); }
+.chart-legend .lg-dot { border-top: 2px dotted var(--text-muted); }
+.chart-legend .lg-band { height: 10px; border: 0; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+@media (max-width: 1023px) {
+  .chain-iv, .chain-oi { display: none; }
+}
+.builder-held .held-leg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.builder-held .held-leg .leg-px { margin-left: auto; }
+.builder-held .held-leg.is-sell .side-pill { color: var(--sell-text); }
+.builder-held .held-leg.is-buy .side-pill { color: var(--buy-text); }

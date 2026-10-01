@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, BellRing, ChartCandlestick, ChevronDown, Hourglass, LineChart, LogOut, RefreshCw } from 'lucide-react'
+import { AlertTriangle, BellRing, ChartCandlestick, ChevronDown, Hourglass, LineChart, LogOut, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import { rpc } from '../rpc'
 import UpdatedTag from '../components/UpdatedTag'
 import { useBudget } from '../settings'
@@ -200,6 +200,10 @@ function Group({ g, onAction }) {
           <ChartCandlestick size={15} aria-hidden /> {levels ? 'Hide price chart' : 'Price & pivot levels'}
           <ChevronDown size={15} aria-hidden className={levels ? 'rot' : ''} />
         </button>
+        <Link className="btn ghost small" to={`/builder?symbol=${encodeURIComponent(g.symbol)}&expiry=${g.expiry}&adjust=1`}
+          title="Try a roll, a hedge or a close in the builder and see the position before and after">
+          <SlidersHorizontal size={15} aria-hidden /> Adjust
+        </Link>
         <button className="btn danger-ghost small" onClick={() => onAction('exitGroup', null, g)}>
           <LogOut size={15} aria-hidden /> Exit all
         </button>

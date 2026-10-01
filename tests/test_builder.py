@@ -125,4 +125,19 @@ try:
 except ValueError:
     check("unknown expiry refused", True)
 
+# Builder levels: monthly pivots and swing zones for any Nifty 50 stock, from the shared pivots cache.
+idx = pd.bdate_range(end=pd.Timestamp(virtual._today().date()) - pd.Timedelta(days=1), periods=90)
+wave = [1000 + 6 * abs((i % 20) - 10) for i in range(len(idx))]
+data_fetch.fetch_price_history = lambda s, n: pd.DataFrame(
+    {"High": [w + 5 for w in wave], "Low": [w - 5 for w in wave], "Close": wave}, index=idx)
+lv = c.post("/rpc", json={"jsonrpc": "2.0", "id": 1, "method": "builder_levels", "params": {"symbol": "SBIN"}},
+            headers={"Origin": ORIGIN}).get_json()
+res = lv.get("result") or {}
+check("levels: monthly pivots", set(res.get("pivots", {})) >= {"P", "R1", "S1"}, lv)
+check("levels: swing zones typed", res.get("zones") and all(z["type"] in ("support", "resistance") for z in res["zones"]),
+      res.get("zones"))
+bad = c.post("/rpc", json={"jsonrpc": "2.0", "id": 1, "method": "builder_levels", "params": {"symbol": "ZZZ"}},
+             headers={"Origin": ORIGIN}).get_json()
+check("levels: only Nifty 50 symbols", "error" in bad, bad)
+
 sys.exit(1 if fails else 0)
