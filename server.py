@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, brand, broker, builder, cache, cards, config, data_fetch, db, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
+from engine import app_settings, auth, autotrade, brand, broker, builder, cache, cards, config, data_fetch, db, leaderboard, lessons, market_calendar, permissions, progress, risk_rules, span, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -324,6 +324,12 @@ def app_info(_ctx: Ctx):
     return brand.info()
 
 
+def leaderboard_get(_ctx: Ctx, month: str | None = None):
+    """Monthly paper-trading leaderboard (no sign-in needed). `month` is "YYYY-MM"; omitted, it is
+    the running month, marked provisional. Nicknames, levels and ratios only, never personal data."""
+    return leaderboard.get(month)
+
+
 def auth_me(_ctx: Ctx):
     """The signed-in user with their saved theme and palette, or null when signed out."""
     return auth.me(_ctx.user_id) if _ctx.user else None
@@ -480,7 +486,8 @@ def broker_exchange_token(user_id: int, request_token: str, state: str):
 PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "auth_me": auth_me,
                   "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code,
                   "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password,
-                  "lessons_list": lessons_list, "lessons_get": lessons_get, "app_info": app_info}
+                  "lessons_list": lessons_list, "lessons_get": lessons_get, "app_info": app_info,
+                  "leaderboard_get": leaderboard_get}
 
 ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set,
                    "profile_set": profile_set}
