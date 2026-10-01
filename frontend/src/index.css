@@ -1826,7 +1826,6 @@ img.brand-logo { object-fit: contain; }
 .b-done { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 14px; }
 
 .chain-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.chain-toolbar .seg { display: none; }
 .chain-wrap { overflow-x: auto; margin: 0 -4px; }
 .chain-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .chain-table th, .chain-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -1883,9 +1882,7 @@ img.brand-logo { object-fit: contain; }
   .builder-facts { gap: 0; justify-content: space-between; }
   .builder-templates { margin: 0 -16px; padding: 0 16px 2px; }
   .leg-controls select { flex: 1; min-width: 96px; }
-  .chain-toolbar .seg { display: inline-flex; }
   .chain-sides { display: none; }
-  .chain-wrap.show-ce .pe, .chain-wrap.show-pe .ce { display: none; }
   .chain-table th, .chain-table td { padding: 8px 6px; }
   .act { min-width: 52px; height: 40px; font-size: 13px; }
   .chain-wrap { margin: 0; }
@@ -1972,3 +1969,36 @@ img.brand-logo { object-fit: contain; }
 .builder-held .held-leg .leg-px { margin-left: auto; }
 .builder-held .held-leg.is-sell .side-pill { color: var(--sell-text); }
 .builder-held .held-leg.is-buy .side-pill { color: var(--buy-text); }
+
+/* Broker-style chain (#158) */
+.chain-toolbar .seg { display: inline-flex; }
+.chain-toolbar h2 { margin-right: auto; }
+.expiry-pills { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.expiry-pills button { flex: none; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text); font: 500 13px var(--font); cursor: pointer; white-space: nowrap; }
+.expiry-pills button small { color: var(--text-muted); }
+.expiry-pills button[aria-pressed='true'] { background: color-mix(in srgb, var(--primary) 16%, transparent); border-color: var(--primary); color: var(--primary-text); }
+.chain-v2 .chain-row { cursor: pointer; }
+.chain-v2 .chain-row.open { background: var(--hover); }
+.chain-v2 td.itm { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.chain-ltp span:first-child { display: block; font-weight: 600; font-size: 14px; }
+.chain-ltp .px-chg { display: block; font-size: 11.5px; font-weight: 600; }
+.chain-ltp .chain-lots { margin-top: 4px; }
+.chain-v2 td.leg-sell { background: color-mix(in srgb, var(--sell) 14%, transparent); }
+.chain-v2 td.leg-buy { background: color-mix(in srgb, var(--buy) 14%, transparent); }
+.chain-v2 .chain-k { position: relative; padding-bottom: 12px; }
+.atm-chip { display: inline-block; padding: 2px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border-strong); }
+.pair-bar { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); display: flex; height: 3px; border-radius: 2px; overflow: hidden; }
+.pair-bar .pb-ce { background: color-mix(in srgb, var(--down) 70%, transparent); }
+.pair-bar .pb-pe { background: color-mix(in srgb, var(--up) 70%, transparent); }
+.chain-v2 .chain-g { color: var(--text-muted); font-size: 12.5px; }
+.chain-actions td { padding: 6px; background: var(--surface-2); }
+.act-strip { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.chain-foot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 6px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); text-align: center; }
+.chain-foot dt { font-size: 12px; color: var(--text-muted); }
+.chain-foot dd { margin: 0; font-weight: 700; font-size: 16px; }
+/* Greeks tab: every column stays; the chain scrolls sideways when it doesn't fit (#158). */
+.chain-v2.tab-greeks { min-width: 760px; }
+.chain-wrap { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+@media (max-width: 767px) {
+  .chain-v2 th, .chain-v2 td { padding: 8px 4px; }
+}

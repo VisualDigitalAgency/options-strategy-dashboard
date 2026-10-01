@@ -38,6 +38,20 @@ def _side(r, side: str, spot: float, dte: int) -> dict | None:
             "pchg": None if pchg is None or pd.isna(pchg) else round(float(pchg), 2), "delta": delta}
 
 
+def _summary(df: pd.DataFrame, spot: float, rows: list[dict]) -> dict:
+    """The chain footer (#158): put/call OI ratio, max pain and the ATM strike's IV (the mean of the
+    call and put IV that are quoted)."""
+    ce_oi, pe_oi = float(df["CE_OI"].sum()), float(df["PE_OI"].sum())
+    try:
+        pain = greeks_sr.compute_max_pain(df.reset_index())
+    except (KeyError, ValueError):
+        pain = None
+    atm = min(rows, key=lambda r: abs(r["strike"] - spot)) if rows else None
+    ivs = [atm[s]["iv"] for s in ("CE", "PE") if atm and atm[s] and atm[s]["iv"] > 0]
+    return {"pcr": round(pe_oi / ce_oi, 2) if ce_oi else None, "max_pain": pain,
+            "atm_strike": atm["strike"] if atm else None, "atm_iv": round(sum(ivs) / len(ivs), 2) if ivs else None}
+
+
 def chain(symbol: str, expiry: str | None = None) -> dict:
     """The option chain for one stock and expiry (default: the first at least MIN_DTE days out),
     with each strike's delta, plus the lot size, the stock's results/dividend dates before expiry
@@ -57,6 +71,7 @@ def chain(symbol: str, expiry: str | None = None) -> dict:
             rows.append({"strike": float(r["strikePrice"]), "CE": ce, "PE": pe})
     events = market_calendar.events_until(market_calendar.load()["events"], symbol, str(today.date()), expiry)
     return {
+        "summary": _summary(df, spot, rows),
         "symbol": symbol, "expiry": expiry, "expiries": exps, "spot": spot, "dte": dte,
         "lot_size": data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry)),
         "rows": sorted(rows, key=lambda x: x["strike"]),

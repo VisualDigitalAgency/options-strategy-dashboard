@@ -43,6 +43,16 @@ globalThis.fetch = async (_url, opts) => {
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result }) }
 }
 const btn = (t) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === t || b.getAttribute('aria-label') === t)
+
+// Buy/Sell are hidden until the strike row is tapped (#158).
+const tapTrade = async (label) => {
+  if (!btn(label)) {
+    const k = Number(label.split(' ')[1]).toLocaleString('en-IN')
+    const th = [...document.querySelectorAll('.chain-row th.chain-k')].find((t) => t.textContent.startsWith(k))
+    await act(async () => th.closest('tr').click())
+  }
+  await act(async () => btn(label).click())
+}
 const legText = () => [...document.querySelectorAll('.builder-leg .leg-name')].map((e) => e.textContent).join(' | ')
 
 async function mount(url) {
@@ -55,7 +65,7 @@ async function mount(url) {
 
 // 1. Locked below Level 5.
 let root = await mount('/builder?symbol=SBIN&expiry=2026-12-29')
-await act(async () => btn('Sell 1100 CE').click())
+await tapTrade('Sell 1100 CE')
 await settle(500)
 check('locked: Save shows the Level 5 unlock', btn('Save · unlocks at Level 5')?.disabled === true)
 check('locked: no list requested', !calls.some((c) => c.method === 'strategy_list'))
@@ -73,7 +83,7 @@ list = [
 calls.length = 0
 root = await mount('/builder?symbol=SBIN&expiry=2026-12-29')
 check('list shown, expired one marked', document.querySelector('[aria-label="My strategies"]')?.textContent.includes('Expired: opens on a live expiry'))
-await act(async () => btn('Sell 1100 CE').click())
+await tapTrade('Sell 1100 CE')
 await settle(500)
 const input = document.querySelector('#b-save-name')
 await act(async () => {
