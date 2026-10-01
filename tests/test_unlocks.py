@@ -113,6 +113,17 @@ check("a direct auto_promote to beta still only touches `user` accounts", auth.a
 check("coin store off for every toggled role", not any("coin_store" in permissions.features_for(r)
                                                         for r in permissions.TOGGLED_ROLES))
 check("no level unlocks the coin store", "coin_store" not in permissions.level_features(10))
+with db.tx() as c:
+    c.run("UPDATE role_features SET enabled=true WHERE role='user' AND feature='coin_store'")
+shop = users.create_user("shop@test.example", "Shop", status="active")
+check("role on, Level 1: still no coin store", "coin_store" not in permissions.user_features(shop, "user"))
+with db.tx(shop) as c:
+    c.run("INSERT INTO user_levels (user_id, level, level_since) VALUES (:u, 4, now()) "
+          "ON CONFLICT (user_id) DO UPDATE SET level = 4", u=shop)
+check("role on, Level 4: coin store", "coin_store" in permissions.user_features(shop, "user"))
+with db.tx() as c:
+    c.run("UPDATE role_features SET enabled=false WHERE role='user' AND feature='coin_store'")
+check("role off, Level 4: no coin store", "coin_store" not in permissions.user_features(shop, "user"))
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)

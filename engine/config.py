@@ -149,6 +149,9 @@ QUICK_FLIP_MINUTES = 5   # legs opened and closed faster than this score nothing
 
 # Features each level unlocks (#123), on top of the role's own toggles. A key that isn't in
 # engine/permissions.FEATURES yet (the feature hasn't shipped) is ignored until it exists.
+# Features a role toggle alone isn't enough for (#175): the role must have it on AND the user must
+# have reached this level. The owner's per-user grant still opens it early.
+LEVEL_MIN = {"coin_store": 4}
 LEVEL_FEATURES = {3: ("market_calendar",), 4: ("leaderboard",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
 # Gates for Levels 6-9 (#146). Leaving 9 also needs the owner's final-assessment sign-off.
 VOLATILE_SWING_PCT = 3.0          # L6: a month whose Nifty high-low range is at least this % of its open

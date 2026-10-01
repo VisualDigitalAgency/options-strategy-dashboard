@@ -32,7 +32,7 @@ FEATURES = {
     "market_calendar": "Market Calendar page (Level 3 unlock)",
     "saved_strategies": "Save strategies in the builder and open them again (Level 5 unlock)",
     "hedges": "Buy option legs on their own in the strategy builder (Level 6 unlock); without it a buy must protect a sell",
-    "coin_store": "Coin store page: buy coin packs with real money (payments not live yet, #175)",
+    "coin_store": "Coin store page: buy coin packs with real money, from Level 4 (payments not live yet, #175)",
 }
 
 
@@ -61,6 +61,7 @@ def user_features(user_id: int, role: str | None) -> list[str]:
     with db.tx(user_id) as c:  # user_levels is per-user (RLS)
         level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
     got |= level_features(level)
+    got -= {f for f, lv in config.LEVEL_MIN.items() if level < lv}  # e.g. the coin store from Level 4
     with db.tx() as c:
         for o in c.all("SELECT feature, mode FROM user_feature_overrides WHERE user_id=:u", u=user_id):
             if o["feature"] in FEATURES:
