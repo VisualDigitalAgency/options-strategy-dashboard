@@ -339,7 +339,7 @@ export default function Builder() {
             <span className="num"><strong>{rupee(Math.abs(s.net))}</strong> {s.net >= 0 ? 'credit' : 'debit'}</span>
             <small className={preview?.buy_rule || (preview && !preview.sufficient) ? 'neg' : 'muted'}>{dockNote}</small>
           </div>
-          <button className="btn primary" onClick={place} disabled={blocked}>{busy ? 'Placing…' : confirm ? 'Place anyway' : 'Place order'}</button>
+          <button className="btn primary" onClick={place} disabled={blocked}>{busy ? 'Placing…' : confirm ? 'Place anyway' : 'Place virtual order'}</button>
         </div>
       )}
     </div>
