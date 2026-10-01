@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -27,6 +27,7 @@ const BrokerAccount = lazy(() => import('./pages/BrokerAccount'))
 const BrokerCallback = lazy(() => import('./pages/BrokerCallback'))
 const Learn = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Learn })))
 const Progress = lazy(() => import('./pages/Progress'))
+const Leaderboard = lazy(() => import('./pages/Leaderboard'))
 const Welcome = lazy(() => import('./pages/Welcome'))
 const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
 
@@ -39,6 +40,7 @@ const NAV = [
   { to: '/broker', label: 'Broker', icon: Plug },
   { to: '/learn', label: 'Learn', icon: GraduationCap },
   { to: '/progress', label: 'Progress', icon: Trophy, badge: true },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Medal },
 ]
 
 
@@ -339,6 +341,7 @@ function SignedIn() {
             <Route path="/learn" element={lazyPage(Learn)} />
             <Route path="/learn/:slug" element={lazyPage(Lesson)} />
             <Route path="/progress" element={lazyPage(Progress)} />
+            <Route path="/leaderboard" element={lazyPage(Leaderboard)} />
             <Route path="/account/password" element={<ChangePassword />} />
             {can(user, 'manage_users') && <Route path="/admin" element={lazyPage(Admin)} />}
             <Route path="/login" element={<Navigate to="/" replace />} />
@@ -354,7 +357,7 @@ function SignedIn() {
   )
 }
 
-// Lessons are public, so search and shared links land on real content with a way in.
+// Lessons and the leaderboard are public, so search and shared links land on real content with a way in.
 function PublicShell({ children }) {
   const { name } = useBrand()
   return (
@@ -388,6 +391,7 @@ function SignedOut() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/learn" element={<PublicShell>{lazyPage(Learn)}</PublicShell>} />
       <Route path="/learn/:slug" element={<PublicShell>{lazyPage(Lesson)}</PublicShell>} />
+      <Route path="/leaderboard" element={<PublicShell>{lazyPage(Leaderboard)}</PublicShell>} />
       <Route path="*" element={<Navigate to={here === '/' ? '/login' : `/login?next=${encodeURIComponent(here)}`} replace />} />
     </Routes>
   )
