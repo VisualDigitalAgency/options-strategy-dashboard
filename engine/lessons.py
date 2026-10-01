@@ -7,7 +7,8 @@ quiz). It is reviewed through pull requests like code, so nothing reaches users 
 Reading lessons is public, so lesson pages can be found and shared without an account. Quizzes need
 a sign-in: answers are checked here and never sent to the browser. A pass (>= PASS_PCT) is recorded
 once in `lesson_progress`, which the XP ledger (#122) will read. After a failed attempt the quiz
-locks for RETRY_HOURS.
+locks for RETRY_HOURS. Quizzes unlock in course order (#161): one can be taken only once the lesson
+before it is passed (or it was passed already).
 """
 
 import json
@@ -88,6 +89,10 @@ def submit_quiz(user_id: int, slug: str, answers: list) -> dict:
     with db.tx(user_id) as c:
         row = c.one("SELECT passed_at, retry_at > now() AS locked FROM lesson_progress "
                     "WHERE user_id=:u AND slug=:s FOR UPDATE", u=user_id, s=slug)
+        prev = get_lesson(slug)["prev"]
+        if prev and not (row and row["passed_at"]) and not c.value(
+                "SELECT 1 FROM lesson_progress WHERE user_id=:u AND slug=:s AND passed_at IS NOT NULL", u=user_id, s=prev):
+            raise LessonError(f"Pass \"{_lesson(prev)['title']}\" first to unlock this quiz")
         if row and not row["passed_at"] and row["locked"]:
             raise LessonError("You can retake this quiz 24 hours after your last attempt")
         right = [a == q["answer"] for a, q in zip(answers, qs)]

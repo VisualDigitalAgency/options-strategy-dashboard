@@ -52,7 +52,17 @@ other = users.create_user("other@test.example", "Other", status="active")
 tok = auth.new_session(uid, "10.0.0.7", "ua")
 key = [q["answer"] for q in lessons._lesson("margin")["questions"]]
 
-# 4. A failed attempt: scored, answers hidden, locked for 24 hours.
+# 4. Quizzes unlock in course order (#161): margin needs the lesson before it passed.
+r = call("lesson_submit_quiz", {"slug": "margin", "answers": key}, tok)
+check("quiz locked until the previous lesson is passed", "first to unlock" in r.get("error", {}).get("message", ""), r)
+with db.tx(uid) as c:
+    for s in ("what-is-an-option", "why-sell-options", "delta-and-the-015-rule"):
+        c.run("INSERT INTO lesson_progress (user_id, slug, attempts, best_score, passed_at, last_attempt_at) "
+              "VALUES (:u, :s, 1, 100, now(), now())", u=uid, s=s)
+r = call("lesson_submit_quiz", {"slug": "stop-losses", "answers": key}, tok)
+check("the next one stays locked", "first to unlock" in r.get("error", {}).get("message", ""), r)
+
+# 5. A failed attempt: scored, answers hidden, locked for 24 hours.
 wrong = [(a + 1) % 4 for a in key]
 r = call("lesson_submit_quiz", {"slug": "margin", "answers": wrong[:3] + key[3:]}, tok)["result"]
 check("fail scored 40%", r["score"] == 40 and not r["passed"] and r["retry_at"], r)
@@ -62,7 +72,7 @@ check("retry locked for 24 hours", "24 hours" in r.get("error", {}).get("message
 r = call("lesson_submit_quiz", {"slug": "margin", "answers": key[:4]}, tok)
 check("must answer every question", "Answer all 5" in r.get("error", {}).get("message", ""), r)
 
-# 5. After the lock, a pass is recorded once.
+# 6. After the lock, a pass is recorded once.
 with db.tx(uid) as c:
     c.run("UPDATE lesson_progress SET retry_at = now() - interval '1 minute' WHERE user_id=:u", u=uid)
 r = call("lesson_submit_quiz", {"slug": "margin", "answers": key}, tok)["result"]
@@ -71,10 +81,11 @@ check("pass reveals the answers", [x["answer"] for x in r["results"]] == key)
 r = call("lesson_submit_quiz", {"slug": "margin", "answers": wrong}, tok)["result"]
 check("retake after a pass: no lock, not a first pass", not r["passed"] and not r["first_pass"] and not r["retry_at"], r)
 p = call("lesson_progress", {}, tok)["result"]
+p = [x for x in p if x["slug"] == "margin"]
 check("progress keeps the pass and best score", len(p) == 1 and p[0]["passed_at"] and p[0]["best_score"] == 100
       and p[0]["attempts"] == 3, p)
 
-# 6. Progress is private (row-level security).
+# 7. Progress is private (row-level security).
 check("another user sees none of it", lessons.progress(other) == [])
 with db.tx(other) as c:
     seen = c.all("SELECT * FROM lesson_progress")
