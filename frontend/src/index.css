@@ -2002,3 +2002,12 @@ img.brand-logo { object-fit: contain; }
 @media (max-width: 767px) {
   .chain-v2 th, .chain-v2 td { padding: 8px 4px; }
 }
+
+/* The strike column stays in view while the chain scrolls sideways (#158 follow-up). It sits in the
+   middle, so it sticks to whichever edge it would leave by: left when scrolling right, right when
+   scrolling left. Opaque so the scrolling cells pass under it. */
+.chain-v2 .chain-k { position: sticky; left: 0; right: 0; z-index: 2; background: var(--surface); box-shadow: -1px 0 0 var(--border), 1px 0 0 var(--border); }
+.chain-v2 thead .chain-k { z-index: 3; }
+.chain-v2 tr.atm .chain-k { background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
+.chain-v2 tr.chain-row.open .chain-k, .chain-v2 tr.chain-row:hover .chain-k { background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
+.chain-v2 .chain-actions .chain-k { background: var(--surface-2); }
