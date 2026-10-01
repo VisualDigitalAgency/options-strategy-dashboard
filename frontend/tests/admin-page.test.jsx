@@ -106,6 +106,8 @@ check('settings: switching it off saves', calls.some((c) => c.method === 'admin_
 
 // Per-user overrides (#123)
 const acct = document.querySelector('select[aria-label="Account to override"]')
+check('overrides: account picker is a styled field, so it never sizes to its longest option',
+  acct.id === 'ov-target' && acct.closest('.field')?.querySelector('label[for=ov-target]') !== null)
 check('overrides: owner not offered as a target', ![...acct.options].some((o) => o.textContent.includes('admin@test.example')))
 await act(async () => {
   Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(acct, '2')
@@ -117,5 +119,6 @@ await act(async () => grant.click())
 await settle()
 check('overrides: grant saves and shows', calls.some((c) => c.method === 'admin_set_override' && c.params.target_id === 2 && c.params.mode === 'grant')
   && grant.getAttribute('aria-pressed') === 'true')
+check('overrides: no repeated "Override" label on each row', !document.querySelector('.overrides td[data-label]'))
 
 process.exit(ok ? 0 : 1)
