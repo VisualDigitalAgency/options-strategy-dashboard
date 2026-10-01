@@ -54,7 +54,7 @@ for f in permissions.FEATURES:  # a sub-admin with everything the owner can hand
 
 # 1. Defaults.
 info = rpc(anon, "app_info")["result"]
-check("app_info is public and defaults to the built-in brand", info == {"name": brand.DEFAULT_NAME, "logo": None}, info)
+check("app_info is public and defaults to the built-in brand", info["name"] == brand.DEFAULT_NAME and info["logo"] is None, info)
 os.environ["APP_NAME"] = "Env Name"
 check("APP_NAME sets the first-start name", brand.name() == "Env Name")
 check("no logo: /brand/logo.png is 404", anon.get("/brand/logo.png").status_code == 404)

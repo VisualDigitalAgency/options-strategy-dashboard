@@ -357,9 +357,23 @@ function SignedIn() {
   )
 }
 
-// Lessons and the leaderboard are public, so search and shared links land on real content with a way in.
+// Readers (#163): what a signed-out visitor may open, as the owner set it in Admin. Until app_info
+// answers every page counts as on; the server refuses anything that is off.
+const READER_NAV = [
+  { to: '/builder', page: 'builder', label: 'Builder', icon: Wrench },
+  { to: '/learn', page: 'learn', label: 'Learn', icon: GraduationCap },
+  { to: '/progress', page: 'progress', label: 'Levels', icon: Trophy },
+  { to: '/leaderboard', page: 'leaderboard', label: 'Leaderboard', icon: Medal },
+]
+const useReaderPages = () => {
+  const { reader } = useBrand()
+  return (page) => reader == null || reader.includes(page)
+}
+
+// Public pages, so search and shared links land on real content with a way in.
 function PublicShell({ children }) {
   const { name } = useBrand()
+  const open = useReaderPages()
   return (
     <>
       <header className="topbar">
@@ -368,6 +382,11 @@ function PublicShell({ children }) {
             <Logo />
             <span className="wordmark">{name}</span>
           </Link>
+          <nav className="public-nav" aria-label="Main">
+            {READER_NAV.filter((n) => open(n.page)).map(({ to, label, icon: Icon }) => (
+              <NavLink key={to} to={to}><Icon size={16} aria-hidden /><span>{label}</span></NavLink>
+            ))}
+          </nav>
           <div className="public-bar-actions">
             <ThemeToggle />
             <Link to="/login" className="btn ghost small">Sign in</Link>
@@ -383,15 +402,18 @@ function PublicShell({ children }) {
 function SignedOut() {
   const { pathname, search } = useLocation()
   const here = pathname + search
+  const open = useReaderPages()
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/learn" element={<PublicShell>{lazyPage(Learn)}</PublicShell>} />
-      <Route path="/learn/:slug" element={<PublicShell>{lazyPage(Lesson)}</PublicShell>} />
-      <Route path="/leaderboard" element={<PublicShell>{lazyPage(Leaderboard)}</PublicShell>} />
+      {open('builder') && <Route path="/builder" element={<PublicShell>{lazyPage(Builder)}</PublicShell>} />}
+      {open('learn') && <Route path="/learn" element={<PublicShell>{lazyPage(Learn)}</PublicShell>} />}
+      {open('learn') && <Route path="/learn/:slug" element={<PublicShell>{lazyPage(Lesson)}</PublicShell>} />}
+      {open('progress') && <Route path="/progress" element={<PublicShell>{lazyPage(Progress)}</PublicShell>} />}
+      {open('leaderboard') && <Route path="/leaderboard" element={<PublicShell>{lazyPage(Leaderboard)}</PublicShell>} />}
       <Route path="*" element={<Navigate to={here === '/' ? '/login' : `/login?next=${encodeURIComponent(here)}`} replace />} />
     </Routes>
   )

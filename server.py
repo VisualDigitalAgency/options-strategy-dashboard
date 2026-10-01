@@ -314,25 +314,67 @@ def auth_reset_password(_ctx: Ctx, token: str, new_password: str):
 
 def lessons_list(_ctx: Ctx):
     """Every lesson in the learning path (title, level, order, summary, minutes, question count).
-    Public, so lesson pages can be read and shared without an account."""
+    Public while the owner keeps Learn on for readers, so lesson pages can be read and shared."""
+    app_settings.require_reader(_ctx.user, "learn")
     return lessons.list_lessons()
 
 
 def lessons_get(_ctx: Ctx, slug: str):
     """One lesson's body and quiz questions (never the answers), plus the previous and next
-    lesson. Public."""
+    lesson. Public while Learn is on for readers."""
+    app_settings.require_reader(_ctx.user, "learn")
     return lessons.get_lesson(slug)
 
 
 def app_info(_ctx: Ctx):
-    """The app's name and logo version (null while the built-in mark is used). Public; every page
-    loads it to show the brand."""
-    return brand.info()
+    """The app's name and logo version (null while the built-in mark is used), and the pages a
+    signed-out visitor may open (`reader_pages`). Public; every page loads it."""
+    return {**brand.info(), "reader_pages": app_settings.reader_pages()}
+
+
+# Reader (#163): the builder for signed-out visitors. Every new stock/expiry is an NSE call from the
+# server's IP, so each visitor IP is limited to one chain or levels load per READER_EVERY seconds.
+READER_EVERY = 2.0
+
+
+def _reader_builder(ctx: Ctx, what: str) -> None:
+    app_settings.require_reader(ctx.user, "builder")
+    if not ctx.user and not throttle.allow(f"reader:{what}:{ctx.ip}", READER_EVERY):
+        raise ValueError("Too many requests: wait a moment and try again")
+
+
+def levels_overview(_ctx: Ctx):
+    """The 10 levels: title, minimum days and the features each unlocks (labels). Public while
+    Progress is on for readers; signed-out visitors see it in place of their own progress."""
+    app_settings.require_reader(_ctx.user, "progress")
+    return [{"level": lv, "title": t, "min_days": config.LEVEL_MIN_DAYS.get(lv),
+             "unlocks": [permissions.FEATURES[f] for f in config.LEVEL_FEATURES.get(lv, ()) if f in permissions.FEATURES]}
+            for lv, t in config.LEVEL_TITLES.items()]
+
+
+def reader_universe(_ctx: Ctx):
+    """The Nifty 50 symbols the builder offers. Public while the builder is on for readers."""
+    app_settings.require_reader(_ctx.user, "builder")
+    return universe()
+
+
+def reader_chain(_ctx: Ctx, symbol: str, expiry: str | None = None):
+    """builder_chain for signed-out visitors (same result); rate-limited per IP."""
+    _reader_builder(_ctx, "chain")
+    return builder.chain(symbol, expiry)
+
+
+def reader_levels(_ctx: Ctx, symbol: str):
+    """builder_levels for signed-out visitors (same result); rate-limited per IP."""
+    _reader_builder(_ctx, "levels")
+    return builder.levels(symbol)
 
 
 def leaderboard_get(_ctx: Ctx, month: str | None = None):
     """Monthly paper-trading leaderboard (no sign-in needed). `month` is "YYYY-MM"; omitted, it is
-    the running month, marked provisional. Nicknames, levels and ratios only, never personal data."""
+    the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
+    Signed out, only while the owner keeps the leaderboard on for readers."""
+    app_settings.require_reader(_ctx.user, "leaderboard")
     return leaderboard.get(month)
 
 
@@ -503,7 +545,8 @@ PUBLIC_METHODS = {"auth_register": auth_register, "auth_login": auth_login, "aut
                   "auth_verify_email": auth_verify_email, "auth_resend_code": auth_resend_code,
                   "auth_forgot_password": auth_forgot_password, "auth_reset_password": auth_reset_password,
                   "lessons_list": lessons_list, "lessons_get": lessons_get, "app_info": app_info,
-                  "leaderboard_get": leaderboard_get}
+                  "leaderboard_get": leaderboard_get, "reader_universe": reader_universe,
+                  "reader_chain": reader_chain, "reader_levels": reader_levels, "levels_overview": levels_overview}
 
 ACCOUNT_METHODS = {"auth_logout": auth_logout, "auth_change_password": auth_change_password, "prefs_set": prefs_set,
                    "profile_set": profile_set}

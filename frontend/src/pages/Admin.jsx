@@ -203,11 +203,12 @@ function FeatureMatrix({ data, onToggle, settings, onSetting, busy }) {
       {settings && (
         <div className="card table-scroll">
           <table className="admin-table feature-matrix">
-            <thead><tr><th>Sign-ups</th><th>On</th></tr></thead>
+            <thead><tr><th>Sign-ups and readers</th><th>On</th></tr></thead>
             <tbody>
               {settings.map((s) => (
                 <tr key={s.key}>
-                  <td><b>{s.key === 'auto_approve' ? 'Approve new accounts automatically' : s.key.replaceAll('_', ' ')}</b>
+                  <td><b>{s.key === 'auto_approve' ? 'Approve new accounts automatically'
+                    : s.key.startsWith('reader_') ? `Reader (signed out): ${s.key.slice(7)}` : s.key.replaceAll('_', ' ')}</b>
                     <span className="muted small block">{s.label}</span></td>
                   <td data-label="On">
                     <button type="button" role="switch" aria-checked={s.value} className="switch" disabled={busy}

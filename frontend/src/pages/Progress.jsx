@@ -36,7 +36,50 @@ function Celebration({ level, title, onClose, onShare }) {
   )
 }
 
+// Readers (#163): a signed-out visitor sees the levels and what each unlocks, with a way to join.
+function LevelLadder() {
+  const [levels, setLevels] = useState(null)
+  const [error, setError] = useState(null)
+  useTitle('Levels')
+  useEffect(() => { rpc('levels_overview').then(setLevels).catch((e) => setError(e.message)) }, [])
+  return (
+    <div className="detail progress">
+      <header className="page-head">
+        <div>
+          <h1 className="display"><Trophy size={26} aria-hidden /> Ten levels, from Learner to Theta Master</h1>
+          <p className="lede">Every account climbs by trading safely on a virtual account: stop-loss on, delta low, drawdown small.
+            Each level unlocks more of the app.</p>
+        </div>
+      </header>
+      {error && <div className="alert" role="alert"><AlertCircle size={18} aria-hidden /> {error}</div>}
+      {levels && (
+        <ol className="card level-ladder">
+          {levels.map((l) => (
+            <li key={l.level}>
+              <b>Level {l.level} · {l.title}</b>
+              {l.min_days && <span className="muted small"> · at least {l.min_days} days</span>}
+              {l.unlocks.map((u) => <span key={u} className="muted small block">Unlocks: {u}</span>)}
+            </li>
+          ))}
+        </ol>
+      )}
+      <section className="card quiz-cta">
+        <h2>Start at Level 1 for free</h2>
+        <p>Create a free account to trade on a ₹10 lakh virtual account, take the lesson quizzes and track your climb.</p>
+        <div className="quiz-cta-actions">
+          <Link to="/register" className="btn primary">Join free</Link>
+          <Link to="/login?next=%2Fprogress" className="btn ghost">Sign in</Link>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export default function Progress() {
+  return useAuth().user ? <MyProgress /> : <LevelLadder />
+}
+
+function MyProgress() {
   const { user, refresh } = useAuth()
   const [p, setP] = useState(null)
   const [hist, setHist] = useState([])
