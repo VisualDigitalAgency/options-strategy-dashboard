@@ -32,10 +32,11 @@ FEATURES = {
     "market_calendar": "Market Calendar page (Level 3 unlock)",
     "saved_strategies": "Save strategies in the builder and open them again (Level 5 unlock)",
     "hedges": "Buy option legs on their own in the strategy builder (Level 6 unlock); without it a buy must protect a sell",
+    "coin_store": "Coin store page: buy coin packs with real money (payments not live yet, #175)",
 }
 
 
-NEVER_BY_LEVEL = frozenset({"live_trading", "manage_users", "manage_roles", "screener"})
+NEVER_BY_LEVEL = frozenset({"live_trading", "manage_users", "manage_roles", "screener", "coin_store"})
 # Features that mean nothing without another: auto-trade places the screen's picks.
 NEEDS = {"autotrade": "screener"}
 

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { CircleDollarSign, Coins, ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Lock, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
+import { ShoppingCart, CircleDollarSign, Coins, ArrowDownRight, ArrowUpRight, Bot, ChevronsLeft, ChevronsRight, Menu, X, Wrench, Briefcase, CalendarDays, GraduationCap, KeyRound, LayoutGrid, LogOut, Minus, Lock, Medal, PiggyBank, Plug, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { SettingsProvider, useBudget } from './settings'
 import { num, pct, rupeeShort, signedPct, signedRupee } from './format'
 import { ScreenProvider, useScreen } from './screen'
@@ -29,6 +29,7 @@ const Learn = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Learn
 const Progress = lazy(() => import('./pages/Progress'))
 const EarnCapital = lazy(() => import('./pages/EarnCapital'))
 const CoinsPage = lazy(() => import('./pages/Coins'))
+const CoinStore = lazy(() => import('./pages/CoinStore'))
 const Leaderboard = lazy(() => import('./pages/Leaderboard'))
 const Welcome = lazy(() => import('./pages/Welcome'))
 const Lesson = lazy(() => import('./pages/Learn').then((m) => ({ default: m.Lesson })))
@@ -41,6 +42,7 @@ const NAV = [
   { to: '/virtual', label: 'Virtual account', icon: PiggyBank },
   { to: '/capital', label: 'Earn capital', icon: Coins },
   { to: '/coins', label: 'Coins', icon: CircleDollarSign },
+  { to: '/store', label: 'Coin store', icon: ShoppingCart, feature: 'coin_store', hidden: true }, // hidden, not locked, while the owner keeps it off (#175)
   { to: '/broker', label: 'Broker', icon: Plug, feature: 'live_trading', lock: 'By invitation', open: true },
   { to: '/learn', label: 'Learn', icon: GraduationCap },
   { to: '/progress', label: 'Progress', icon: Trophy, badge: true },
@@ -218,7 +220,7 @@ function Sidebar({ sb }) {
         <ul>
           {/* Locked items stay in the menu with what unlocks them (#165); a level lock leads to Progress.
               `open` pages (Broker) still show their preview while locked. */}
-          {NAV.map(({ to, label, icon: Icon, end, badge, pro, feature, lock, open }) => {
+          {NAV.filter((n) => !n.hidden || can(user, n.feature)).map(({ to, label, icon: Icon, end, badge, pro, feature, lock, open }) => {
             const locked = feature && !can(user, feature)
             return (
             <li key={to}>
@@ -354,6 +356,7 @@ function SignedIn() {
             <Route path="/progress" element={lazyPage(Progress)} />
             <Route path="/capital" element={lazyPage(EarnCapital)} />
             <Route path="/coins" element={lazyPage(CoinsPage)} />
+            {can(user, 'coin_store') && <Route path="/store" element={lazyPage(CoinStore)} />}
             <Route path="/leaderboard" element={lazyPage(Leaderboard)} />
             <Route path="/account/password" element={<ChangePassword />} />
             {can(user, 'manage_users') && <Route path="/admin" element={lazyPage(Admin)} />}

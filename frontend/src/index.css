@@ -2055,3 +2055,15 @@ img.brand-logo { object-fit: contain; }
 .coins-exchange h2 { margin: 0 0 10px; font-size: 16px; display: inline-flex; gap: 8px; align-items: center; }
 .coins-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .coins-row input { width: 120px; }
+
+/* Coin store (#175). */
+.store-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 16px 0; }
+.store-pack { padding: 18px; display: grid; gap: 6px; justify-items: start; }
+.store-pack.featured { border-color: var(--primary); }
+.store-pack h2 { margin: 0; font-size: 20px; }
+.store-price { font-size: 22px; font-weight: 700; margin: 4px 0 8px; }
+.store-rules { padding: 16px; }
+.store-rules h2 { margin: 0 0 8px; font-size: 16px; }
+.store-rules ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.alert.info { background: var(--brass-soft); border-color: var(--primary); }
+.alert.info svg { color: var(--primary); }
