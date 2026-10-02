@@ -589,6 +589,7 @@ USER_METHODS = {
     "progress_history": progress.history,
     "capital_status": capital.status,
     "coins_status": coins.status,
+    "payout_news": capital.news,
     "va_place_stop": virtual.place_stop,
     "va_charges": rms.charges,
     "coins_exchange": coins.exchange,

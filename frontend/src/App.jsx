@@ -13,6 +13,7 @@ import { AuthProvider, can, useAuth } from './auth'
 import { markSeen, seenLevel } from './levelSeen'
 import { ChangePassword, ForgotPassword, Login, Register, ResetPassword } from './pages/AuthPages'
 import BrokerOnboarding from './components/BrokerOnboarding'
+import PayoutToast from './components/PayoutToast'
 import { Logo, useBrand } from './brand'
 
 const StockDetail = lazy(() => import('./pages/StockDetail'))
@@ -337,6 +338,7 @@ function SignedIn() {
       <ScreenProvider enabled={can(user, 'screener')}>
         <TopBar sb={sb} />
         <BrokerOnboarding />
+        <PayoutToast />
         <div className={`app-shell${sb.shrunk ? ' shrunk' : ''}`}>
         <Sidebar sb={sb} />
         <main className="page">

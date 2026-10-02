@@ -2077,3 +2077,18 @@ img.brand-logo { object-fit: contain; }
 .leg-actions { display: inline-flex; gap: 6px; }
 .stop-form { display: grid; gap: 12px; }
 .stop-form .field { display: grid; gap: 4px; }
+
+/* Payout toast (#192): above the sidebar drawer (60) and the mobile dock (30); clear of the builder dock. */
+.payout-toast {
+  position: fixed; z-index: 70; right: 16px; bottom: 16px; width: min(360px, calc(100vw - 32px));
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px;
+  background: var(--surface-2); border: 1px solid var(--primary); border-radius: 10px; box-shadow: var(--shadow);
+  animation: fade 160ms var(--ease);
+}
+.payout-toast > svg { flex: none; margin-top: 2px; color: var(--primary); }
+.payout-body { flex: 1; min-width: 0; font-size: 13px; }
+.payout-body p { margin: 2px 0 0; }
+.payout-body a { display: inline-block; margin-top: 6px; color: var(--primary); }
+.payout-x { flex: none; background: none; border: 0; color: var(--text-muted); cursor: pointer; padding: 2px; }
+.payout-x:hover { color: var(--text); }
+@media (max-width: 1023px) { .payout-toast { bottom: 76px; } }

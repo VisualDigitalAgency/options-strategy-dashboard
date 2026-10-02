@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-86 methods: 15 public, 4 account, 7 market data, 44 user, 16 admin.
+87 methods: 15 public, 4 account, 7 market data, 45 user, 16 admin.
 
 ## Tiers
 
@@ -68,6 +68,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
 | [`capital_status`](#capital_status) | user | The task list for the Earn capital page: each task's reward, how often it pays, how many times it has paid, and where to do it; the level rewards; and the grant history. |
 | [`coins_status`](#coins_status) | user | The Coins page: balance, the rate, how each kind is earned, and the history. |
+| [`payout_news`](#payout_news) | user | What has paid out since `since` (a clock this call returned earlier), for the payout toast (#192). |
 | [`va_place_stop`](#va_place_stop) | user | A stop-loss order to exit one open leg (#183): SL-M (trigger, then market) or SL (trigger, then a limit). |
 | [`va_charges`](#va_charges) | user | The account's square-off charges and shortfall penalties, newest first. |
 | [`coins_exchange`](#coins_exchange) | user | Turns `coins` into virtual capital at COIN_RUPEES each. |
@@ -670,6 +671,18 @@ Set by the server, never by the client: `user_id`.
 The Coins page: balance, the rate, how each kind is earned, and the history.
 
 No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `payout_news`
+
+What has paid out since `since` (a clock this call returned earlier), for the payout toast
+(#192). Pays whatever is newly due first. Without `since` it returns nothing, only the clock, so
+a new browser doesn't replay old rewards. Coin exchanges are left out: the user made them.
+
+| Param | Type | Default |
+|---|---|---|
+| `since` | `str \| None` | `null` |
 
 Set by the server, never by the client: `user_id`.
 
