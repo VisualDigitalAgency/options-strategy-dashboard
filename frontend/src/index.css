@@ -2093,3 +2093,6 @@ img.brand-logo { object-fit: contain; }
 .payout-x { flex: none; background: none; border: 0; color: var(--text-muted); cursor: pointer; padding: 2px; }
 .payout-x:hover { color: var(--text); }
 @media (max-width: 1023px) { .payout-toast { bottom: 76px; } }
+
+/* Revoke form inside the owner's Grants dialog (#194). */
+.grant-revoke { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }

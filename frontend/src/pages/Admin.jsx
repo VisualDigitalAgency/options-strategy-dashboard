@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Award, Check, Copy, KeyRound, UserCheck, UserX } from 'lucide-react'
+import { AlertTriangle, Award, Check, Copy, KeyRound, UserCheck, UserX, Wallet } from 'lucide-react'
 import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { dateTime } from '../format'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import BrandSettings from '../components/BrandSettings'
+import GrantsDialog from '../components/GrantsDialog'
 
 const STATUS = { pending: 'Waiting', active: 'Active', rejected: 'Rejected', disabled: 'Disabled' }
 const ROLE = { owner: 'Owner', sub_admin: 'Sub-admin', beta: 'Beta', user: 'User' }
@@ -88,6 +89,9 @@ function UserRow({ u, me, onAct, onRole, busy }) {
         <div className="admin-actions">
           {self ? <span className="muted small">You</span> : !outranks(me.role, u.role) ? <span className="muted small">—</span> : (
             <>
+              {me.role === 'owner' && (
+                <button className="btn small ghost" onClick={() => onAct(u, 'grants')}><Wallet size={15} aria-hidden /> Grants</button>
+              )}
               {u.status === 'pending' && (
                 <>
                   <button className="btn small primary" onClick={() => onAct(u, 'active')}><UserCheck size={15} aria-hidden /> Approve</button>
@@ -260,6 +264,7 @@ export default function Admin() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [temp, setTemp] = useState(null)
+  const [grantsFor, setGrantsFor] = useState(null)
   const [blocked, setBlocked] = useState(null)
   const [note, setNote] = useState(null)
   const [roleFilter, setRoleFilter] = useState('all')
@@ -323,6 +328,7 @@ export default function Admin() {
   const act = async (u, action) => {
     setError(null)
     if (action === 'active') return run(u, action) // approving needs no confirm step
+    if (action === 'grants') return setGrantsFor(u)
     setPending({ u, action })
   }
   const run = async (u, action) => {
@@ -457,6 +463,7 @@ export default function Admin() {
           onConfirm={() => run(pending.u, pending.action)} onClose={() => { setPending(null); setError(null) }} />
       )}
       {temp && <TempPassword {...temp} onClose={() => setTemp(null)} />}
+      {grantsFor && <GrantsDialog user={grantsFor} onClose={() => setGrantsFor(null)} />}
     </div>
   )
 }

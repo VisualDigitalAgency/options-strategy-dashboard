@@ -755,7 +755,7 @@ def dismiss_alert(user_id: int, position_id: int) -> dict:
 
 def reset(user_id: int) -> dict:
     """Deletes every order and position and restarts the virtual account with its base capital
-    (₹2 lakh for accounts made since #47) plus every capital grant earned. The amount is never the
+    (₹2 lakh for accounts made since #47) plus every capital grant earned and not revoked (#194). The amount is never the
     caller's choice: capital only grows by completing tasks (engine/capital.py)."""
     with _lock, db.tx(user_id) as c:
         _lock_account(c, user_id)
@@ -763,7 +763,7 @@ def reset(user_id: int) -> dict:
         c.run("DELETE FROM pending_orders WHERE user_id=:u", u=user_id)
         c.run("DELETE FROM positions WHERE user_id=:u", u=user_id)
         c.run("UPDATE accounts SET starting_capital = base_capital + (SELECT COALESCE(SUM(amount), 0) "
-              "FROM capital_grants WHERE user_id=:u), created_at=now() WHERE user_id=:u", u=user_id)
+              "FROM capital_grants WHERE user_id=:u AND revoked_at IS NULL), created_at=now() WHERE user_id=:u", u=user_id)
     return get_account(user_id)
 
 

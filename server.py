@@ -467,6 +467,19 @@ def admin_approve_final(_ctx: Ctx, target_id: int):
     return progress.approve_final(_ctx.user_id, target_id, ip=_ctx.ip)
 
 
+def admin_user_grants(_ctx: Ctx, target_id: int):
+    """Owner only: every capital grant an account has earned, with whether each is revoked or can
+    be (#194)."""
+    return capital.admin_grants(target_id)
+
+
+def admin_revoke_grant(_ctx: Ctx, target_id: int, grant_id: int, reason: str):
+    """Owner only: takes one capital grant back, for example after abuse. The task can't be paid
+    again, the amount comes off the account's capital, and the revoke is audited with the reason.
+    A coin exchange can't be revoked."""
+    return capital.revoke(_ctx.user_id, target_id, grant_id, reason, ip=_ctx.ip)
+
+
 def admin_set_status(_ctx: Ctx, target_id: int, status: str):
     """Approves (active), rejects or disables an account. Any status but active signs the user out
     everywhere. Refused for the caller's own account."""
@@ -632,6 +645,8 @@ ADMIN_METHODS = {
     "admin_get_settings": admin_get_settings,
     "admin_set_brand_name": admin_set_brand_name,
     "admin_approve_final": admin_approve_final,
+    "admin_user_grants": admin_user_grants,
+    "admin_revoke_grant": admin_revoke_grant,
     "admin_reset_logo": admin_reset_logo,
     "admin_get_overrides": admin_get_overrides,
     "admin_set_override": admin_set_override,
@@ -644,6 +659,7 @@ REQUIRES = {
     "admin_list_blocked": "manage_users", "admin_unblock_signup": "manage_users",
     "admin_set_role": "manage_roles",
     "admin_get_features": "owner", "admin_set_feature": "owner",
+    "admin_user_grants": "owner", "admin_revoke_grant": "owner",
     "admin_get_settings": "owner", "admin_set_setting": "owner",
     "admin_set_brand_name": "owner", "admin_reset_logo": "owner", "admin_approve_final": "owner",
     "admin_get_overrides": "owner", "admin_set_override": "owner",
