@@ -133,7 +133,7 @@ check("lesson passes score XP once", sum(x["points"] for x in ledger(lv) if x["r
 check("starts at Level 1 Learner", s["level"] == 1 and s["title"] == "Learner" and s["xp"] == 100, s)
 checks = {ch["label"]: ch["ok"] for ch in s["next"]["checks"]}
 check("XP and gate met, but not the minimum time", checks["100 XP"] and not checks["60 days at this level"]
-      and checks["Pass every Level 1 lesson quiz"] and checks["Close 5 trades"] and not s["next"]["ready"], checks)
+      and checks["Pass every Level 1 lesson quiz"] and checks["Close 5 trades at this level"] and not s["next"]["ready"], checks)
 s = progress.evaluate(lv, _now=datetime.now(timezone.utc) + timedelta(days=61))
 check("after 60 days: Level 2 Apprentice", s["leveled_up"] == 2 and s["level"] == 2 and s["title"] == "Apprentice", s)
 check("next level reports its XP band and days for the progress page",

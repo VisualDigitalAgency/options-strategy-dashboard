@@ -35,8 +35,9 @@ export const addDaysIso = (iso, n) => {
   return isoLocal(d)
 }
 
+// Takes a date or a timestamp: only the day part is used.
 export const shortDate = (iso) =>
-  iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'
+  iso ? new Date(iso.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'
 
 export function suggestLots(margin, perTrade) {
   if (!margin || !perTrade) return 0

@@ -74,7 +74,7 @@ function RiskRow({ r, s, className = '' }) {
       </div>
       <div>
         <dt>Profit left</dt>
-        <dd className="mono">{r.left == null ? '—' : rupee(r.left)}</dd>
+        <dd className="mono">{r.left == null || r.maxProfit === Infinity ? '—' : signedRupee(r.left)}</dd>
       </div>
     </dl>
   )
@@ -136,7 +136,7 @@ function Group({ g, onAction }) {
           </div>
           <div>
             <span className="stat-label">Theta / day</span>
-            <span className="mono pos">{rupee(g.greeks.theta)}</span>
+            <span className={`mono ${pnlClass(g.greeks.theta)}`}>{signedRupee(g.greeks.theta)}</span>
           </div>
         </div>
       </header>
@@ -222,7 +222,7 @@ function Group({ g, onAction }) {
           <dl className="greek-row">
             <div><dt>Net delta</dt><dd className="mono">{signed(g.greeks.delta, 1)}</dd></div>
             <div><dt>Gamma</dt><dd className="mono">{signed(g.greeks.gamma, 2)}</dd></div>
-            <div><dt>Theta / day</dt><dd className="mono pos">{rupee(g.greeks.theta)}</dd></div>
+            <div><dt>Theta / day</dt><dd className={`mono ${pnlClass(g.greeks.theta)}`}>{signedRupee(g.greeks.theta)}</dd></div>
             <div><dt>Vega / IV pt</dt><dd className="mono">{rupee(g.greeks.vega)}</dd></div>
             <div><dt>Premium collected</dt><dd className="mono">{rupee(g.net_premium)}</dd></div>
             <div><dt>SPAN + exposure</dt><dd className="mono">{g.margin ? `${rupee(g.margin.span)} + ${rupee(g.margin.exposure)}` : '—'}</dd></div>
@@ -469,7 +469,7 @@ export default function Portfolio() {
           <p className="lede">
             {mode === 'virtual'
               ? (data?.groups.length
-                ? `${data.groups.length} position${data.groups.length > 1 ? 's' : ''} open, earning ${rupee(data.totals.theta)} a day from time decay.`
+                ? `${data.groups.length} position${data.groups.length > 1 ? 's' : ''} open, ${data.totals.theta < 0 ? `losing ${rupee(-data.totals.theta)}` : `earning ${rupee(data.totals.theta)}`} a day from time decay.`
                 : 'Your virtual positions, priced live from NSE.')
               : 'Your real broker positions, synced from your connected account.'}{' '}
             {mode === 'virtual' && data && <span className={`market ${data.market_open ? 'open' : ''}`}>{data.market_open ? 'Market is open.' : 'Market is closed.'}</span>}
@@ -516,7 +516,7 @@ export default function Portfolio() {
           <div className="stat"><span className="stat-label">Booked P&L</span><span className={`stat-value mono ${pnlClass(a.realized_pnl)}`}>{signedRupee(a.realized_pnl)}</span></div>
           <div className="stat"><span className="stat-label">Margin used</span><span className="stat-value mono">{rupee(a.used_margin)}</span></div>
           <div className="stat"><span className="stat-label">Funds free</span><span className="stat-value mono">{rupee(a.available_margin)}</span></div>
-          <div className="stat"><span className="stat-label">Theta / day</span><span className="stat-value mono pos">{rupee(data.totals.theta)}</span></div>
+          <div className="stat"><span className="stat-label">Theta / day</span><span className={`stat-value mono ${pnlClass(data.totals.theta)}`}>{signedRupee(data.totals.theta)}</span></div>
           <div className="stat"><span className="stat-label">Net delta</span><span className="stat-value mono">{signed(data.totals.delta, 1)}</span><span className="stat-sub">Return {pct(a.return_pct, 2)}</span></div>
         </section>
       )}
@@ -529,7 +529,7 @@ export default function Portfolio() {
         const next = ss.filter((s) => s.state === 'waiting').map((s) => s.liveFrom).sort()[0]
         return (
           <section className="ledger ledger-risk" aria-label="Risk at expiry, all positions">
-            <div className="stat"><span className="stat-label">Max profit</span><span className="stat-value mono pos">{money(sum('maxProfit'))}</span><span className="stat-sub">If every position expires worthless</span></div>
+            <div className="stat"><span className="stat-label">Max profit</span><span className={`stat-value mono ${pnlClass(sum('maxProfit'))}`}>{money(sum('maxProfit'))}</span><span className="stat-sub">{sum('maxProfit') === Infinity ? 'Long options have no ceiling on profit' : 'Best case at expiry'}</span></div>
             <div className="stat"><span className="stat-label">Max loss</span><span className="stat-value mono neg">{money(sum('maxLoss'))}</span><span className="stat-sub">{sum('maxLoss') === -Infinity ? 'Short calls have no ceiling on loss' : 'Worst case at expiry'}</span></div>
             <div className="stat">
               <span className="stat-label">Loss at stop</span>
@@ -539,7 +539,7 @@ export default function Portfolio() {
                   : `${live.length} of ${ss.length} covered${next ? `, next from ${shortDate(next)}` : ''}`}
               </span>
             </div>
-            <div className="stat"><span className="stat-label">Profit left</span><span className="stat-value mono">{left == null ? '—' : rupee(left)}</span><span className="stat-sub">{left == null ? 'Waiting for prices' : `${pct((left / sum('maxProfit')) * 100, 0)} of max profit still to decay`}</span></div>
+            <div className="stat"><span className="stat-label">Profit left</span><span className="stat-value mono">{left == null || sum('maxProfit') === Infinity ? '—' : signedRupee(left)}</span><span className="stat-sub">{left == null ? 'Waiting for prices' : sum('maxProfit') === Infinity ? 'No cap on profit to measure against' : `${pct((left / sum('maxProfit')) * 100, 0)} of max profit still to decay`}</span></div>
           </section>
         )
       })()}
