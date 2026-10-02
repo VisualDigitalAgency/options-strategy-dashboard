@@ -179,7 +179,8 @@ Set by the server, never by the client: `_ctx`.
 
 ### `auth_me`
 
-The signed-in user with their saved theme and palette, or null when signed out.
+The signed-in user with their saved theme and palette, or null when signed out. `sell_levels`
+gives the level naked sales and strangles unlock at, or null when the strategy gate doesn't apply.
 
 Works while the account has a temporary password.
 

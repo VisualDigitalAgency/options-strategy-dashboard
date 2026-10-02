@@ -382,7 +382,8 @@ def leaderboard_get(_ctx: Ctx, month: str | None = None):
 
 
 def auth_me(_ctx: Ctx):
-    """The signed-in user with their saved theme and palette, or null when signed out."""
+    """The signed-in user with their saved theme and palette, or null when signed out. `sell_levels`
+    gives the level naked sales and strangles unlock at, or null when the strategy gate doesn't apply."""
     return auth.me(_ctx.user_id) if _ctx.user else None
 
 

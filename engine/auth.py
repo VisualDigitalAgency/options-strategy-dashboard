@@ -29,7 +29,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlalchemy.exc import IntegrityError
 
-from . import app_settings, brand, cache, db, mail, permissions, users
+from . import app_settings, brand, cache, config, db, mail, permissions, users
 
 _ph = PasswordHasher(time_cost=3, memory_cost=64 * 1024, parallelism=2)
 _DUMMY_HASH = _ph.hash(secrets.token_hex(16))  # verify against this for unknown emails: same timing
@@ -524,8 +524,13 @@ def me(user_id: int) -> dict:
     with db.tx(user_id) as c:
         prefs = c.one("SELECT theme, palette FROM user_prefs WHERE user_id=:u", u=user_id) or {}
         level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
-    return {**u, "level": level, "features": permissions.user_features(u["id"], u["role"]),
+    features = permissions.user_features(u["id"], u["role"])
+    # Strategy gate (#170): the level each kind of sale unlocks at, so the builder can lock templates
+    # up front; null when the gate doesn't apply (owner, Pro, or already past it), as in _strategy_rule.
+    gated = u["role"] != "owner" and "screener" not in features and level < config.STRANGLE_LEVEL
+    return {**u, "level": level, "features": features,
             "level_locked": permissions.level_locked(u["id"], u["role"], level),
+            "sell_levels": {"naked": config.NAKED_LEVEL, "strangle": config.STRANGLE_LEVEL} if gated else None,
             "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette")}}
 
 

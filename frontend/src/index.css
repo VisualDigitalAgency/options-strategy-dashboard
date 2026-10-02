@@ -1762,6 +1762,7 @@ img.brand-logo { object-fit: contain; }
   border-radius: 999px; cursor: pointer; transition: border-color 150ms var(--ease), background 150ms var(--ease);
 }
 .tpl:hover { border-color: var(--primary); background: var(--brass-soft); }
+.tpl:disabled { opacity: 0.6; cursor: not-allowed; border-color: var(--border); background: none; }
 .tpl svg { flex: none; }
 .shape-axis { stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 2 2; fill: none; }
 .shape-line { stroke: var(--primary); stroke-width: 1.75; fill: none; stroke-linejoin: round; stroke-linecap: round; }
