@@ -11,10 +11,11 @@ import { useCan } from '../auth'
 import UpdatedTag from '../components/UpdatedTag'
 import PalettePicker from '../components/PalettePicker'
 import StatCard from '../components/StatCard'
+import MarginBanner from '../components/MarginBanner'
 import EquityBar from '../components/EquityBar'
 import { useTitle } from '../brand'
 
-const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry' }
+const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry', rms_squareoff: 'RMS square-off' }
 
 /** XIRR for one deposit (starting capital) and today's value, no withdrawals: the annual rate r
  *  that solves capital x (1 + r)^(days/365) = value. Annualising under a week turns tiny moves
@@ -117,6 +118,7 @@ export default function VirtualAccount() {
       </section>
 
       {error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}
+      <MarginBanner account={acct} />
 
       <section className="ledger" aria-label="Performance">
         {acct ? (
@@ -135,6 +137,7 @@ export default function VirtualAccount() {
             })()}
             <StatCard label="Booked P&L" value={signedRupee(acct.realized_pnl)} tone={pnlClass(acct.realized_pnl)} sub="locked in from closed trades" />
             <StatCard label="Unbooked P&L" value={signedRupee(acct.unrealized_pnl)} tone={pnlClass(acct.unrealized_pnl)} sub={`${acct.open_positions} open leg${acct.open_positions === 1 ? '' : 's'} at last price; moves until you exit`} />
+            {acct.charges > 0 && <StatCard label="Charges" value={signedRupee(-acct.charges)} tone="neg" sub="square-off charges and shortfall penalties" />}
             <StatCard label="Win rate" value={closed?.length ? pct((winners / closed.length) * 100, 0) : '—'} sub={closed ? `${winners} of ${closed.length} closed legs in profit` : ''} />
             <StatCard label="Orders placed" value={orders ? orders.length : '—'} sub={orders ? `${orders.filter((o) => o.reason === 'auto').length} by auto-trade, ${orders.filter((o) => o.reason === 'sl_auto').length} by stop loss, ${orders.filter((o) => o.reason === 'time_exit').length} by time exit, ${orders.filter((o) => o.reason === 'target_exit').length} at profit target` : ''} />
           </>

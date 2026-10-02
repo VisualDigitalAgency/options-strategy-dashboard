@@ -291,10 +291,15 @@ def get_account(user_id: int, _positions: list | None = None) -> dict:
         blocked = c.value("SELECT COALESCE(SUM(blocked_margin),0) FROM pending_orders "
                           "WHERE user_id=:u AND status='open'", u=user_id)
         n_pending = c.value("SELECT COUNT(*) FROM pending_orders WHERE user_id=:u AND status='open'", u=user_id)
+        # Square-off charges and shortfall penalties (#178) are trading costs: they reduce value and return %.
+        charges = c.value("SELECT COALESCE(SUM(amount),0) FROM account_charges WHERE user_id=:u", u=user_id)
     groups = _positions if _positions is not None else (get_positions(user_id)["groups"] if n_open else [])
     unrealized = sum(g["pnl"] for g in groups)
     used = sum(g["margin"]["total"] for g in groups if g["margin"]) + blocked
-    value = acct["starting_capital"] + realized + unrealized
+    value = acct["starting_capital"] + realized + unrealized - charges
+    util = round(used / value * 100, 1) if value > 0 else None
+    status = ("squareoff" if value <= 0 or util >= config.RMS_SQUAREOFF_PCT
+              else "warning" if util >= config.RMS_WARN_PCT else "ok")
     return {
         "starting_capital": acct["starting_capital"], "created_at": acct["created_at"],
         "sl_mode_default": acct["sl_mode_default"],
@@ -304,6 +309,9 @@ def get_account(user_id: int, _positions: list | None = None) -> dict:
         "return_pct": round((value / acct["starting_capital"] - 1) * 100, 2),
         "open_positions": n_open,
         "open_orders": n_pending, "blocked_margin": round(blocked, 2),
+        "charges": round(charges, 2),
+        # Margin used ÷ account value (None once value is at or below zero) and what RMS makes of it.
+        "margin_used_pct": util, "margin_status": status,
     }
 
 
@@ -433,13 +441,15 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         default_sl = _account_row(c, user_id)["sl_mode_default"]
         waiting = _waiting(c, user_id, symbol, expiry)
     premium = sum(f["price"] * f["qty"] * (1 if f["action"] == "SELL" else -1) for f in fills)
+    impact = _margin_impact(user_id, symbol, expiry, existing, fills)
     return {
         "symbol": symbol, "expiry": expiry, "lot_size": lot, "fills": fills,
-        "premium": round(premium, 2), **_margin_impact(user_id, symbol, expiry, existing, fills),
+        "premium": round(premium, 2), **impact,
         "sl_mode_default": default_sl, "notes": sorted(notes), "market_open": market_open(),
         "waiting": waiting, "illiquid": illiquid,
-        # Either rule blocks the order; the builder shows the reason (#137, #170).
-        "buy_rule": _buy_rule(user_id, existing, fills) or _strategy_rule(user_id, existing, fills),
+        # Any rule blocks the order; the builder shows the reason (#137, #170, #178).
+        "buy_rule": _buy_rule(user_id, existing, fills) or _strategy_rule(user_id, existing, fills)
+        or _rms_rule(existing, fills, impact),
     }
 
 
@@ -459,9 +469,13 @@ def _margin_impact(user_id: int, symbol: str, expiry: str, existing: list[dict],
     m_before = group_margin(symbol, expiry, before, spot)["total"]
     m_after = group_margin(symbol, expiry, after_legs, spot)
     change = round(m_after["total"] - m_before, 2)
-    available = get_account(user_id)["available_margin"]
+    acct = get_account(user_id)
+    available = acct["available_margin"]
+    value = acct["account_value"]
+    # Margin used ÷ account value once this order is in, for the RMS rule (#178).
+    used_after = round((acct["used_margin"] + change) / value * 100, 1) if value > 0 else None
     return {"margin_after": m_after, "margin_change": change, "available_margin": available,
-            "sufficient": change <= available}
+            "sufficient": change <= available, "margin_used_pct_after": used_after}
 
 
 def _long_stop(price: float) -> float:
@@ -552,6 +566,23 @@ def _strategy_rule(user_id: int, existing: list[dict], fills: list[dict]) -> str
         return (f"Selling both a call and a put without protection (a strangle) unlocks at Level "
                 f"{config.STRANGLE_LEVEL}. Protect one side with a bought option")
     return None
+
+
+def _rms_rule(existing: list[dict], fills: list[dict], impact: dict) -> str | None:
+    """An order that adds a sale is refused when it would leave margin used at RMS_WARN_PCT of
+    account value or more (or value is at or below zero), so a trade can't walk the account into
+    an RMS square-off. Closing or reducing is always allowed (#178)."""
+    before = {(r["side"], r["strike"]): r["qty"] for r in existing}
+    legs = _after([{"side": r["side"], "strike": r["strike"], "qty": r["qty"], "price": r["avg_price"]}
+                   for r in existing], fills)
+    if not any(l["qty"] < min(before.get((l["side"], l["strike"]), 0), 0) for l in legs):
+        return None
+    pct = impact["margin_used_pct_after"]
+    if pct is not None and pct < config.RMS_WARN_PCT:
+        return None
+    used = f"{pct:g}% of your account" if pct is not None else "more than your account"
+    return (f"This would bring margin used to {used} (limit {config.RMS_WARN_PCT}%). Trade smaller or "
+            f"close a position first; at {config.RMS_SQUAREOFF_PCT}% positions are squared off")
 
 
 def _insufficient(m: dict) -> ValueError:
@@ -1037,6 +1068,11 @@ def start_monitor() -> None:
                         match_pending(uid)
                     if has_open(uid):
                         run_checks(uid)
+                    from . import rms  # rms builds on this module
+                    if has_open(uid) or has_pending(uid):
+                        rms.check(uid)  # margin shortfall: record it, square off at the RMS limit (#178)
+                    if _session_over():
+                        rms.apply_penalties(uid)  # once per day; a repeat call is a no-op
                     refresh_positions(uid)
                 except Exception:
                     pass  # one user's failure never stops the others; next pass retries

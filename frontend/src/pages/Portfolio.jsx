@@ -4,6 +4,7 @@ import { AlertTriangle, BellRing, ChartCandlestick, ChevronDown, Hourglass, Line
 import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import GettingStarted from '../components/GettingStarted'
+import MarginBanner from '../components/MarginBanner'
 import UpdatedTag from '../components/UpdatedTag'
 import { useBudget } from '../settings'
 import { num, pct, pnlClass, rupee, rupee2, int, shortDate, signed, signedRupee, todayIso } from '../format'
@@ -523,6 +524,7 @@ export default function Portfolio() {
         )
       })()}
 
+      {mode === 'virtual' && <MarginBanner account={a} />}
       {mode === 'virtual' && data && data.groups.length === 0 && (
         <div className="card empty-state">
           <h2>No open positions</h2>
