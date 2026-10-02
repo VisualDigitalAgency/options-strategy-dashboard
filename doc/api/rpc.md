@@ -756,8 +756,8 @@ Set by the server, never by the client: `user_id`.
 
 ### `referral_get`
 
-The caller's invite link and how many people confirmed an account through it (#126). A
-metric only for now: nothing is rewarded yet.
+The caller's invite link and how many people confirmed an account through it (#126).
+Invites that trade or reach Level 3 pay capital and coins (engine/capital.py, engine/coins.py).
 
 No params.
 
