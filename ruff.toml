@@ -1,6 +1,8 @@
 # Python lint (issue: ruff check in CI). Run `ruff check .` before pushing; CI runs the same.
 # Default rule set (pyflakes + pycodestyle errors), with two house-style exceptions.
 target-version = "py312"
+# Third-party agent skills, vendored as-is (MIT; see each folder's LICENSE).
+extend-exclude = [".claude/skills"]
 
 [lint]
 ignore = [
