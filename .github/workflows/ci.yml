@@ -139,6 +139,9 @@ jobs:
       # The owner renames the app at runtime (issue #133); its name lives in engine/brand.py only.
       - name: No hard-coded app name
         run: python scripts/check_brand.py
+      # A line cut off with a literal [...] (commit 3830a3c truncated 19 README lines this way).
+      - name: No truncated docs
+        run: "! git grep -nE '\\[\\.\\.\\.\\]\\s*$' -- '*.md' ':!.github/'"
       - name: Byte-compile
         run: python -m compileall -q server.py rpc_guard.py engine scripts migrations tests
       - name: Integration tests (fresh database per file)
