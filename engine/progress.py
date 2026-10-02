@@ -211,13 +211,13 @@ def _gate(level: int, trades: list[dict], c, user_id: int, now: datetime, histor
     m = metrics(trades)
     if level == 1:
         return [_lessons_check(c, user_id, 1, "Pass every Level 1 lesson quiz"),
-                {"label": "Close 5 trades", "ok": m["trades"] >= 5, "value": m["trades"]}]
+                {"label": "Close 5 trades at this level", "ok": m["trades"] >= 5, "value": m["trades"]}]
     if level == 2:
         no_sl = sum(1 for t in shorts if not t["had_sl"])
-        return [{"label": "Close 15 trades", "ok": m["trades"] >= 15, "value": m["trades"]},
+        return [{"label": "Close 15 trades at this level", "ok": m["trades"] >= 15, "value": m["trades"]},
                 {"label": "Every short leg had its stop-loss on", "ok": no_sl == 0, "value": f"{no_sl} without"}]
     if level == 3:
-        return [{"label": "Close 30 trades", "ok": m["trades"] >= 30, "value": m["trades"]},
+        return [{"label": "Close 30 trades at this level", "ok": m["trades"] >= 30, "value": m["trades"]},
                 {"label": "Win rate 60% or more", "ok": m["win_rate"] >= 60, "value": f"{m['win_rate']}%"},
                 {"label": "Max drawdown 15% or less", "ok": m["trades"] > 0 and m["max_dd_pct"] <= 15,
                  "value": f"{m['max_dd_pct']}%"}]
@@ -231,7 +231,7 @@ def _gate(level: int, trades: list[dict], c, user_id: int, now: datetime, histor
         r = metrics(recent)
         return [{"label": "Return ÷ drawdown 1.5 or more over 3 months", "ok": r["trades"] > 0 and r["ret_dd"] >= 1.5,
                  "value": r["ret_dd"]},
-                {"label": "Close 60 trades", "ok": m["trades"] >= 60, "value": m["trades"]}]
+                {"label": "Close 60 trades at this level", "ok": m["trades"] >= 60, "value": m["trades"]}]
     if level == 6:
         return [_volatile_month(trades), _lessons_check(c, user_id, 6, "Pass the Adjustments course (Level 6 lessons)")]
     if level == 7:
