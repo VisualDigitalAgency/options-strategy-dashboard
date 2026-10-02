@@ -177,9 +177,10 @@ def _volatile_month(trades: list[dict]) -> dict:
 
 
 def _top_boards(c, user_id: int) -> dict:
-    """Finished monthly boards where the user ranked in the top L8_TOP_PCT% of their band."""
+    """Finished monthly boards where the user ranked in the top L8_TOP_PCT% of their band. The Rising
+    band (Levels 1-3) doesn't count: the gate is about competing with Level 4+ players."""
     rows = c.all("SELECT e.month, e.rank, (SELECT count(*) FROM leaderboard_entries b WHERE b.month = e.month "
-                 "AND b.band = e.band) AS size FROM leaderboard_entries e WHERE e.user_id=:u", u=user_id)
+                 "AND b.band = e.band) AS size FROM leaderboard_entries e WHERE e.user_id=:u AND e.band <> '1-3'", u=user_id)
     top = sum(1 for r in rows if r["rank"] <= max(1, -(-r["size"] * config.L8_TOP_PCT // 100)))
     return {"label": f"Top {config.L8_TOP_PCT}% of your leaderboard band in {config.L8_TOP_MONTHS} months",
             "ok": top >= config.L8_TOP_MONTHS, "value": top}

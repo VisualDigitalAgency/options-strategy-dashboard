@@ -2116,3 +2116,41 @@ img.brand-logo { object-fit: contain; }
 
 /* Revoke form inside the owner's Grants dialog (#194). */
 .grant-revoke { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* Leaderboard (#125): period controls, a podium for the top three, then compact rows. */
+.lb-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.lb-stepper { display: inline-flex; align-items: center; gap: 4px; }
+.lb-stepper .icon-btn:disabled { opacity: 0.35; cursor: default; }
+.lb-period { display: inline-flex; align-items: center; gap: 8px; min-width: 150px; justify-content: center; font-weight: 600; }
+.lb-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.lb-cta p { margin: 0; }
+.lb-note { margin: 0 0 16px; padding: 12px 14px; border: 1px dashed var(--border-strong); border-radius: 10px; color: var(--text-muted); }
+.lb-empty { margin: 4px 0 16px; }
+.lb-band .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lb-podium { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.lb-place { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.lb-place.p1 { border-color: var(--primary); background: linear-gradient(180deg, var(--brass-soft), var(--surface-2) 70%); }
+.lb-medal { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-weight: 700; font-size: 14px; background: var(--surface-3); color: var(--text); border: 1px solid var(--border-strong); }
+.lb-place.p1 .lb-medal { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.lb-nick { display: flex; align-items: center; gap: 8px; font-size: 17px; overflow-wrap: anywhere; }
+.lb-place .chip { align-self: flex-start; }
+.lb-ratio { font-size: 30px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.lb-ratio small { display: block; font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.lb-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--text-muted); }
+.lb-rows { list-style: none; margin: 12px 0 0; padding: 0; }
+.lb-rows li { display: grid; grid-template-columns: 36px 1fr auto; grid-template-areas: "rank who ratio" "rank stats ratio"; align-items: center; gap: 2px 12px; padding: 10px 4px; border-top: 1px solid var(--border); }
+.lb-rank { grid-area: rank; color: var(--text-muted); font-weight: 600; text-align: center; }
+.lb-who { grid-area: who; }
+.lb-rows .lb-stats { grid-area: stats; }
+.lb-ratio-sm { grid-area: ratio; font-size: 18px; }
+.lb-place.me, .lb-rows li.me { box-shadow: inset 3px 0 0 var(--primary); }
+@media (max-width: 640px) {
+  /* Phones: each podium place is one compact row (medal, name, ratio), stats underneath. */
+  .lb-podium { grid-template-columns: 1fr; gap: 8px; }
+  .lb-place { display: grid; grid-template-columns: 30px 1fr auto; grid-template-areas: "medal nick ratio" "medal level ratio" "stats stats stats"; gap: 2px 12px; padding: 12px; }
+  .lb-medal { grid-area: medal; }
+  .lb-nick { grid-area: nick; font-size: 16px; }
+  .lb-place > .chip { grid-area: level; }
+  .lb-ratio { grid-area: ratio; font-size: 24px; text-align: right; }
+  .lb-place .lb-stats { grid-area: stats; margin-top: 4px; }
+}

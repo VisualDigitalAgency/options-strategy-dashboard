@@ -30,7 +30,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`lessons_list`](#lessons_list) | public | Every lesson in the learning path (title, level, order, summary, minutes, question count). |
 | [`lessons_get`](#lessons_get) | public | One lesson's body and quiz questions (never the answers), plus the previous and next lesson. |
 | [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used), and the pages a signed-out visitor may open (`reader_pages`) and NSE trading holidays (`holidays`, ISO dates). |
-| [`leaderboard_get`](#leaderboard_get) | public | Monthly paper-trading leaderboard (no sign-in needed). |
+| [`leaderboard_get`](#leaderboard_get) | public | Paper-trading leaderboard (no sign-in needed). |
 | [`reader_universe`](#reader_universe) | public | The Nifty 50 symbols the builder offers. |
 | [`reader_chain`](#reader_chain) | public | builder_chain for signed-out visitors (same result); rate-limited per IP. |
 | [`reader_levels`](#reader_levels) | public | builder_levels for signed-out visitors (same result); rate-limited per IP. |
@@ -271,8 +271,8 @@ Set by the server, never by the client: `_ctx`.
 
 ### `leaderboard_get`
 
-Monthly paper-trading leaderboard (no sign-in needed). `month` is "YYYY-MM"; omitted, it is
-the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
+Paper-trading leaderboard (no sign-in needed). `month` is a period: "YYYY-MM" for a month or
+"YYYY-Qn" for a calendar quarter; omitted, it is the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
 Signed out, only while the owner keeps the leaderboard on for readers.
 
 | Param | Type | Default |
