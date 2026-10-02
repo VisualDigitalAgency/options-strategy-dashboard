@@ -237,7 +237,7 @@ Sub-admins, who lose real trading until the owner turns *live trading* on for Su
 | Premium | What a sell books: the bid, not the last traded price (which on a thin strike can be hours old). Outside market hours, with no bid/ask, the last trade stands in until the next in-session screen |
 | Max Pain | Shown as distance from the strike, used for confirmation only |
 | S/R | 6-month daily swings (5-candle fractal), zones ±1.5%, 2+ touches. A strike inside a zone drops that leg |
-| Stop loss | None for the first 15 days, then buy back at the original premium collected. It fires when the bid/ask **mid** reaches the stop (the ask alone sits above a fill at the bid); the exit is a limit at the ask |
+| Stop loss | Unless the leg has its own SL / SL-M order (which then replaces this rule for that leg): none for the first 15 days, then buy back at the original premium collected. It fires when the bid/ask **mid** reaches the stop (the ask alone sits above a fill at the bid); the exit is a limit at the ask |
 | Time exit | Every leg closes once fewer than 7 days remain (stock options settle by physical delivery) |
 | Profit exit | The whole group closes once 90% of the premium collected has decayed |
 | Sentiment | +1/-1 for price vs 20 & 50 DMA trend, +1/-1 for today's PE vs CE OI change. Score ≥1 Bullish, ≤-1 Bearish, else Neutral. Display only; it doesn't filter trades, but flags single-leg sells that go against it |
@@ -289,7 +289,7 @@ Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹2 
 
 | Feature | Behaviour |
 |---|---|
-| Orders | Limit orders only, as on a live account. A limit the market already meets fills at once at the bid (sells) or ask (buys). Any other limit waits as an open order and expires at the session close. Orders placed outside market hours wait for the next session |
+| Orders | Limit orders, plus stop-loss orders on an open leg (*SL* button in Portfolio, #183): **SL-M** (once the trigger is hit, fills at the ask for a buy or the bid for a sell) or **SL** (once triggered, becomes a limit order at your price). The trigger is judged on the bid/ask mid (the last trade on an empty book). One stop per leg, for its whole quantity; it lasts until expiry, shows under open orders with its trigger, and is cancelled if the leg closes another way. As on a live account, a plain limit the market already meets fills at once at the bid (sells) or ask (buys). Any other limit waits as an open order and expires at the session close. Orders placed outside market hours wait for the next session |
 | Repeat orders | If an earlier order on the same stock and expiry hasn't filled yet, the ticket warns and asks before placing another. The server enforces this too, so a double click or a second tab can't double a trade |
 | Margin | SPAN (long and short legs netted) + exposure on short legs, per stock/expiry. Checked again under a lock at booking, so two orders can't both spend the same free funds. Open orders hold their margin until they fill or end |
 | Positions | Netted per contract; opposite trades reduce or close the position and book realised P&L |

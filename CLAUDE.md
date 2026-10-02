@@ -68,7 +68,7 @@ Migrations `GRANT` to `theta_app` only if the role already exists. The role must
 - `span.py`: parses NSE SPAN risk files into `engine/cache/`, a volume shared by api and worker.
 - `filters.py` / `risk_rules.py` / `greeks_sr.py`: screening rules, Black-Scholes, S/R zones.
 - `batch.py`: batched screening.
-- `virtual.py`: fills, margin, and the SL monitor. Booking runs under `_lock` + `_lock_account` (row lock) and re-checks margin and state inside it. `place_order` refuses a second order on a stock/expiry with one still waiting unless `confirm_waiting` is set; auto-trade instead skips such pairs.
+- `virtual.py`: fills, margin, and the SL monitor. Booking runs under `_lock` + `_lock_account` (row lock) and re-checks margin and state inside it. `place_order` refuses a second order on a stock/expiry with one still waiting unless `confirm_waiting` is set; auto-trade instead skips such pairs. `place_stop` adds an SL / SL-M order on one leg (`pending_orders.order_type`, `trigger_price`); `match_pending` triggers it, and while it is open the day-15 group stop skips that leg.
 - `pivots.py`: floor pivots (P, R1–R4, S1–S4) from the last completed day/week/month, for the Portfolio price chart.
 - `autotrade.py`, `auth.py`, `users.py`.
 - `pricing.py`: fair price and tradability, plus `holidays()` / `trading_day()`; `market_open`, `market_window` and the session-end logic all go through it, so NSE holidays are closed days.
