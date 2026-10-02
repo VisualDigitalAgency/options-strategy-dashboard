@@ -45,7 +45,6 @@ export default function VirtualAccount() {
       setAcct(a)
       setOrders(o)
       setClosed(c)
-      setCapital(a.starting_capital)
       setError(null)
     } catch (e) {
       setError(e.message)
