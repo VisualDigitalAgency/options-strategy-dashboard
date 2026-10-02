@@ -25,6 +25,8 @@ make rpc-docs                           # regenerate doc/api/rpc.md after changi
 ruff check .                            # Python lint (rules in ruff.toml; install: pip install --require-hashes -r requirements-dev.txt)
 ```
 
+Agent skills are vendored in `.claude/skills/`: `ui-ux-pro-max` (UI/UX review and design guidance; its search tool runs as `python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain <domain>`) and `ponytail` with `ponytail-review`, `-audit`, `-debt`, `-gain` and `-help` (simplest-solution mode and over-engineering reviews). They are third-party (MIT, each folder has its LICENSE), copied as-is and excluded from ruff. Ponytail's auto-start hooks were not added.
+
 Backend tests are plain scripts in `tests/test_*.py`. Each prints PASS/FAIL lines and exits non-zero on failure. `tests/run.py` gives every file a fresh, migrated database and flushes Redis. It needs `DB_HOST`, `OWNER_DB_PASSWORD`, `DB_APP_PASSWORD` and `REDIS_URL`. To run a single file: `python tests/run.py test_pivots.py`. Market data is stubbed in `tests/support.py`. `LIVE_DATA=1` adds a real yfinance check.
 
 CI/CD is `.github/workflows/ci.yml`: lint, tests, image builds, then a Coolify API deploy of `main` (held during market hours). Setup and behaviour are in deploy/COOLIFY.md. A separate `deploy-preview` job deploys a feature branch to an isolated preview Coolify app (own DB/Redis/domain, no market-hours hold, no Kite credentials) on every push to its open PR — see deploy/PREVIEW.md.
