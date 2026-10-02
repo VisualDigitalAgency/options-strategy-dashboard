@@ -29,7 +29,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`auth_reset_password`](#auth_reset_password) | public | Sets a new password from the emailed reset token. |
 | [`lessons_list`](#lessons_list) | public | Every lesson in the learning path (title, level, order, summary, minutes, question count). |
 | [`lessons_get`](#lessons_get) | public | One lesson's body and quiz questions (never the answers), plus the previous and next lesson. |
-| [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used), and the pages a signed-out visitor may open (`reader_pages`). |
+| [`app_info`](#app_info) | public | The app's name and logo version (null while the built-in mark is used), and the pages a signed-out visitor may open (`reader_pages`) and NSE trading holidays (`holidays`, ISO dates). |
 | [`leaderboard_get`](#leaderboard_get) | public | Monthly paper-trading leaderboard (no sign-in needed). |
 | [`reader_universe`](#reader_universe) | public | The Nifty 50 symbols the builder offers. |
 | [`reader_chain`](#reader_chain) | public | builder_chain for signed-out visitors (same result); rate-limited per IP. |
@@ -258,7 +258,8 @@ Set by the server, never by the client: `_ctx`.
 ### `app_info`
 
 The app's name and logo version (null while the built-in mark is used), and the pages a
-signed-out visitor may open (`reader_pages`). Public; every page loads it.
+signed-out visitor may open (`reader_pages`) and NSE trading holidays (`holidays`, ISO dates).
+Public; every page loads it.
 
 No params.
 

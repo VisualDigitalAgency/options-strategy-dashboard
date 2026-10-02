@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, config, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, progress, risk_rules, span, strategies, users, virtual
+from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, config, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -328,9 +328,11 @@ def lessons_get(_ctx: Ctx, slug: str):
 
 def app_info(_ctx: Ctx):
     """The app's name and logo version (null while the built-in mark is used), and the pages a
-    signed-out visitor may open (`reader_pages`). Public; every page loads it."""
+    signed-out visitor may open (`reader_pages`) and NSE trading holidays (`holidays`, ISO dates).
+    Public; every page loads it."""
     return {**brand.info(), "reader_pages": app_settings.reader_pages(),
-            "auto_approve": app_settings.get("auto_approve")}  # sign-up copy: instant or waits for approval
+            "auto_approve": app_settings.get("auto_approve"),  # sign-up copy: instant or waits for approval
+            "holidays": sorted(pricing.holidays())}  # NSE trading holidays, for the market clock
 
 
 # Reader (#163): the builder for signed-out visitors. Every new stock/expiry is an NSE call from the

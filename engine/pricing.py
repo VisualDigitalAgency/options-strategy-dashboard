@@ -16,9 +16,33 @@ from . import config
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
+_holidays = {"at": 0.0, "dates": frozenset()}
+HOLIDAYS_TTL = 600  # re-read the cached NSE holiday list at most every 10 minutes per process
+
+
+def holidays() -> frozenset:
+    """NSE trading holidays (ISO dates) from the market-calendar cache the worker refreshes daily.
+    Empty if it was never fetched, so a missing list never closes the market by mistake."""
+    import time
+    if time.time() - _holidays["at"] > HOLIDAYS_TTL:
+        try:
+            from . import market_calendar  # imports this module indirectly; load lazily
+            _holidays["dates"] = frozenset(market_calendar.holiday_dates())
+        except Exception:
+            pass  # keep the last list
+        _holidays["at"] = time.time()
+    return _holidays["dates"]
+
+
+def trading_day(now: datetime | None = None) -> bool:
+    """A weekday that isn't an NSE trading holiday."""
+    now = now or datetime.now(IST)
+    return now.weekday() < 5 and now.date().isoformat() not in holidays()
+
+
 def market_open() -> bool:
     now = datetime.now(IST)
-    return now.weekday() < 5 and (9, 15) <= (now.hour, now.minute) < (15, 30)
+    return trading_day(now) and (9, 15) <= (now.hour, now.minute) < (15, 30)
 
 
 def has_book(bid: float, ask: float) -> bool:

@@ -42,14 +42,15 @@ def _today() -> pd.Timestamp:
 
 
 def market_open() -> bool:
+    """NSE derivatives session: a trading day (weekday, not an NSE holiday), 09:15–15:30 IST."""
     now = datetime.now(IST)
-    return now.weekday() < 5 and (9, 15) <= (now.hour, now.minute) < (15, 30)
+    return pricing.trading_day(now) and (9, 15) <= (now.hour, now.minute) < (15, 30)
 
 
 def market_window() -> bool:
     """Pre-open through a little after the close: the stretch worth refreshing often."""
     now = datetime.now(IST)
-    return now.weekday() < 5 and (9, 0) <= (now.hour, now.minute) < (15, 45)
+    return pricing.trading_day(now) and (9, 0) <= (now.hour, now.minute) < (15, 45)
 
 
 # ---------- market data ----------
@@ -952,7 +953,7 @@ def place_stop(user_id: int, position_id: int, trigger: float, order_type: str =
 
 def _session_over() -> bool:
     now = datetime.now(IST)
-    return now.weekday() >= 5 or (now.hour, now.minute) >= (15, 30)
+    return not pricing.trading_day(now) or (now.hour, now.minute) >= (15, 30)
 
 
 def has_pending(user_id: int) -> bool:

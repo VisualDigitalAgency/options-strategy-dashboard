@@ -5,7 +5,7 @@ penalty follows the exchange's bands and escalation; charges reduce value and re
 import sys
 from datetime import date, timedelta
 
-from engine import config, db, rms, virtual
+from engine import config, db, pricing, rms, virtual
 from support import EXP, SYM, new_user, stub
 
 fails = []
@@ -21,6 +21,7 @@ def sell(uid, strike, lots=1, side="PE"):
     return virtual.place_order(uid, SYM, EXP, [{"side": side, "strike": strike, "action": "SELL", "lots": lots}])
 
 
+pricing.trading_day = lambda now=None: True  # shortfalls only count on trading days; any day is one here
 stub(market=True)  # 1 lot = 100 qty; margin 1,000 per short unit, so 1 lot blocks ₹1 lakh
 
 # 1. Orders that would push margin used to RMS_WARN_PCT are refused.
