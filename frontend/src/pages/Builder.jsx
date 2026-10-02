@@ -484,9 +484,12 @@ export default function Builder() {
         <div className="builder-grid">
           <div className="b-main">
             <div className="builder-templates" role="group" aria-label="Templates">
-              {Object.entries(TEMPLATES).map(([k, t]) => (
-                <button key={k} className="tpl" onClick={() => template(k)}><Shape d={SHAPES[k]} />{t.label}</button>
-              ))}
+              {Object.entries(TEMPLATES).map(([k, t]) => {
+                const unlock = t.gate && user?.sell_levels?.[t.gate]
+                return unlock && user.level < unlock
+                  ? <button key={k} className="tpl" disabled title={`Unlocks at Level ${unlock}`}><Shape d={SHAPES[k]} />{t.label} <span className="lock-tag"><Lock size={11} aria-hidden /> Level {unlock}</span></button>
+                  : <button key={k} className="tpl" onClick={() => template(k)}><Shape d={SHAPES[k]} />{t.label}</button>
+              })}
               <button className="tpl" onClick={() => setLegs([])}><Eraser size={16} aria-hidden />Blank</button>
             </div>
             <label className="safe-toggle small">

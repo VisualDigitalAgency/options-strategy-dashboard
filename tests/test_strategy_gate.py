@@ -2,7 +2,7 @@
 a strangle from Level 5. Closing is never blocked; the owner and Pro accounts are not gated."""
 import sys
 
-from engine import config, db, users, virtual
+from engine import auth, config, db, users, virtual
 
 fails = []
 
@@ -52,6 +52,11 @@ owner = at_level("go@test.example", 1, role="owner")
 check("owner not gated", rule(owner, [], strangle) is None)
 beta = at_level("gb@test.example", 1, role="beta")  # beta has the screener (Pro)
 check("Pro account not gated (the screener suggests strangles)", rule(beta, [], strangle) is None)
+
+# auth_me tells the builder which templates to lock: only while the gate applies.
+check("auth_me: Level 1 gets the unlock levels", auth.me(l1)["sell_levels"] == {"naked": config.NAKED_LEVEL, "strangle": config.STRANGLE_LEVEL},
+      auth.me(l1)["sell_levels"])
+check("auth_me: Level 5, owner and Pro get none", all(auth.me(u)["sell_levels"] is None for u in (l5, owner, beta)))
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)

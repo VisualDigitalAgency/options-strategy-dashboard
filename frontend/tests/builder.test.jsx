@@ -46,7 +46,8 @@ globalThis.fetch = async (_url, opts) => {
   const buys = params.legs?.filter((l) => l.action === 'BUY') ?? []
   const sells = params.legs?.filter((l) => l.action === 'SELL') ?? []
   const result = {
-    auth_me: { id: 1, name: 'A', email: 'a@x', role: 'user', level: 1, features: [], prefs: {}, nickname: 'a' },
+    auth_me: { id: 1, name: 'A', email: 'a@x', role: 'user', level: 1, features: [], prefs: {}, nickname: 'a',
+      sell_levels: { naked: 3, strangle: 5 } },
     app_info: { name: 'X', logo: null },
     get_config: { universe: ['RELIANCE', 'SBIN'] },
     builder_chain: chain,
@@ -83,6 +84,10 @@ check('price change: + green, − red, two decimals', document.querySelector('td
 check('OI bar is thin', !!document.querySelector('.oi-bar'))
 check('free account: buy rule explained up front', text().includes('until Level 6'))
 
+const tpl = (t) => [...document.querySelectorAll('.tpl')].find((b) => b.textContent.startsWith(t))
+check('Level 1: strangle and straddle templates locked with their level', tpl('Short strangle')?.disabled && tpl('Short straddle')?.disabled
+  && tpl('Short strangle').textContent.includes('Level 5'))
+check('Level 1: spreads and the condor stay open', ['Iron condor', 'Bull put spread', 'Bear call spread'].every((t) => !tpl(t)?.disabled))
 await act(async () => btn('Iron condor').click())
 await settle(500)
 check('iron condor: 4 legs on the page', document.querySelectorAll('.builder-leg').length === 4)

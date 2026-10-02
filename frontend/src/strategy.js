@@ -24,8 +24,9 @@ export function atmStrike(chain) {
 }
 
 export const TEMPLATES = {
-  short_strangle: { label: 'Short strangle', legs: (c) => [['CE', pickStrike(c, 'CE', 0.1), 'SELL'], ['PE', pickStrike(c, 'PE', 0.1), 'SELL']] },
-  short_straddle: { label: 'Short straddle', legs: (c) => [['CE', atmStrike(c), 'SELL'], ['PE', atmStrike(c), 'SELL']] },
+  // `gate`: the kind of sale the strategy gate (#170) checks; the user's sell_levels give its level.
+  short_strangle: { label: 'Short strangle', gate: 'strangle', legs: (c) => [['CE', pickStrike(c, 'CE', 0.1), 'SELL'], ['PE', pickStrike(c, 'PE', 0.1), 'SELL']] },
+  short_straddle: { label: 'Short straddle', gate: 'strangle', legs: (c) => [['CE', atmStrike(c), 'SELL'], ['PE', atmStrike(c), 'SELL']] },
   iron_condor: {
     label: 'Iron condor',
     legs: (c) => [['CE', pickStrike(c, 'CE', 0.1, 0, 2), 'SELL'], ['CE', pickStrike(c, 'CE', 0.1, 2), 'BUY'],
