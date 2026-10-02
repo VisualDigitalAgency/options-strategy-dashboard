@@ -21,6 +21,7 @@ const row = (rank, nickname, level = 5) => ({ rank, nickname, level, ratio: 3 - 
 const board = (period) => ({
   month: period, kind: period.includes('Q') ? 'quarter' : 'month', provisional: period === '2026-10' || period === '2026-Q4',
   months: ['2026-10', '2026-09'], quarters: ['2026-Q4', '2026-Q3'], min_level: 1, min_trades: 5,
+  near: period === '2026-10' ? [{ nickname: 'Nearly', level: 2, trades: 3, need: 5 }, { nickname: 'Rider2', level: 2, trades: 2, need: 5 }] : [],
   bands: [{ band: '1-3', levels: 'Rising', range: 'Levels 1-3', rows: period === '2026-10' ? [] : [1, 2, 3, 4].map((n) => row(n, `Rider${n}`, 2)) },
     { band: '4-6', levels: 'Levels 4-6', range: 'Levels 4-6', rows: [] }, { band: '7-10', levels: 'Levels 7-10', range: 'Levels 7-10', rows: [] }],
 })
@@ -53,6 +54,8 @@ check('no native month dropdown any more', !document.querySelector('select'))
 check('running month named and marked so far', document.querySelector('.lb-period')?.textContent === 'October 2026so far')
 check('all-empty bands fold into one line, no empty cards', !document.querySelector('.lb-band')
   && text().includes('Nobody ranked yet this period: Rising · Levels 4-6 · Levels 7-10'))
+check('players short of the count listed under Getting there', document.querySelectorAll('.lb-near li').length === 2
+  && document.querySelector('.lb-near li').textContent.includes('Nearly') && document.querySelector('.lb-near li').textContent.includes('3 of 5 trades'))
 check('Later is off on the newest period', btn('Later').disabled && !btn('Earlier').disabled)
 
 await click('Earlier')
@@ -62,6 +65,7 @@ check('top three on a podium, the rest as rows', document.querySelectorAll('.lb-
   && document.querySelectorAll('.lb-rows li').length === 1 && document.querySelector('.lb-rows li').textContent.includes('Rider4'))
 check('podium shows nickname, level and ratio', document.querySelector('.lb-place.p1')?.textContent.includes('Rider1')
   && document.querySelector('.lb-place.p1').textContent.includes('Level 2') && document.querySelector('.lb-place.p1 .lb-ratio').textContent.startsWith('2.90'))
+check('finished periods have no Getting there list', !document.querySelector('.lb-near'))
 check('empty bands listed as still open', text().includes('Still open: Levels 4-6 · Levels 7-10'))
 check('no emails or rupee amounts', !text().includes('@') && !text().includes('₹'))
 
@@ -74,7 +78,7 @@ me = { id: 1, name: 'R', email: 'a@x', role: 'user', level: 2, features: [], pre
 await render()
 await settle()
 check('no join prompt when signed in', !document.querySelector('a[href="/register"]'))
-check('not ranked yet: says how to get on', text().includes('Close 5 paper trades this month to get ranked'))
+check('not ranked yet: says how to get on, with my count', text().includes('You have 2 of 5 trades. Close 5 paper trades this month to get ranked'))
 await click('Earlier')
 await settle()
 check('your own place is marked', document.querySelector('.lb-place.me')?.textContent.includes('You'))

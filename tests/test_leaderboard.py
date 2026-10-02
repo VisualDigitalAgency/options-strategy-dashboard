@@ -107,7 +107,7 @@ check("finished months offered", MONTH in r["result"]["months"], r["result"]["mo
 check("bad month refused", "error" in call({"month": "2026-13"}))
 check("bad quarter refused", "error" in call({"month": "2026-Q5"}))
 
-# 5. Quarters: 5 legs in each of its months (15 in all), scored over the whole quarter.
+# 5. Quarters: 15 legs in all, scored over the whole quarter.
 person("Quinn", 5, [2000] * 5, day="2026-07-%02d 10:00+05:30")
 with db.tx() as c:
     quinn = c.value("SELECT id FROM users WHERE nickname='Quinn'")
@@ -126,6 +126,15 @@ check("a quarter needs 5 legs a month: only Quinn qualifies", q["4-6"] == ["Quin
 quinn_row = next(x for x in r["bands"] if x["band"] == "4-6")["rows"][0]
 check("scored over all 15 legs", quinn_row["trades"] == 15 and quinn_row["return_pct"] == 3.0, quinn_row)
 check("quarters offered", "2026-Q3" in call({})["result"]["quarters"])
+
+# 6. Getting there: opted-in players short of the count, running period only, count and nickname only.
+cur = leaderboard.this_month() + "-01 10:00+05:30"
+person("Nearly", 2, [1000] * 3, day=cur.replace("-01 ", "-%02d "))
+person("Shy", 2, [1000] * 3, opt_in=False, day=cur.replace("-01 ", "-%02d "))
+cache.delete("leaderboard:current")
+now = call({})["result"]
+check("a player short of the count is listed with their count", now["near"] == [{"nickname": "Nearly", "level": 2, "trades": 3, "need": 5}], now["near"])
+check("finished periods list nobody", call({"month": MONTH})["result"]["near"] == [])
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)

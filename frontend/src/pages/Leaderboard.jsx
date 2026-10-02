@@ -56,6 +56,23 @@ function Board({ band, me }) {
   )
 }
 
+function Near({ rows, me }) {
+  return (
+    <section className="card lb-near" aria-label="Getting there">
+      <div className="card-head"><h2>Getting there</h2><span className="muted small">Not ranked yet</span></div>
+      <ul>
+        {rows.map((r) => (
+          <li key={r.nickname} className={r.nickname === me ? 'me' : ''}>
+            <span className="lb-who"><strong>{r.nickname}</strong> <span className="chip">L{r.level}</span>{r.nickname === me && <span className="chip">You</span>}</span>
+            <span className="lb-meter" aria-hidden><span style={{ width: `${Math.min(100, (r.trades / r.need) * 100)}%` }} /></span>
+            <span className="muted small num">{r.trades} of {r.need} trades</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function Leaderboard() {
   const { user } = useAuth()
   const [kind, setKind] = useState('month')
@@ -73,6 +90,7 @@ export default function Leaderboard() {
   const filled = b?.bands.filter((x) => x.rows.length) ?? []
   const empty = b?.bands.filter((x) => !x.rows.length) ?? []
   const need = b ? b.min_trades * (b.kind === 'quarter' ? 3 : 1) : 5
+  const mine = user && b?.near?.find((r) => r.nickname === user.nickname)
   const onBoard = user && filled.some((x) => x.rows.some((r) => r.nickname === user.nickname))
 
   return (
@@ -109,7 +127,7 @@ export default function Leaderboard() {
         <p className="lb-note" role="note">
           {user.leaderboard_opt_in === false
             ? <>You've chosen not to appear here. Change it on <Link to="/progress">My progress</Link>.</>
-            : <>Close {need} paper trades this {b?.kind === 'quarter' ? 'quarter (5 a month)' : 'month'} to get ranked, with the stop-loss on and the delta low.</>}
+            : <>{mine ? `You have ${mine.trades} of ${need} trades. ` : ''}Close {need} paper trades this {b?.kind === 'quarter' ? 'quarter' : 'month'} to get ranked, with the stop-loss on and the delta low.</>}
         </p>
       )}
 
@@ -117,12 +135,13 @@ export default function Leaderboard() {
       {b && (
         <>
           {filled.map((band) => <Board key={band.band} band={band} me={user?.nickname} />)}
+          {b.near?.length > 0 && <Near rows={b.near} me={user?.nickname} />}
           {empty.length > 0 && (
             <p className="muted lb-empty">{filled.length ? 'Still open: ' : 'Nobody ranked yet this period: '}
               {empty.map((x) => x.levels).join(' · ')}. Be the first.</p>
           )}
           <p className="muted small">{b.provisional ? 'Provisional until the period ends. ' : ''}Counts players who opted in and
-            closed at least {b.min_trades} paper trades a month (each leg counts). Nicknames only.</p>
+            closed at least {need} paper trades in the {b.kind} (each leg counts). Nicknames only.</p>
         </>
       )}
     </div>

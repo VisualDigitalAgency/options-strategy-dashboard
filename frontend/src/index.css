@@ -2140,7 +2140,7 @@ img.brand-logo { object-fit: contain; }
 .lb-rows { list-style: none; margin: 12px 0 0; padding: 0; }
 .lb-rows li { display: grid; grid-template-columns: 36px 1fr auto; grid-template-areas: "rank who ratio" "rank stats ratio"; align-items: center; gap: 2px 12px; padding: 10px 4px; border-top: 1px solid var(--border); }
 .lb-rank { grid-area: rank; color: var(--text-muted); font-weight: 600; text-align: center; }
-.lb-who { grid-area: who; }
+.lb-rows .lb-who { grid-area: who; }
 .lb-rows .lb-stats { grid-area: stats; }
 .lb-ratio-sm { grid-area: ratio; font-size: 18px; }
 .lb-place.me, .lb-rows li.me { box-shadow: inset 3px 0 0 var(--primary); }
@@ -2154,3 +2154,10 @@ img.brand-logo { object-fit: contain; }
   .lb-ratio { grid-area: ratio; font-size: 24px; text-align: right; }
   .lb-place .lb-stats { grid-area: stats; margin-top: 4px; }
 }
+.lb-near ul { list-style: none; margin: 0; padding: 0; }
+.lb-near li { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; align-items: center; gap: 12px; padding: 10px 4px; border-top: 1px solid var(--border); }
+.lb-near li:first-child { border-top: 0; }
+.lb-near li.me { box-shadow: inset 3px 0 0 var(--primary); }
+.lb-meter { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.lb-meter > span { display: block; height: 100%; background: var(--primary); }
+@media (max-width: 480px) { .lb-near li { grid-template-columns: minmax(0, 1fr) auto; } .lb-near .lb-meter { grid-column: 1 / -1; order: 3; } }

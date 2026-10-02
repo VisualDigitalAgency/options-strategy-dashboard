@@ -11,7 +11,8 @@ Ranked by ratio, ties by return %, then nickname for a stable order.
 
 Eligible: active, has a nickname, opted in, at least MIN_TRADES legs a month. Bands are Levels 1-3
 ("Rising"), 4-6 and 7-10. A period is a month ("2026-10") or a calendar quarter ("2026-Q4"); a quarter
-needs MIN_TRADES per month of it and is scored over all its legs.
+needs 3 x MIN_TRADES legs and is scored over all of them. Opted-in players short of the count are
+listed as "near" (nickname, level, trades) while the period runs.
 
 Finished months are frozen into `leaderboard_entries` by the worker on the 1st; the running month is
 computed live, cached for CURRENT_TTL, and shown as provisional. Quarters are computed from the trade
@@ -35,6 +36,7 @@ BANDS = (("1-3", 1, 3), ("4-6", 4, 6), ("7-10", 7, 10))
 BAND_NAMES = {"1-3": "Rising", "4-6": "Levels 4-6", "7-10": "Levels 7-10"}
 CURRENT_TTL = 600
 PAST_TTL = 86400
+NEAR_MAX = 30
 MONTH_RE = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
 QUARTER_RE = re.compile(r"(\d{4})-Q([1-4])")
 FIELDS = ("rank", "nickname", "level", "ratio", "return_pct", "max_dd_pct", "trades", "win_rate")
@@ -81,14 +83,22 @@ def _entry(user_id: int, month: str, months: list[str] | None = None) -> dict | 
                      "WHERE t.user_id=:u AND t.closed_at >= a.created_at "
                      "AND to_char(t.closed_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') = ANY(:ms) "
                      "ORDER BY t.closed_at, t.id", u=user_id, ms=months or [month])
-    if len(rows) < MIN_TRADES * len(months or [month]) or not float(rows[-1]["capital"]):
+    if not rows or not float(rows[-1]["capital"]):
         return None
+    if len(rows) < MIN_TRADES * len(months or [month]):
+        return {"level": level, "trades": len(rows)}  # not ranked yet: shown under "Getting there"
     return {"level": level, **score([float(r["realized_pnl"]) for r in rows], float(rows[-1]["capital"]))}
 
 
 def compute(month: str, with_ids: bool = False, months: list[str] | None = None) -> dict[str, list[dict]]:
     """Every band's ranked rows for `month`, from the trade log as it stands now: FIELDS only, plus
     `user_id` when `with_ids` (finalize, for the Level 8 gate, #146; never for the public board)."""
+    return _bands(_scan(month, months), with_ids)
+
+
+def _scan(month: str, months: list[str] | None = None) -> list[dict]:
+    """Every opted-in player with a closed leg in the period: ranked ones carry a score, the rest only
+    their trade count."""
     with db.tx() as c:
         people = c.all("SELECT id, nickname FROM users WHERE status = 'active' AND leaderboard_opt_in "
                        "AND nickname IS NOT NULL ORDER BY id")
@@ -101,6 +111,18 @@ def compute(month: str, with_ids: bool = False, months: list[str] | None = None)
             continue
         if e:
             entries.append({"user_id": p["id"], "nickname": p["nickname"], **e})
+    return entries
+
+
+def _near(entries: list[dict], need: int) -> list[dict]:
+    """Players not ranked yet, most trades first: nickname, level and trade count only."""
+    rows = sorted((e for e in entries if "ratio" not in e), key=lambda e: (-e["trades"], e["nickname"].lower()))
+    # ponytail: capped at NEAR_MAX rows; page through them if the list ever gets long.
+    return [{"nickname": e["nickname"], "level": e["level"], "trades": e["trades"], "need": need} for e in rows[:NEAR_MAX]]
+
+
+def _bands(entries: list[dict], with_ids: bool = False) -> dict[str, list[dict]]:
+    entries = [e for e in entries if "ratio" in e]
     out = {}
     for band, lo, hi in BANDS:
         rows = sorted((e for e in entries if lo <= e["level"] <= hi),
@@ -127,16 +149,18 @@ def finalized_months() -> list[str]:
         return [r["month"] for r in c.all("SELECT DISTINCT month FROM leaderboard_entries ORDER BY month DESC")]
 
 
-def _quarter(quarter: str, current: str) -> tuple[dict, bool]:
+def _quarter(quarter: str, current: str) -> tuple[dict, bool, list]:
     """A calendar quarter's board, from the trade log. Banded by each player's level today, not at the time."""
     # ponytail: computed on request and cached, not frozen like months; freeze it if quarters ever gate a level.
     key = f"leaderboard:{quarter}"
-    bands = cache.get_json(key)
+    got = cache.get_json(key)
     running = quarter == quarter_of(current)
-    if bands is None:
-        bands = compute(quarter, months=quarter_months(quarter))
-        cache.set_json(key, bands, CURRENT_TTL if running else PAST_TTL)
-    return bands, running
+    if got is None:
+        months = quarter_months(quarter)
+        entries = _scan(quarter, months)
+        got = {"bands": _bands(entries), "near": _near(entries, MIN_TRADES * 3) if running else []}
+        cache.set_json(key, got, CURRENT_TTL if running else PAST_TTL)
+    return got["bands"], running, got["near"]
 
 
 def get(month: str | None = None) -> dict:
@@ -148,26 +172,27 @@ def get(month: str | None = None) -> dict:
     months = finalized_months()
     quarters = sorted({quarter_of(m) for m in [current, *months]}, reverse=True)
     if month and QUARTER_RE.fullmatch(month):
-        bands, provisional = _quarter(month, current)
-        return _out(month, provisional, [current, *months], quarters, bands)
+        bands, provisional, near = _quarter(month, current)
+        return _out(month, provisional, [current, *months], quarters, bands, near)
     if not month or month == current:
         boards = cache.get_json("leaderboard:current")
-        if boards is None or boards.get("month") != current:
-            boards = {"month": current, "bands": compute(current)}
+        if boards is None or boards.get("month") != current or "near" not in boards:
+            entries = _scan(current)
+            boards = {"month": current, "bands": _bands(entries), "near": _near(entries, MIN_TRADES)}
             cache.set_json("leaderboard:current", boards, CURRENT_TTL)
-        bands = boards["bands"]
+        bands, near = boards["bands"], boards["near"]
         month, provisional = current, True
     else:
         with db.tx() as c:
             rows = c.all("SELECT * FROM leaderboard_entries WHERE month=:m ORDER BY band, rank", m=month)
         bands = {b: [{k: float(r[k]) if k in ("ratio", "return_pct", "max_dd_pct", "win_rate") else r[k]
                       for k in FIELDS} for r in rows if r["band"] == b] for b, _, _ in BANDS}
-        provisional = False
-    return _out(month, provisional, [current, *months], quarters, bands)
+        provisional, near = False, []
+    return _out(month, provisional, [current, *months], quarters, bands, near)
 
 
-def _out(period: str, provisional: bool, months: list[str], quarters: list[str], bands: dict) -> dict:
+def _out(period: str, provisional: bool, months: list[str], quarters: list[str], bands: dict, near: list) -> dict:
     return {"month": period, "kind": "quarter" if QUARTER_RE.fullmatch(period) else "month", "provisional": provisional,
-            "months": months, "quarters": quarters, "min_trades": MIN_TRADES, "min_level": MIN_LEVEL,
+            "months": months, "quarters": quarters, "min_trades": MIN_TRADES, "min_level": MIN_LEVEL, "near": near,
             "bands": [{"band": b, "levels": BAND_NAMES[b], "range": f"Levels {lo}-{hi}", "rows": bands.get(b, [])}
                       for b, lo, hi in BANDS]}
