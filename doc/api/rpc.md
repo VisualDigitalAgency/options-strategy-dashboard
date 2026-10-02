@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-85 methods: 15 public, 4 account, 7 market data, 43 user, 16 admin.
+86 methods: 15 public, 4 account, 7 market data, 44 user, 16 admin.
 
 ## Tiers
 
@@ -68,6 +68,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
 | [`capital_status`](#capital_status) | user | The task list for the Earn capital page: each task's reward, how often it pays, how many times it has paid, and where to do it; the level rewards; and the grant history. |
 | [`coins_status`](#coins_status) | user | The Coins page: balance, the rate, how each kind is earned, and the history. |
+| [`va_place_stop`](#va_place_stop) | user | A stop-loss order to exit one open leg (#183): SL-M (trigger, then market) or SL (trigger, then a limit). |
 | [`va_charges`](#va_charges) | user | The account's square-off charges and shortfall penalties, newest first. |
 | [`coins_exchange`](#coins_exchange) | user | Turns `coins` into virtual capital at COIN_RUPEES each. |
 | [`card_create`](#card_create) | user | Makes (or reuses) a share card for a level reached or a course finished and returns its slug. |
@@ -668,6 +669,22 @@ Set by the server, never by the client: `user_id`.
 The Coins page: balance, the rate, how each kind is earned, and the history.
 
 No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `va_place_stop`
+
+A stop-loss order to exit one open leg (#183): SL-M (trigger, then market) or SL (trigger, then
+a limit). A sold leg gets a BUY stop above the price; a bought leg a SELL stop below it. One stop
+per leg, for its whole quantity; it lasts until the leg's expiry and is cancelled when the leg
+closes any other way. While it is open, the day-15 group stop leaves this leg to it.
+
+| Param | Type | Default |
+|---|---|---|
+| `position_id` | `int` | required |
+| `trigger` | `float` | required |
+| `order_type` | `str` | `"slm"` |
+| `limit` | `float \| None` | `null` |
 
 Set by the server, never by the client: `user_id`.
 

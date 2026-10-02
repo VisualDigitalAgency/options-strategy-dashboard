@@ -692,6 +692,10 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
             # Orders already waiting in the closing direction reduce the position when they fill.
             # Queue only what they don't cover, so pressing Exit twice can't overshoot into an
             # opposite position.
+            # An untriggered stop isn't an exit yet; it is replaced by this one (cancelled below).
+            c.run("UPDATE pending_orders SET status='cancelled', updated_at=now() WHERE user_id=:u AND status='open'"
+                  " AND order_type <> 'limit' AND triggered_at IS NULL AND symbol=:s AND expiry=:e AND side=:sd"
+                  " AND strike=:k AND action=:a", **contract)
             covered = c.value("SELECT COALESCE(SUM(qty),0) FROM pending_orders WHERE user_id=:u AND status='open'"
                               " AND symbol=:s AND expiry=:e AND side=:sd AND strike=:k AND action=:a", **contract)
             left = abs(r["qty"]) - int(covered)
@@ -779,7 +783,7 @@ def get_open_orders(user_id: int) -> list[dict]:
     """Open limit orders with the current bid/ask beside each, for Improve 1 tick / Cancel."""
     with db.tx(user_id) as c:
         rows = c.all("SELECT id, symbol, expiry, side, strike, action, qty, lot_size, limit_price, reason,"
-                     " blocked_margin, valid_until, created_at FROM pending_orders"
+                     " blocked_margin, valid_until, created_at, order_type, trigger_price, triggered_at FROM pending_orders"
                      " WHERE user_id=:u AND status='open' ORDER BY id", u=user_id)
     for r in rows:
         try:
@@ -833,6 +837,16 @@ def match_pending(user_id: int, only: int | None = None) -> list[int]:
             q = quote(r["symbol"], r["expiry"], r["side"], r["strike"])
         except Exception:
             continue
+        if r["order_type"] != "limit" and r["triggered_at"] is None:
+            if not _triggered(r, q):
+                continue  # a stop waits for its trigger (#183)
+            if r["order_type"] == "slm":
+                if _fill_slm(user_id, r, q):
+                    filled.append(r["id"])
+                continue
+            with db.tx(user_id) as c:  # SL: from now on an ordinary limit order
+                c.run("UPDATE pending_orders SET triggered_at=now(), updated_at=now() WHERE id=:i AND user_id=:u",
+                      i=r["id"], u=user_id)
         touch = _touch(q, r["action"])
         if touch <= 0 or (touch < r["limit_price"] if r["action"] == "SELL" else touch > r["limit_price"]):
             continue
@@ -847,6 +861,93 @@ def match_pending(user_id: int, only: int | None = None) -> list[int]:
                              px, r["lot_size"], r["reason"], r["note"], r["sl_mode"], r["limit_price"])
                 filled.append(r["id"])
     return filled
+
+
+def _triggered(r: dict, q: dict) -> bool:
+    """A stop triggers when the traded price reaches it: a BUY stop (protecting a sold leg) at or
+    above the trigger, a SELL stop (protecting a bought leg) at or below. The price is the mid of a
+    two-sided book, as for the group stop, else the last trade."""
+    px = pricing.mid(q["bid"], q["ask"]) if pricing.has_book(q["bid"], q["ask"]) else q["ltp"]
+    if not px or px <= 0:
+        return False
+    return px >= r["trigger_price"] if r["action"] == "BUY" else px <= r["trigger_price"]
+
+
+def _fill_slm(user_id: int, r: dict, q: dict) -> bool:
+    """SL-M: once triggered, fills at once at the touch (ask for a BUY, bid for a SELL). With no
+    touch on that side it waits for the next pass."""
+    px = _touch(q, r["action"])
+    if px <= 0:
+        return False
+    with _lock, db.tx(user_id) as c:
+        _lock_account(c, user_id)
+        n = c.run("UPDATE pending_orders SET status='filled', fill_price=:p, triggered_at=now(), updated_at=now() "
+                  "WHERE id=:i AND user_id=:u AND status='open'", p=px, i=r["id"], u=user_id)
+        if not n:
+            return False
+        held = c.value("SELECT qty FROM positions WHERE user_id=:u AND symbol=:s AND expiry=:e AND side=:sd "
+                       "AND strike=:k AND status='open'", u=user_id, s=r["symbol"], e=r["expiry"], sd=r["side"], k=r["strike"])
+        qty = min(r["qty"], abs(held or 0))  # never past flat: the leg may have shrunk since
+        if qty <= 0:
+            c.run("UPDATE pending_orders SET status='cancelled' WHERE id=:i AND user_id=:u", i=r["id"], u=user_id)
+            return False
+        _apply_trade(c, user_id, r["symbol"], r["expiry"], r["side"], r["strike"], r["action"], qty, px,
+                     r["lot_size"], "sl_order", f"SL-M triggered at {r['trigger_price']:g}; filled at {px:g}",
+                     r["sl_mode"], px)
+    return True
+
+
+def stop_contracts(user_id: int) -> set[tuple]:
+    """(symbol, expiry, side, strike) of legs protected by the user's own stop order: the day-15
+    group stop leaves these to it (#183)."""
+    with db.tx(user_id) as c:
+        rows = c.all("SELECT symbol, expiry, side, strike FROM pending_orders WHERE user_id=:u AND status='open' "
+                     "AND order_type <> 'limit'", u=user_id)
+    return {(r["symbol"], str(r["expiry"]), r["side"], float(r["strike"])) for r in rows}
+
+
+def place_stop(user_id: int, position_id: int, trigger: float, order_type: str = "slm",
+               limit: float | None = None) -> dict:
+    """A stop-loss order to exit one open leg (#183): SL-M (trigger, then market) or SL (trigger, then
+    a limit). A sold leg gets a BUY stop above the price; a bought leg a SELL stop below it. One stop
+    per leg, for its whole quantity; it lasts until the leg's expiry and is cancelled when the leg
+    closes any other way. While it is open, the day-15 group stop leaves this leg to it."""
+    if order_type not in ("sl", "slm"):
+        raise ValueError("Stop type must be SL or SL-M")
+    trigger = tick(trigger)
+    if trigger <= 0:
+        raise ValueError("Trigger price must be above zero")
+    with db.tx(user_id) as c:
+        r = c.one("SELECT * FROM positions WHERE id=:i AND user_id=:u AND status='open'", i=position_id, u=user_id)
+        if r is None:
+            raise ValueError("Position not found or already closed")
+        if c.value("SELECT 1 FROM pending_orders WHERE user_id=:u AND status='open' AND order_type <> 'limit' "
+                   "AND symbol=:s AND expiry=:e AND side=:sd AND strike=:k", u=user_id, s=r["symbol"], e=r["expiry"],
+                   sd=r["side"], k=r["strike"]):
+            raise ValueError("This leg already has a stop-loss order; cancel it to set a new one")
+    action = "BUY" if r["qty"] < 0 else "SELL"
+    q = quote(r["symbol"], r["expiry"], r["side"], r["strike"])
+    now_px = pricing.mid(q["bid"], q["ask"]) if pricing.has_book(q["bid"], q["ask"]) else q["ltp"]
+    if now_px and (trigger <= now_px if action == "BUY" else trigger >= now_px):
+        side = "above" if action == "BUY" else "below"
+        raise ValueError(f"The trigger must be {side} the current price ({now_px:g}) for a {'sold' if action == 'BUY' else 'bought'} leg")
+    if order_type == "sl":
+        if limit is None:
+            raise ValueError("An SL order needs a limit price")
+        limit = tick(limit)
+        if limit <= 0 or (limit < trigger if action == "BUY" else limit > trigger):
+            raise ValueError(f"The limit must be {'at or above' if action == 'BUY' else 'at or below'} the trigger")
+    else:
+        limit = trigger  # SL-M fills at market; the limit column holds the trigger for display only
+    with db.tx(user_id) as c:
+        oid = c.value(
+            "INSERT INTO pending_orders (user_id, symbol, expiry, side, strike, action, qty, lot_size, limit_price,"
+            " reason, note, sl_mode, valid_until, order_type, trigger_price) VALUES (:u,:s,:e,:sd,:k,:a,:q,:lot,:lim,"
+            " 'sl_order', :n, :m, :v, :t, :tr) RETURNING id",
+            u=user_id, s=r["symbol"], e=r["expiry"], sd=r["side"], k=r["strike"], a=action, q=abs(r["qty"]),
+            lot=r["lot_size"], lim=limit, n=f"{order_type.upper().replace('SLM', 'SL-M')} trigger {trigger:g}",
+            m=r["sl_mode"], v=str(r["expiry"]), t=order_type, tr=trigger)
+    return {"order_id": oid, "action": action, "trigger": trigger, "limit": limit if order_type == "sl" else None}
 
 
 def _session_over() -> bool:
@@ -919,6 +1020,7 @@ def run_checks(user_id: int) -> dict:
         return {"exited": exited, "alerted": alerted, "settled": settled, "timed": timed, "targeted": targeted}
 
     live = [r for r in rows if r not in expired]
+    stops = stop_contracts(user_id)  # legs with the user's own stop order: the group stop leaves them to it
     for (symbol, expiry), legs in _groups(live).items():
         # Rule 1: time exit. NSE stock options settle by physical delivery, and delivery margins
         # rise in the final days, so the whole group closes a week out instead of running to expiry.
@@ -958,6 +1060,8 @@ def run_checks(user_id: int) -> dict:
         for r in legs:
             if r["qty"] >= 0 or r["sl_mode"] == "off" or r["sl_alert_at"]:
                 continue
+            if (symbol, str(expiry), r["side"], float(r["strike"])) in stops:
+                continue
             if today < pd.Timestamp(r["sl_activates_on"]):
                 continue
             try:
@@ -993,6 +1097,8 @@ def run_checks(user_id: int) -> dict:
             continue
         for r in legs:
             if r["qty"] <= 0 or r["sl_price"] is None or r["sl_mode"] == "off" or r["sl_alert_at"]:
+                continue
+            if (symbol, str(expiry), r["side"], float(r["strike"])) in stops:
                 continue
             try:
                 q = quote(symbol, expiry, r["side"], r["strike"])

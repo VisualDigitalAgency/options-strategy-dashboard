@@ -49,10 +49,11 @@ def check(user_id: int) -> dict:
     stamp = datetime.now(IST).strftime("%Y-%m-%d %H:%M")
     why = (f"RMS square-off: margin used {acct['margin_used_pct']}% of account value"
            if acct["margin_used_pct"] is not None else "RMS square-off: account value at or below zero")
-    # Waiting orders block margin and could reopen what RMS closes: cancel them first.
+    # Waiting limit orders block margin and could reopen what RMS closes: cancel them first. Stop-loss
+    # orders only reduce risk, so they stay (#183).
     with db.tx(user_id) as c:
         cancelled = c.run("UPDATE pending_orders SET status='cancelled', updated_at=now() "
-                          "WHERE user_id=:u AND status='open'", u=user_id)
+                          "WHERE user_id=:u AND status='open' AND order_type='limit'", u=user_id)
     closed = []
     snap = virtual.get_positions(user_id)
     groups = sorted((g for g in snap["groups"] if g["margin"]), key=lambda g: -g["margin"]["total"])
