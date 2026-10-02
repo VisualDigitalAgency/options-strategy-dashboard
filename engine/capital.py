@@ -107,6 +107,32 @@ def evaluate(user_id: int) -> list[dict]:
     return new
 
 
+def news(user_id: int, since: str | None = None) -> dict:
+    """What has paid out since `since` (a clock this call returned earlier), for the payout toast
+    (#192). Pays whatever is newly due first. Without `since` it returns nothing, only the clock, so
+    a new browser doesn't replay old rewards. Coin exchanges are left out: the user made them."""
+    evaluate(user_id)
+    from . import coins
+    stamp = "to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')"
+    with db.tx(user_id) as c:
+        now = c.value("SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')")
+    if since is None:
+        return {"now": now, "items": []}
+    try:
+        datetime.fromisoformat(since.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError("Bad time") from None
+    with db.tx(user_id) as c:
+        money = c.all(f"SELECT task, ref, amount, {stamp} AS at FROM capital_grants WHERE user_id=:u AND task <> 'coins' "
+                      "AND created_at > CAST(:s AS timestamptz)", u=user_id, s=since)
+        coin = c.all(f"SELECT kind, ref, coins, {stamp} AS at FROM coin_ledger WHERE user_id=:u AND coins > 0 "
+                     "AND created_at > CAST(:s AS timestamptz)", u=user_id, s=since)
+    items = [{"kind": "capital", "label": _label(r["task"], r["ref"]), "amount": r["amount"], "at": r["at"]} for r in money]
+    items += [{"kind": "coins", "label": coins.LABELS.get(r["kind"], r["kind"]) if r["kind"] != "level" else f"Reach Level {r['ref']}",
+               "amount": r["coins"], "at": r["at"]} for r in coin]
+    return {"now": now, "items": sorted(items, key=lambda i: i["at"])}
+
+
 def _label(task: str, ref: str) -> str:
     if task == "coins":
         return "Exchanged coins"
