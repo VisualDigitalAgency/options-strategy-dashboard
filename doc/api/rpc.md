@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-84 methods: 15 public, 4 account, 7 market data, 42 user, 16 admin.
+85 methods: 15 public, 4 account, 7 market data, 43 user, 16 admin.
 
 ## Tiers
 
@@ -68,6 +68,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
 | [`capital_status`](#capital_status) | user | The task list for the Earn capital page: each task's reward, how often it pays, how many times it has paid, and where to do it; the level rewards; and the grant history. |
 | [`coins_status`](#coins_status) | user | The Coins page: balance, the rate, how each kind is earned, and the history. |
+| [`va_charges`](#va_charges) | user | The account's square-off charges and shortfall penalties, newest first. |
 | [`coins_exchange`](#coins_exchange) | user | Turns `coins` into virtual capital at COIN_RUPEES each. |
 | [`card_create`](#card_create) | user | Makes (or reuses) a share card for a level reached or a course finished and returns its slug. |
 | [`strategy_save`](#strategy_save) | user | Saves the builder's current strategy under `name`, replacing one with the same name. |
@@ -667,6 +668,16 @@ Set by the server, never by the client: `user_id`.
 The Coins page: balance, the rate, how each kind is earned, and the history.
 
 No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `va_charges`
+
+The account's square-off charges and shortfall penalties, newest first.
+
+| Param | Type | Default |
+|---|---|---|
+| `limit` | `int` | `100` |
 
 Set by the server, never by the client: `user_id`.
 

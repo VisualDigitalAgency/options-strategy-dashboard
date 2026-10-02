@@ -2067,3 +2067,8 @@ img.brand-logo { object-fit: contain; }
 .store-rules ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 .alert.info { background: var(--brass-soft); border-color: var(--primary); }
 .alert.info svg { color: var(--primary); }
+
+/* RMS (#178). */
+.margin-banner.warning { background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: var(--warn); }
+.margin-banner.warning svg { color: var(--warn); }
+.reason-rms_squareoff { color: var(--down-text); border-color: var(--down); background: color-mix(in srgb, var(--down) 10%, transparent); }

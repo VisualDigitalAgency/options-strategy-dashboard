@@ -140,6 +140,7 @@ LEVEL_TITLES = {1: "Learner", 2: "Apprentice", 3: "Seller", 4: "Disciplined", 5:
                 6: "Risk manager", 7: "Strategist", 8: "Expert", 9: "Master", 10: "Theta Master"}
 LEVEL_MIN_DAYS = {1: 60, 2: 60, 3: 60, 4: 90, 5: 90, 6: 90, 7: 90, 8: 90, 9: 90}
 XP_TRADE_OK = 20         # short leg closed with its stop-loss on and sold below DELTA_MAX_ABS
+XP_RMS_SQUAREOFF = -50   # a group squared off by RMS for a margin shortfall (#178)
 XP_NO_SL = -30           # short leg closed with the stop-loss off
 XP_HIGH_DELTA = -20      # short leg sold at |delta| >= DELTA_MAX_ABS
 XP_PROFIT_BONUS = 5      # per profitable leg, capped per calendar month
@@ -170,3 +171,13 @@ L9_TRACK_MONTHS = 18              # ...over a track record at least this long, t
 NAKED_LEVEL = 3
 STRANGLE_LEVEL = 5
 BETA_LEVEL = 6           # reaching this level moves a `user` to `beta`, once; never higher
+
+# Virtual-account risk management (#178), modelled on a broker's RMS and the exchange's penalty.
+RMS_WARN_PCT = 80          # margin used / account value: warn, and refuse orders that add margin
+RMS_SQUAREOFF_PCT = 90     # ...square off (also whenever account value is at or below zero)
+RMS_CHARGE = 50            # "Square-off charges", per order RMS places
+# End-of-day penalty on the day's peak shortfall: 0.5% when under ₹1 lakh and under 10% of the
+# margin required, else 1%; 5% once short more than 3 days running or more than 5 days in a month.
+PENALTY_LOW_PCT, PENALTY_PCT, PENALTY_REPEAT_PCT = 0.5, 1.0, 5.0
+PENALTY_SMALL_RUPEES, PENALTY_SMALL_SHARE_PCT = 100_000, 10
+PENALTY_STREAK_DAYS, PENALTY_MONTH_DAYS = 3, 5
