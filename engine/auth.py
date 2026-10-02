@@ -597,8 +597,8 @@ def ref_code(user_id: int) -> str:
 
 
 def referral(user_id: int) -> dict:
-    """The caller's invite link and how many people confirmed an account through it (#126). A
-    metric only for now: nothing is rewarded yet."""
+    """The caller's invite link and how many people confirmed an account through it (#126).
+    Invites that trade or reach Level 3 pay capital and coins (engine/capital.py, engine/coins.py)."""
     code = ref_code(user_id)
     with db.tx() as c:
         joined = c.value("SELECT count(*) FROM users WHERE referred_by=:u AND status <> 'unverified'", u=user_id)
