@@ -49,6 +49,22 @@
 │   ├── pivots.py                     # Daily/weekly/monthly floor pivot calculations
 │   ├── virtual.py                    # Paper account, orders, fills, positions, margin, exits, monitoring
 │   ├── autotrade.py                  # Per-user auto-trade settings, scoring, locking, and runs
+│   ├── pricing.py                    # Fair price, tradability, market hours and NSE trading days
+│   ├── rms.py                        # Margin shortfall check, RMS square-off, charges and penalties
+│   ├── builder.py                    # Strategy builder chain, previews, and the public reader chain
+│   ├── strategies.py                 # Saved builder strategies
+│   ├── progress.py                   # Trade log, XP ledger, levels and level gates
+│   ├── lessons.py                    # Lessons and server-marked quizzes
+│   ├── capital.py                    # Virtual capital task milestones and level grants
+│   ├── coins.py                      # Coin rewards and one-way exchange into capital
+│   ├── leaderboard.py                # Monthly paper-trading leaderboard
+│   ├── cards.py                      # Shareable achievement cards and invite links
+│   ├── nifty.py                      # Nifty 50 monthly ranges for the Level 6 gate
+│   ├── market_calendar.py            # NSE holidays and corporate events
+│   ├── permissions.py                # Roles, feature toggles, level unlocks
+│   ├── app_settings.py               # Owner switches: auto-approve, reader pages
+│   ├── brand.py                      # Owner-editable app name and logo
+│   ├── mail.py                       # Outgoing email (verification codes)
 │   ├── broker.py                     # Broker connection lifecycle, OAuth state, order preview/coordination
 │   ├── broker_crypto.py              # Encryption/decryption of broker credentials at rest
 │   ├── worker.py                     # Worker leader lock, heartbeat, screen refresh, scheduled jobs

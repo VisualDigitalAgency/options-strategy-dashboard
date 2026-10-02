@@ -126,8 +126,8 @@ The result is the row above plus `history` (daily closes), `chain` (strikes with
      "spot": 1000.0, "limit": 5.0, "price": 5.0, "fills_now": true},
     {"side": "PE", "strike": 900.0, "action": "SELL", "lots": 1, "qty": 100, "bid": 5.0, "ask": 5.1, "ltp": 5.0,
      "spot": 1000.0, "limit": 5.0, "price": 5.0, "fills_now": true}],
-  "premium": 1000.0, "margin_after": {"span": 200000.0, "exposure": 0.0, "total": 200000.0},
-  "margin_change": 200000.0, "available_margin": 1000000.0, "sufficient": true,
+  "premium": 1000.0, "margin_after": {"span": 50000.0, "exposure": 0.0, "total": 50000.0},
+  "margin_change": 50000.0, "available_margin": 200000.0, "sufficient": true,
   "illiquid": [], "waiting": [], "notes": [], "sl_mode_default": "auto"}}
 ```
 
@@ -153,20 +153,21 @@ Legs that can't fill now (market shut, or a limit away from the touch) come back
 ```json
 {"jsonrpc": "2.0", "id": 1, "result": {
   "updated_at": "2026-09-30 10:28:03", "market_open": true,
-  "account": {"starting_capital": 1000000.0, "account_value": 999990.0, "realized_pnl": 0.0, "unrealized_pnl": -10.0,
-              "used_margin": 200000.0, "blocked_margin": 0.0, "available_margin": 799990.0, "return_pct": -0.0,
-              "open_positions": 2, "open_orders": 0, "sl_mode_default": "auto", "created_at": "2026-09-30 10:28:03"},
+  "account": {"starting_capital": 200000.0, "account_value": 199990.0, "realized_pnl": 0.0, "unrealized_pnl": -10.0,
+              "used_margin": 50000.0, "blocked_margin": 0.0, "available_margin": 149990.0, "return_pct": -0.0,
+              "open_positions": 2, "open_orders": 0, "sl_mode_default": "auto", "created_at": "2026-09-30 10:28:03",
+              "charges": 0.0, "margin_used_pct": 25.0, "margin_status": "ok"},
   "groups": [{
     "symbol": "SBIN", "expiry": "2026-11-24", "dte": 55, "strategy": "Short strangle", "spot": 1000.0,
     "net_premium": 1000.0, "pnl": -10.0, "pnl_exit": -20.0, "time_exit_on": "2026-11-18", "error": null,
-    "margin": {"span": 200000.0, "exposure": 0.0, "total": 200000.0},
+    "margin": {"span": 50000.0, "exposure": 0.0, "total": 50000.0},
     "greeks": {"delta": -8.0, "gamma": -0.453, "theta": 26.2, "vega": -136.6},
     "legs": [{"id": 1, "side": "CE", "strike": 1100.0, "qty": -100, "lots": 1, "lot_size": 100, "avg_price": 5.0,
               "bid": 5.0, "ask": 5.1, "ltp": 5.0, "mark": 5.05, "mark_src": "mid", "ltp_gap_pct": 0.0, "iv": 20.0,
               "pnl": -5.0, "pnl_exit": -10.0, "delta": -14.4, "gamma": -0.292, "theta": 18.5, "vega": -88.0,
               "sl_mode": "auto", "sl_price": 5.0, "sl_status": "waiting", "sl_activates_on": "2026-10-15",
               "sl_alert_at": null, "opened_at": "2026-09-30 10:28:03"}, "…"]}],
-  "totals": {"pnl": -10.0, "pnl_exit": -20.0, "margin": 200000.0, "delta": -8.0, "gamma": -0.45, "theta": 26.2, "vega": -136.6}}}
+  "totals": {"pnl": -10.0, "pnl_exit": -20.0, "margin": 50000.0, "delta": -8.0, "gamma": -0.45, "theta": 26.2, "vega": -136.6}}}
 ```
 
 `pnl` values each leg at `mark` (`mark_src` says whether that is the mid, the bid or the last trade); `pnl_exit` is what closing at the touch would realise.

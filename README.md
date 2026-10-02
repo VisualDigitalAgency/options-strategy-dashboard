@@ -11,7 +11,7 @@
 
 **Progress:** ![Core Features](https://img.shields.io/badge/Core_Features-Complete-green) ![Virtual Trading](https://img.shields.io/badge/Virtual_Trading-Complete-green) ![Real Broker Integration](https://img.shields.io/badge/Real_Broker_Integration-Alpha-yellow) ![Admin Dashboard](https://img.shields.io/badge/Admin_Dashboard-Complete-green)
 
-Screens every Nifty 50 stock for 30+ DTE option-selling setups and trades them on a virtual (paper) account with live NSE prices. Real broker execution (Zerodha) exists but is soft-launched to admi[...]
+Screens every Nifty 50 stock for 30+ DTE option-selling setups and trades them on a virtual (paper) account with live NSE prices. Real broker execution (Zerodha) exists but is soft-launched to admin accounts only, manual-confirm-only — for everyone else the "Place live order" button stays disabled and nothing touches real money.
 
 Live: https://theta.connectbiomedical.com (sign-in required; new users confirm their email and can start at once, unless the owner turns automatic approval off).
 
@@ -64,7 +64,7 @@ Live: https://theta.connectbiomedical.com (sign-in required; new users confirm t
 - [Learn](#learn-lessons-and-quizzes)
 - [Levels and XP](#levels-and-xp)
 - [Roles & features](#roles--features)
-- [Rules](#rules-edit-in-engineconfigpy) · [Trade metrics](#trade-metrics) · [Strategy lab](#strategy-lab-stock-detail-page) · [Portfolio & virtual account](#portfolio--virtual-account) · [Pri[...]
+- [Rules](#rules-edit-in-engineconfigpy) · [Trade metrics](#trade-metrics) · [Strategy lab](#strategy-lab-stock-detail-page) · [Portfolio & virtual account](#portfolio--virtual-account) · [Price & pivot levels](#price--pivot-levels)
 - [Layout](#layout)
 - [Deploy](#deploy)
 - [Known limits](#known-limits)
@@ -88,7 +88,7 @@ python -m alembic upgrade head
 python scripts/set_admin.py you@example.com    # asks for the admin password (hidden)
 ```
 
-Migrations run as the owner role; the app connects as `theta_app`, which has no DDL rights and, through row-level security, sees only the signed-in user's rows. `engine/settings.py` defaults to th[...]
+Migrations run as the owner role; the app connects as `theta_app`, which has no DDL rights and, through row-level security, sees only the signed-in user's rows. `engine/settings.py` defaults to the containers above when no `DB_HOST`/`REDIS_HOST` is set.
 
 Run three processes, each in its own terminal:
 
@@ -98,7 +98,7 @@ python -m engine.worker     # screen refresher, stop-loss / exit monitor, auto-t
 npm --prefix frontend install && npm --prefix frontend run dev    # http://localhost:5173
 ```
 
-The API only answers requests. The worker is the only process that runs scheduled work; a second worker waits on standby and takes over within a minute if the first dies. `GET /healthz` reports wh[...]
+The API only answers requests. The worker is the only process that runs scheduled work; a second worker waits on standby and takes over within a minute if the first dies. `GET /healthz` reports whether Postgres, Redis and a worker are up.
 
 The first screen takes about a minute (50 option chains plus the NSE SPAN file). After that it refreshes in the background every 10 minutes in market hours and hourly outside them.
 
@@ -110,7 +110,7 @@ npm --prefix frontend test     # UI tests in happy-dom: frontend/tests/*.test.js
 make test                      # backend integration tests in throwaway Postgres + Redis containers
 ```
 
-Backend tests (`tests/test_*.py`) run against a real database and Redis with NSE market data stubbed (`tests/support.py`). `tests/run.py` gives each file a fresh, migrated database. Without Docker[...]
+Backend tests (`tests/test_*.py`) run against a real database and Redis with NSE market data stubbed (`tests/support.py`). `tests/run.py` gives each file a fresh, migrated database. Without Docker, point it at any Postgres + Redis:
 
 ```bash
 DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://localhost:6379/0 python tests/run.py [test_pivots.py]
@@ -126,23 +126,30 @@ DB_HOST=localhost OWNER_DB_PASSWORD=... DB_APP_PASSWORD=... REDIS_URL=redis://lo
 | **Stock detail** (`/stock/SYMBOL`) | Payoff chart, S/R zones, open interest by strike, strategy lab, order ticket |
 | **Market calendar** (`/calendar`) | NSE trading holidays and Nifty 50 corporate events (results, ex-dividend, splits, bonuses, AGMs, buybacks), grouped by the expiry cycle each falls before, with a summary of what lands before the next expiry and a "Held" tag on stocks you have open positions in. Filter by results & dividends / corporate actions, or search a symbol. Screener rows show the next event and its date on the symbol line when it falls inside that row's expiry cycle: results on 9 Oct badge the Oct row only, not Nov or Dec (the stock page still lists every event up to its expiry). AGMs and plain board meetings are left to the calendar and stock page. Hover or tap the badge for the full list. Results and ex-dividend dates are highlighted as risky. Refreshed once a day by the worker |
 | **Portfolio** (`/portfolio`) | Open positions by stock and expiry: live P&L, margin, Greeks, stop-loss mode per leg, payoff, price & pivot chart, exit leg / exit all, open limit orders |
-| **Virtual account** (`/virtual`) | Order history, closed trades, auto-trade settings and runs, account reset |
+| **Virtual account** (`/virtual`) | Order history, closed trades, square-off charges, auto-trade settings and runs, account reset |
+| **Strategy builder** (`/builder`) | Build any multi-leg strategy from the live chain and send it to the virtual account (below) |
+| **Learn** (`/learn`) and **My progress** (`/progress`) | Lessons and quizzes; level, XP and what the next level needs |
+| **Earn capital** (`/capital`) | Task milestones that add virtual capital, and which are done |
+| **Coins** (`/coins`) | Coin balance and history; exchange coins into virtual capital |
+| **Coin store** (`/store`, Level 4, feature *coin store*) | Coin packs for real money: ₹49 → 1,000 coins, ₹99 → 2,500, ₹199 → 7,500, one pack a month. Front end only, payments not live yet (#175); shown locked in the menu below Level 4 |
 | **Broker** (`/broker`) | Connect a real broker (Zerodha; others are previews). Only roles with *live trading* — everyone else sees the same page as a preview |
 | **Real account** (`/broker/account`) | Real (or, until connected, approximate virtual-derived) available margin, cash, collateral, span, exposure and open positions |
 | **Admin** (`/admin`, roles with *manage users*) | Approve, reject or disable users, issue temporary passwords, change roles, sign-in activity log with client IPs. The owner also gets **Roles & features** |
 
-Accounts: every page needs a sign-in, except the lessons at `/learn`. New users sign up on `/register` and confirm their email with a 6-digit code. With **Approve new accounts automatically** on (the default, Admin → Roles & features, owner only), that's enough: they're signed in at once with ₹2,00,000 of virtual capital, as the *User* role, and the first screen asks for a public nickname and whether to appear on the leaderboard. With it off, confirmed accounts wait as pending until approved on the Admin page. Duplicate-account flags (same browser or network) still show there either way.
+Accounts: every page needs a sign-in, except what the owner opens to signed-out **readers** (#163; Admin → Features & settings → *Sign-ups and readers*, all on by default): the strategy builder, lessons, the levels page and the leaderboard. A reader who places an order is asked to join, and the strategy they built is kept for after sign-up. Menu items a signed-in user's level hasn't unlocked show a lock badge ("Unlocks at Level 4"). New users sign up on `/register` and confirm their email with a 6-digit code. With **Approve new accounts automatically** on (the default, Admin → Roles & features, owner only), that's enough: they're signed in at once with ₹2,00,000 of virtual capital, as the *User* role, and the first screen asks for a public nickname and whether to appear on the leaderboard. With it off, confirmed accounts wait as pending until approved on the Admin page. Duplicate-account flags (same browser or network) still show there either way.
 
 ## Learn (lessons and quizzes)
 
-Short lessons for option sellers, from what an option is to managing a short strangle, at `/learn`. Reading is public (no account needed, so lessons can be shared); the quiz at the end of each lesson needs a free account.
+Short lessons for option sellers, ordered by the margin each strategy needs: Level 1 covers the basics, stop-losses and a first trade as a credit spread; Level 2 the payoff chart and the iron condor; Level 3 events and selling one option naked; Level 5 the short strangle, buying and hedging; Level 6 adjustments. They live at `/learn`. Reading is public (no account needed, so lessons can be shared); the quiz at the end of each lesson needs a free account.
 
 - Content is plain files in `content/lessons/`: `NN-slug.md` for the text (headings, lists, **bold** and *italic*, `> ` comparison boxes, and `::visual name` for a diagram from `frontend/src/components/LessonVisuals.jsx`) and `NN-slug.json` for the title, level, summary and quiz. Changes go through pull requests like code.
 - Quizzes are marked on the server, and answers never reach the browser. 80% passes. After a failed attempt the quiz locks for 24 hours, and the right answers are shown only on a pass.
-- A pass is recorded once per lesson (`lesson_progress`). The learning path's XP ledger (#122) will award lesson XP from it.
+- Quizzes unlock in order: a lesson's quiz opens only once every earlier lesson's quiz is passed.
+- A pass is recorded once per lesson (`lesson_progress`) and earns lesson XP once.
 - Every lesson carries an "educational, not investment advice" note.
 
-- **Buying and hedging lessons (Level 5):** buying options (the buyer's side, why most bought options expire worthless, the app's buy rules), hedging with spreads (bull put, bear call, iron condor; max loss, the gap, margin) and hedging around results. They come before Level 6, where buying on its own unlocks; the Level 6 Adjustments course then covers hedging a trade already held.
+- **Buying and hedging lessons (Level 5):** buying options, hedging with spreads and hedging around results. They come before Level 6, where buying on its own unlocks; the Level 6 Adjustments course then covers hedging a trade already held.
+- Some lessons end with a practice note: what to try on the virtual account before moving on.
 
 ## Levels and XP
 
@@ -158,9 +165,12 @@ Users climb Level 1 (Learner) to Level 10 (Theta Master) by paper-trading with d
   | Short leg sold at 0.15 delta or more | −20 |
   | Profitable short leg | +5, at most +100 a month |
   | Lesson quiz passed (first time) | +10 |
+  | Group squared off by RMS for a margin shortfall | −50 |
 
   Legs opened and closed within 5 minutes score nothing. Delta is saved when a sell fills at once; a limit order that fills later has no saved delta and earns no delta-based XP either way.
-- **Unlocks (#123):** a user's features are their role's toggles, plus what their level unlocks (`LEVEL_FEATURES` in `engine/config.py`: leaderboard at 4, saved strategies and alerts at 5, hedges (buy legs on their own in the strategy builder) at 6, each starting to work once that feature ships), then the owner's per-user overrides (Admin → Roles & features → Per-user overrides: Default / Grant / Deny). Levels never grant real trading or admin powers.
+- **Unlocks (#123):** a user's features are their role's toggles, plus what their level unlocks (`LEVEL_FEATURES` in `engine/config.py`: market calendar at 3, leaderboard at 4, saved strategies and alerts at 5, hedges (buy legs on their own in the strategy builder) at 6). `LEVEL_MIN` sets a floor for features the owner grants by role: the coin store needs Level 4 even when its role has it, then the owner's per-user overrides (Admin → Roles & features → Per-user overrides: Default / Grant / Deny). Levels never grant real trading or admin powers.
+- **Strategy gate (#170):** what a user may sell follows the margin-ascending course. Below Level 3 (`NAKED_LEVEL`) every sold leg needs a protecting buy (credit spreads, iron condors); from Level 3 one side may be sold naked; from Level 5 (`STRANGLE_LEVEL`) both (strangles, straddles). A sold leg is protected by as many bought lots of the same type further out of the money. Closing or reducing is always allowed; the owner, Pro accounts and auto-trade are not gated.
+- **Capital and coins per level:** each level reached adds virtual capital (`LEVEL_CAPITAL`: ₹25,000 for Levels 2–4, ₹50,000 for 5–7, ₹1,00,000 for 8–10) and coins (`COIN_LEVEL`); see [Portfolio & virtual account](#portfolio--virtual-account).
 - **Level 6 → Beta:** a *User* who reaches Level 6 becomes *Beta* automatically. This happens once and is logged. If the owner moves them back to User, that sticks. Nothing is ever promoted automatically beyond Beta.
 - **Levelling up** from level n needs all of: total XP ≥ 100 × n², the minimum days at the level, and the level's gate, measured on legs closed since reaching the level or the last reset, whichever is later. One level at a time, checked nightly and whenever the user opens their progress. Gates for Levels 6–9 (#146; thresholds in `engine/config.py`):
   - **6 → 7:** a volatile month (Nifty's high–low swing ≥ 3% of its open, from a daily yfinance copy) in which every short leg closed had its stop on and none stayed open more than a day after its stop alert; and the three Level 6 *Adjustments* lessons (rolling, protective buys, closing early).
@@ -170,7 +180,7 @@ Users climb Level 1 (Learner) to Level 10 (Theta Master) by paper-trading with d
   The longer windows look at everything since the last virtual-account reset, not only since reaching the level.
 - **My progress page (`/progress`, #126):** level, an XP bar towards the next level, that level's checks with live values (straight from the gate, so the page always matches), days left at the level, and the XP history. A level reached since the browser last saw one puts a dot on the Progress tab and shows a one-time level-up screen.
 - **Share cards (#126):** from My progress (or the level-up screen) a user can share their current level or a finished course (every lesson of one level). The card is a frozen snapshot at a random link, `/c/<slug>`, served by the API rather than the single-page app so WhatsApp and X can read its preview tags, with a 1200×630 PNG at `/c/<slug>.png` (Pillow). It shows the nickname, the achievement, "Paper trading · educational", the site's address, and the paper-trading % return only if the user ticks it. It never shows an email or a rupee amount. The page links to sign-up. Links use `PUBLIC_URL`.
-- **Invite links (#126):** My progress shows each user's invite link (`/register?ref=<code>`, code made on first use) and how many people confirmed an account through it. A share card's sign-up button carries the sharer's code. The code is kept for the browser session, so it survives a detour to sign-in, and an unknown code is ignored, never blocking a sign-up. Admin → Users shows "Invited by" and "Invited N". It's a metric only for now: nothing is rewarded.
+- **Invite links (#126):** My progress shows each user's invite link (`/register?ref=<code>`, code made on first use) and how many people confirmed an account through it. A share card's sign-up button carries the sharer's code. The code is kept for the browser session, so it survives a detour to sign-in, and an unknown code is ignored, never blocking a sign-up. Admin → Users shows "Invited by" and "Invited N". Invites pay: when an invited person verifies their email and closes a trade, and again when they reach Level 3, the inviter earns capital and coins (`invite_trades` / `invite_level3` in `CAPITAL_TASKS` and `COIN_TASKS`).
 
 ## Roles & features
 
@@ -195,7 +205,12 @@ A change applies on that person's next click; their menu updates when they reloa
 | live trading | Connecting Zerodha and placing real orders (manual confirm only) | nobody but the owner |
 | screener (**Pro**, #136) | The screener, stock analysis pages and Strategy lab | Sub-admin, Beta; Users via a per-user grant |
 | autotrade | Auto-trade on the virtual account (the scheduler skips roles without it). Needs *screener*, since it trades the screen's picks | everyone with the screener |
-| market calendar | The Market Calendar page | everyone |
+| market calendar | The Market Calendar page | Level 3 unlock |
+| saved strategies | Saving strategies in the builder | Level 5 unlock |
+| hedges | Buying option legs on their own in the builder | Level 6 unlock |
+| coin store | The Coin store page (payments not live yet); also needs Level 4 | nobody (owner switches it on) |
+
+The owner also sets app-wide switches on the same tab: automatic approval of new accounts, and which pages signed-out readers may open.
 
 Rules no toggle can change: a manager only acts on accounts ranked below their own (a Sub-admin
 never touches the Owner or another Sub-admin); only the Owner grants or removes Sub-admin; and
@@ -225,7 +240,7 @@ Sub-admins, who lose real trading until the owner turns *live trading* on for Su
 | Stop loss | None for the first 15 days, then buy back at the original premium collected. It fires when the bid/ask **mid** reaches the stop (the ask alone sits above a fill at the bid); the exit is a limit at the ask |
 | Time exit | Every leg closes once fewer than 7 days remain (stock options settle by physical delivery) |
 | Profit exit | The whole group closes once 90% of the premium collected has decayed |
-| Sentiment | +1/-1 for price vs 20 & 50 DMA trend, +1/-1 for today's PE vs CE OI change. Score ≥1 Bullish, ≤-1 Bearish, else Neutral. Display only; it doesn't filter trades, but flags single-[...]
+| Sentiment | +1/-1 for price vs 20 & 50 DMA trend, +1/-1 for today's PE vs CE OI change. Score ≥1 Bullish, ≤-1 Bearish, else Neutral. Display only; it doesn't filter trades, but flags single-leg sells that go against it |
 
 ## Trade metrics
 
@@ -255,14 +270,14 @@ Sub-admins, who lose real trading until the owner turns *live trading* on for Su
 
 ## Strategy builder (`/builder`)
 
-Every account can build its own strategy (#137); free accounts land here, since the screener is Pro (#136).
+Every account can build its own strategy (#137); free accounts land here, since the screener is Pro (#136). Signed-out readers can use it too; placing an order asks them to join.
 
 - Pick any Nifty 50 stock and expiry; legs come from the live option chain (bid/ask, delta, IV and OI per strike, near strikes or all, S to sell, B to buy) or a template: short strangle, short straddle, iron condor, bull put spread, bear call spread. With **Rule-safe strikes** on, a template sells the strike nearest the money whose |delta| is under 0.15 and which sits clear of the S/R zones.
 - While you edit: credit or debit, max profit and loss (net short calls show as unlimited), breakevens, the margin the order needs (from `va_preview_order`), return on margin (max profit ÷ margin), probability of profit at expiry (lognormal at ATM IV), net delta, gamma, theta and vega, and the 1σ expected move.
 - **Payoff chart:** the expiry payoff, plus a dashed curve for any day before expiry (date slider) with IV moved ±15 points (IV slider), both Black-Scholes, calibrated so today's value matches the premium. Strikes with no usable IV use the ATM IV. The chart also shades the 1σ range and the swing S/R zones and marks last month's floor pivots (`builder_levels`).
 - **Adjust an open position:** *Adjust* on a Portfolio position opens the builder with that stock and expiry's open legs held fixed (P&L from entry, the curve from today's mark). *Close* or *Roll out* on a held leg, or any chain or template legs, form the adjustment; the payoff, Greeks, probability of profit and rule check show the position after it, the held position stays on the chart as the baseline, and the change in max profit, max loss, delta, margin and probability of profit is listed. Only the adjustment is ordered.
 - **Pin to compare:** pin the current strategy, then adjust it (roll a strike, add a hedge). The pinned payoff stays on the chart, and the change in credit, max loss, margin and probability of profit is shown.
-- The screening rules are a **rule check that never blocks**: under 30 days to expiry, results or a dividend before expiry, and for each sold strike its |delta| against 0.15, whether it is inside the 1σ expected move, and whether it sits in a swing S/R zone.
+- The **strategy gate** (see [Levels and XP](#levels-and-xp)) refuses sells the user's level doesn't allow yet. Everything else is a **rule check that never blocks**: under 30 days to expiry, results or a dividend before expiry, and for each sold strike its |delta| against 0.15, whether it is inside the 1σ expected move, and whether it sits in a swing S/R zone.
 - **Bought legs.** Buying a leg on its own unlocks at Level 6 (`hedges`). Before that a buy must protect a sell in the same order or position: same type (CE/PE), further out of the money than a sold strike, and no more lots than sold on that side. The server enforces this in `va_place_order`; buying back a short is always allowed.
 - A long blocks the premium paid as margin. With no short left in its group, a long has its own stop at `LONG_SL_PCT` (50%) below what was paid, live at once, judged on the mid and sold at the bid (auto or alert, like the short stop). Hedge longs close with their group.
 - Orders go to the virtual account.
@@ -274,19 +289,19 @@ Paper trading with live NSE prices, stored per user in Postgres. Starts at ₹2 
 
 | Feature | Behaviour |
 |---|---|
-| Orders | Limit orders only, as on a live account. A limit the market already meets fills at once at the bid (sells) or ask (buys). Any other limit waits as an open order and expires at the sess[...]
-| Repeat orders | If an earlier order on the same stock and expiry hasn't filled yet, the ticket warns and asks before placing another. The server enforces this too, so a double click or a second[...]
-| Margin | SPAN (long and short legs netted) + exposure on short legs, per stock/expiry. Checked again under a lock at booking, so two orders can't both spend the same free funds. Open orders hol[...]
+| Orders | Limit orders only, as on a live account. A limit the market already meets fills at once at the bid (sells) or ask (buys). Any other limit waits as an open order and expires at the session close. Orders placed outside market hours wait for the next session |
+| Repeat orders | If an earlier order on the same stock and expiry hasn't filled yet, the ticket warns and asks before placing another. The server enforces this too, so a double click or a second tab can't double a trade |
+| Margin | SPAN (long and short legs netted) + exposure on short legs, per stock/expiry. Checked again under a lock at booking, so two orders can't both spend the same free funds. Open orders hold their margin until they fill or end |
 | Positions | Netted per contract; opposite trades reduce or close the position and book realised P&L |
-| Stop loss | Per short leg, three modes: **Auto exit** (the whole group closes once a leg's ask reaches the premium collected, from day 15), **Alert only** (flags the leg for you to act), **Off*[...]
+| Stop loss | Per short leg, three modes: **Auto exit** (the whole group closes once a leg's ask reaches the premium collected, from day 15), **Alert only** (flags the leg for you to act), **Off**. The account default applies to new legs; change any leg on the Portfolio page |
 | Exits | Exit a leg or the whole group. With the market closed, the exit waits as an open order; pressing Exit again doesn't queue a second one |
-| Monitor | The worker checks stop losses, time exits and profit targets every minute in market hours (09:15–15:30 IST), fills open orders once the market reaches them, and settles expired cont[...]
-| Auto-trade | Optional, per user: once a day at a set time it sells the top-ranked actionable setups (one per stock: its best-scoring expiry cycle 30+ days out) within a per-trade cap and a free-funds reserve. It skips any stock and expiry that already h[...]
+| Monitor | The worker checks stop losses, time exits and profit targets every minute in market hours (09:15–15:30 IST on NSE trading days; holidays are skipped), runs the RMS margin check, fills open orders once the market reaches them, and settles expired contracts at intrinsic value |
+| Auto-trade | Optional, per user: once a day at a set time it sells the top-ranked actionable setups (one per stock: its best-scoring expiry cycle 30+ days out) within a per-trade cap and a free-funds reserve. It skips any stock and expiry that already has an order waiting |
 | Wallet | The top bar shows free funds, refreshed every 30 s and after every order; set the max margin % per trade there |
 
 ## Price & pivot levels
 
-On the Portfolio page, **Price & pivot levels** on a position opens a 6-month daily price chart with classic floor pivots and the position's short strikes. Daily, weekly or monthly pivots come fr[...]
+On the Portfolio page, **Price & pivot levels** on a position opens a 6-month daily price chart with classic floor pivots and the position's short strikes. Daily, weekly or monthly pivots come from the last *completed* session, week or month (monthly by default, to match 30+ day trades). Below the chart: all nine levels, their distance from spot, and where spot and each short strike sit among them.
 
 | Level | Formula (H, L, C of the period) |
 |---|---|
@@ -299,7 +314,7 @@ On the Portfolio page, **Price & pivot levels** on a position opens a 6-month da
 ## Layout
 
 - `server.py` — JSON-RPC 2.0 endpoint `POST /rpc`, auth, CSRF (Origin) check, error handling; `rpc_guard.py` validates every call's params against the handler's signature
-- `engine/` — `data_fetch.py` (NSE option chain v3, lot sizes, yfinance), `span.py` (SPAN risk files), `filters.py` / `risk_rules.py` / `greeks_sr.py` (rules, Black-Scholes, S/R), `batch.py` (b[...]
+- `engine/` — `data_fetch.py` (NSE option chain v3, lot sizes, yfinance), `span.py` (SPAN risk files), `filters.py` / `risk_rules.py` / `greeks_sr.py` (rules, Black-Scholes, S/R), `batch.py` (batched screening), `virtual.py` (orders, fills, margin, monitor), `pivots.py`, `autotrade.py`, `auth.py`, `users.py`, `worker.py`, `db.py`, `cache.py`, `settings.py`, `progress.py` (levels and XP), `capital.py` (capital task milestones), `coins.py` (coins and exchange), `rms.py` (margin shortfall square-off and charges), `pricing.py` (market hours and NSE holidays), `app_settings.py` (owner switches, reader pages), `permissions.py` (roles, features, level unlocks), `broker.py` / `brokers/` / `broker_crypto.py` (real broker: Zerodha, phase 1, roles with *live trading*)
 - `migrations/` — Alembic; every user-owned table has row-level security
 - `frontend/` — React (Vite): pages in `src/pages/`, charts in `src/components/` (Recharts). Responsive from 320 px: wide tables become stacked cards below 1024 px
 - `tests/`, `frontend/tests/` — backend integration and UI tests
@@ -308,9 +323,9 @@ On the Portfolio page, **Price & pivot levels** on a position opens a 6-month da
 
 ## Deploy
 
-**Production (Coolify).** `main` deploys automatically: GitHub Actions runs lint, tests and image builds, then asks Coolify to deploy and smoke-tests the live site. Deploys are held during market[...]
+**Production (Coolify).** `main` deploys automatically: GitHub Actions runs lint, tests and image builds, then asks Coolify to deploy and smoke-tests the live site. Deploys are held during market hours (weekdays 09:00–15:35 IST) and go out at 15:45 IST. Setup, the one-time API token, verification and rollback are in [deploy/COOLIFY.md](deploy/COOLIFY.md).
 
-**Self-hosted (Docker Compose).** Six services: `web` (Caddy: HTTPS, security headers, the React build, proxies `/rpc`), `api` (gunicorn), `worker`, `migrate` (runs once per start), `postgres`, `[...]
+**Self-hosted (Docker Compose).** Six services: `web` (Caddy: HTTPS, security headers, the React build, proxies `/rpc`), `api` (gunicorn), `worker`, `migrate` (runs once per start), `postgres`, `redis`. Only `web` publishes ports; Postgres and Redis sit on an internal network with no internet access.
 
 ```bash
 python3 scripts/make_secrets.py      # random passwords into ./secrets (git-ignored)
@@ -319,7 +334,7 @@ docker compose up -d --build
 docker compose exec api python scripts/set_admin.py you@example.com
 ```
 
-Point the domain's DNS A record at the server first: Caddy fetches the certificate on start. To try it on a laptop, use `DOMAIN=localhost`, `HTTPS_PORT=8443`, `PUBLIC_URL=https://localhost:8443` [...]
+Point the domain's DNS A record at the server first: Caddy fetches the certificate on start. To try it on a laptop, use `DOMAIN=localhost`, `HTTPS_PORT=8443`, `PUBLIC_URL=https://localhost:8443` (the browser warns about Caddy's local certificate).
 
 ## Branding (name, logo, favicon)
 
@@ -327,12 +342,12 @@ The app's name and logo are not in the code (issue #133). The owner sets them un
 
 ## Known limits
 
-- NSE's option-chain API is unofficial. It can change or block requests without notice (it already moved from `option-chain-equities` to `option-chain-v3`). The server throttles its own NSE calls[...]
+- NSE's option-chain API is unofficial. It can change or block requests without notice (it already moved from `option-chain-equities` to `option-chain-v3`). The server throttles its own NSE calls to avoid being blocked.
 - Delta is computed locally with a fixed 6.5% risk-free rate and no dividend adjustment.
 - Exposure margin is charged on each leg of a strangle. Some brokers charge it differently, so compare with your broker's margin calculator.
 - Probabilities assume a lognormal price at expiry using today's IV. They are model estimates, not guarantees, and they ignore gap risk.
-- Market hours are fixed at 09:15–15:30 IST on weekdays. Scheduled screens skip NSE holidays once the worker has fetched the holiday list, but the market clock and SL monitor don't yet. Event badges are informational: auto-trade does not skip stocks with results before expiry.
-- Real broker execution (Zerodha) is limited to roles with *live trading* (only the owner until they switch it on for a role), manual-confirm-only for entries (from day 15 a filled real leg gets a Kite alert-triggered buy-back at the premium collected; see the Real account page), and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account[...]
+- Market hours are fixed at 09:15–15:30 IST on weekdays that are not NSE trading holidays (#181). The holiday list is fetched by the worker; until it has been fetched, a holiday counts as a trading day. Special sessions (Muhurat trading) are not modelled. Event badges are informational: auto-trade does not skip stocks with results before expiry.
+- Real broker execution (Zerodha) is limited to roles with *live trading* (only the owner until they switch it on for a role), manual-confirm-only for entries (from day 15 a filled real leg gets a Kite alert-triggered buy-back at the premium collected; see the Real account page), and has no encryption-key-rotation tooling yet. Everyone else, and every automated flow, stays on the virtual account.
 - This is primarily a paper-trading and research tool, not investment advice.
 
 ## Contributing, security, licence
