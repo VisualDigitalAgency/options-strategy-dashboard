@@ -3,7 +3,7 @@ import {
   Area, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { int, num, rupee, shortDate } from '../format'
+import { int, num, rupee, shortDate, signedRupee } from '../format'
 import { calibratedValue, intrinsic, sdRange } from '../bs'
 
 const C = {
@@ -62,7 +62,7 @@ export function PayoffChart({ d, lots }) {
           <XAxis dataKey="px" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => Math.round(v)} {...axisProps} />
           <YAxis tickFormatter={(v) => `${v < 0 ? '-' : ''}₹${int(Math.abs(Math.round(v / 1000)))}k`} width={60} {...axisProps} />
           <Tooltip
-            content={<Tip rows={(px, p) => [['Price at expiry', num(px)], ['P&L', rupee(p.pnl)]]} />}
+            content={<Tip rows={(px, p) => [['Price at expiry', num(px)], ['P&L', signedRupee(p.pnl)]]} />}
             cursor={{ stroke: C.axis, strokeDasharray: '3 3' }}
           />
           {d.sr_zones?.map((z, i) => (
@@ -155,7 +155,7 @@ export function LabPayoff({ legs, spot, target, dte, qty, daysLeft, day, breakev
           <XAxis dataKey="px" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => Math.round(v)} {...axisProps} />
           <YAxis tickFormatter={(v) => `${v < 0 ? '-' : ''}₹${int(Math.abs(Math.round(v / 1000)))}k`} width={60} {...axisProps} />
           <Tooltip
-            content={<Tip rows={(px, p) => [['Price', num(px)], ['P&L at expiry', rupee(p.pnl)], [day === 0 ? 'P&L today' : `P&L on day ${day}`, rupee(p.onDay)]]} />}
+            content={<Tip rows={(px, p) => [['Price', num(px)], ['P&L at expiry', signedRupee(p.pnl)], [day === 0 ? 'P&L today' : `P&L on day ${day}`, signedRupee(p.onDay)]]} />}
             cursor={{ stroke: C.axis, strokeDasharray: '3 3' }}
           />
           {sdLines}
@@ -203,7 +203,7 @@ export function GroupPayoff({ legs, spot, height = 240 }) {
           <CartesianGrid stroke={C.grid} vertical={false} />
           <XAxis dataKey="px" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => Math.round(v)} {...axisProps} />
           <YAxis tickFormatter={(v) => `${v < 0 ? '-' : ''}₹${int(Math.abs(Math.round(v / 1000)))}k`} width={60} {...axisProps} />
-          <Tooltip content={<Tip rows={(px, p) => [['Price at expiry', num(px)], ['P&L', rupee(p.pnl)]]} />} cursor={{ stroke: C.axis, strokeDasharray: '3 3' }} />
+          <Tooltip content={<Tip rows={(px, p) => [['Price at expiry', num(px)], ['P&L', signedRupee(p.pnl)]]} />} cursor={{ stroke: C.axis, strokeDasharray: '3 3' }} />
           <ReferenceLine y={0} stroke={C.axis} />
           <Area dataKey="profit" type="linear" stroke={C.up} fill={C.up} fillOpacity={0.18} strokeWidth={2} isAnimationActive={false} />
           <Area dataKey="loss" type="linear" stroke={C.down} fill={C.down} fillOpacity={0.18} strokeWidth={2} isAnimationActive={false} />
@@ -378,7 +378,7 @@ export function BuilderPayoff({ points, spot, sd, levels, nowLabel, height = 280
           <XAxis dataKey="px" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => Math.round(v)} {...axisProps} />
           <YAxis tickFormatter={(v) => `${v < 0 ? '-' : ''}₹${int(Math.abs(Math.round(v / 1000)))}k`} width={60} {...axisProps} />
           <Tooltip content={<Tip rows={(px, p) => [
-            ['Price', num(px)], ['At expiry', rupee(p.pnl)], [nowLabel, rupee(p.now)],
+            ['Price', num(px)], ['At expiry', signedRupee(p.pnl)], [nowLabel, signedRupee(p.now)],
             ...(p.base != null ? [['Baseline', rupee(p.base)]] : []),
           ]} />} cursor={{ stroke: C.axis, strokeDasharray: '3 3' }} />
           <ReferenceLine y={0} stroke={C.axis} />

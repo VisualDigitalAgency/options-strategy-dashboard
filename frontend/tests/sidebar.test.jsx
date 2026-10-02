@@ -31,10 +31,10 @@ globalThis.fetch = async (_url, opts) => {
 
 document.body.replaceChildren(Object.assign(document.createElement('div'), { id: 'r' }))
 let root = null
-const render = () => act(async () => {
+const render = (path = '/learn') => act(async () => {
   root?.unmount()
   root = createRoot(document.getElementById('r'))
-  root.render(h(MemoryRouter, { initialEntries: ['/learn'] }, h(App)))
+  root.render(h(MemoryRouter, { initialEntries: [path] }, h(App)))
 })
 const nav = () => document.querySelector('#sidebar')
 const menu = () => document.querySelector('.menu-btn')
@@ -62,6 +62,12 @@ levelLocked = {}
 await render()
 await settle()
 check('active page marked', nav().querySelector('a.active')?.textContent === 'Learn')
+await render('/progress')
+await settle()
+check('on /progress only Progress is active, not the locked Calendar that links there', [...nav().querySelectorAll('a.active')].map((a) => a.textContent).join() === 'Progress',
+  [...nav().querySelectorAll('a.active')].map((a) => a.textContent))
+await render()
+await settle()
 await act(async () => menu().click())
 check('menu button shrinks to an icon rail', nav().classList.contains('shrunk') && document.querySelector('.app-shell.shrunk') !== null)
 check('rail keeps names for tooltips and screen readers', nav().querySelector('a[title="Learn"] .sb-label')?.textContent === 'Learn')

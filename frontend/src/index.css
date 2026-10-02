@@ -988,6 +988,8 @@ td.out { color: var(--down-text); }
 .sidebar a.active svg { color: var(--primary-text); }
 .sidebar .pro-tag { margin-left: auto; }
 .sidebar .nav-dot { margin-left: auto; vertical-align: middle; }
+/* A long lock note ("Unlocks at Level 3") wraps under itself instead of running past the edge. */
+.sidebar .lock-tag { flex: 0 1 auto; min-width: 0; white-space: normal; text-align: right; line-height: 1.2; }
 .sb-toggle { margin-top: auto; width: 100%; background: transparent; border: 0; cursor: pointer; border-top: 1px solid var(--border); border-radius: 0; padding-top: 8px; min-height: 50px; }
 .sidebar.shrunk { padding-inline: 10px; }
 .sidebar.shrunk a, .sidebar.shrunk .sb-toggle { justify-content: center; padding: 0; }
@@ -1537,7 +1539,17 @@ td.out { color: var(--down-text); }
 .oo-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 @media (max-width: 767px) {
   .limit-input { width: 76px; font-size: 16px; }
-  .oo-table th:nth-child(4), .oo-table td:nth-child(4) { display: none; }
+}
+/* Below 1024px each open order is a card, like the legs tables. */
+@media (max-width: 1023px) {
+  .oo-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .oo-table, .oo-table tbody, .oo-table tr, .oo-table td { display: block; width: 100%; }
+  .oo-table tr { border-bottom: 1px solid var(--border); padding: 8px 0; }
+  .oo-table tr:last-child { border-bottom: 0; }
+  .oo-table td, .oo-table td.num { padding: 4px 0; border: 0; text-align: right; }
+  .oo-table td:first-child { text-align: left; }
+  .oo-table td[data-label]::before { content: attr(data-label); float: left; margin-right: 12px; color: var(--text-muted); font-size: 13px; font-family: var(--font); }
+  .oo-actions { padding-top: 8px; }
 }
 
 /* ---------- Corporate events: screener chip + popover, event tables, market calendar ---------- */
@@ -2003,6 +2015,14 @@ img.brand-logo { object-fit: contain; }
 /* Greeks tab: every column stays; the chain scrolls sideways when it doesn't fit (#158). */
 .chain-v2.tab-greeks { min-width: 760px; }
 .chain-wrap { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+/* Phones: fade the right edge so a clipped chain reads as scrollable; the fade lifts at the end where scroll timelines exist. */
+@media (max-width: 767px) {
+  .chain-wrap { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  @supports (animation-timeline: scroll()) {
+    .chain-wrap { animation: chain-fade linear both; animation-timeline: scroll(self inline); }
+    @keyframes chain-fade { 95% { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); } 100% { mask-image: none; } }
+  }
+}
 @media (max-width: 767px) {
   .chain-v2 th, .chain-v2 td { padding: 8px 4px; }
 }

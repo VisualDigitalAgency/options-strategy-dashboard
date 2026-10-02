@@ -6,7 +6,7 @@ import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
 import { useTitle } from '../brand'
 import GettingStarted from '../components/GettingStarted'
-import { int, num, rupee, rupee2, shortDate, todayIso } from '../format'
+import { int, num, rupee, rupee2, shortDate, signedRupee, todayIso } from '../format'
 import { BuilderPayoff } from '../components/Charts'
 import { bsGreeks, sdRange } from '../bs'
 import {
@@ -584,7 +584,7 @@ export default function Builder() {
                   <div><dt title="Chance the position is in profit at expiry, from the ATM implied volatility">Probability of profit</dt><dd className="num">{pct(pop)}</dd></div>
                   <div><dt title="Max profit as a share of the margin blocked">Return on margin</dt><dd className="num">{rom == null ? '—' : pct(rom)}</dd></div>
                   <div><dt>Net delta</dt><dd className="num">{num(g.delta, 1)}</dd></div>
-                  <div><dt>Theta / day</dt><dd className="num">{rupee(g.theta)}</dd></div>
+                  <div><dt>Theta / day</dt><dd className="num">{signedRupee(g.theta)}</dd></div>
                   <div><dt>Gamma</dt><dd className="num">{num(g.gamma, 2)}</dd></div>
                   <div><dt title="P&L for a 1-point rise in implied volatility">Vega / IV pt</dt><dd className="num">{rupee(g.vega)}</dd></div>
                   {sd && <div><dt>1σ move by expiry</dt><dd className="num">±{num(sd.pct, 1)}% ({num(sd.low, 0)}–{num(sd.high, 0)})</dd></div>}
@@ -602,7 +602,7 @@ export default function Builder() {
                     <input type="range" min="-15" max="15" step="1" value={ivShift} aria-label="IV change in points"
                       onChange={(e) => setIvShift(Number(e.target.value))} />
                   </label>
-                  <p className="small">P&L at today's spot, {nowLabel.toLowerCase()}: <b className={`num ${pnlThen >= 0 ? 'pos' : 'neg'}`}>{rupee(pnlThen)}</b>
+                  <p className="small">P&L at today's spot, {nowLabel.toLowerCase()}: <b className={`num ${pnlThen >= 0 ? 'pos' : 'neg'}`}>{signedRupee(pnlThen)}</b>
                     {(days || ivShift) ? <button type="button" className="link-btn" onClick={() => { setDaysAhead(0); setIvShift(0) }}>Reset</button> : null}</p>
                 </div>
                 <div className="baseline">

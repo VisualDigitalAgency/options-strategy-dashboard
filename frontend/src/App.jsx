@@ -232,7 +232,7 @@ function Sidebar({ sb }) {
                 end={end}
                 title={sb.shrunk ? label : undefined}
                 onClick={sb.close}
-                className={({ isActive }) => (isActive || (to === '/' && pathname.startsWith('/stock/')) ? 'active' : '')}
+                className={({ isActive }) => ((isActive && !(locked && !open)) || (to === '/' && pathname.startsWith('/stock/')) ? 'active' : '')}
               >
                 <Icon size={18} aria-hidden />
                 <span className="sb-label">{label}</span>
