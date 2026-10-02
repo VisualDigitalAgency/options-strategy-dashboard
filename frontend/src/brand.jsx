@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { rpc } from './rpc'
+import { setHolidays } from './market'
 import DialMark from './components/DialMark'
 
 // The app's name and logo (issue #133). The owner changes them under Admin, so nothing else in the
@@ -29,6 +30,7 @@ function applyIcons() {
 }
 
 export function setBrand(next) {
+  if (next.holidays) setHolidays(next.holidays)
   state = { name: next.name || FALLBACK, logo: next.logo || null, reader: next.reader_pages ?? state.reader, autoApprove: next.auto_approve ?? state.autoApprove }
   applyIcons()
   subs.forEach((f) => f())

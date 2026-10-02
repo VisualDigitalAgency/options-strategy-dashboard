@@ -13,7 +13,7 @@ Charges reduce account value and return %: unlike capital grants, they are real 
 
 from datetime import date, datetime, timedelta
 
-from . import config, db, progress, virtual
+from . import config, db, pricing, progress, virtual
 from .progress import IST
 
 
@@ -23,7 +23,7 @@ def _today_ist() -> date:
 
 def _record_shortfall(user_id: int, acct: dict) -> None:
     short = acct["used_margin"] - acct["account_value"]
-    if short <= 0:
+    if short <= 0 or not pricing.trading_day():  # the exchange only penalises trading days
         return
     with db.tx(user_id) as c:
         c.run("INSERT INTO margin_shortfalls (user_id, day, peak, required) VALUES (:u, :d, :p, :r) "
