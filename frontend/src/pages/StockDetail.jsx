@@ -17,7 +17,7 @@ import OrderModal from '../components/OrderModal'
 import DetailSkeleton from '../components/DetailSkeleton'
 import StrategyLab from '../components/StrategyLab'
 import UpdatedTag from '../components/UpdatedTag'
-import { int, num, pct, rupee, rupee2, shortDate, signed, signedPct, suggestLots, todayIso } from '../format'
+import { int, num, pct, rupee, rupee2, shortDate, signed, signedPct, signedRupee, suggestLots, todayIso } from '../format'
 import { useTitle } from '../brand'
 
 function Stat({ label, value, sub, tone }) {
@@ -312,7 +312,7 @@ export default function StockDetail() {
                     <td /><td />
                     <td data-label="Net delta" className="num mono">{signed(s.net_delta * qty, 1)}</td>
                     <td data-label="Net gamma" className="num mono">{signed(s.net_gamma * qty, 2)}</td>
-                    <td data-label="Theta / day" className="num mono up">{rupee(s.net_theta * qty)}</td>
+                    <td data-label="Theta / day" className={`num mono ${s.net_theta >= 0 ? 'up' : 'down'}`}>{signedRupee(s.net_theta * qty)}</td>
                     <td data-label="Vega" className="num mono">{rupee(s.net_vega * qty)}</td>
                     <td colSpan={4} className="muted small">Theta: ₹ earned per day · Vega: ₹ lost per +1 IV point</td>
                   </tr>

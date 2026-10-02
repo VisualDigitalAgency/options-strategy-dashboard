@@ -31,7 +31,9 @@ const DATA = {
 globalThis.fetch = async (_u, opts) => {
   const { method, id } = JSON.parse(opts.body)
   const result = method === 'va_get_positions' || method === 'va_refresh_positions' ? DATA
-    : method === 'broker_account_summary' ? { status: 'disconnected', source: 'approx' } : []
+    : method === 'broker_account_summary' ? { status: 'disconnected', source: 'approx' }
+      : method === 'va_get_open_orders' ? [{ id: 9, action: 'SELL', symbol: 'SBIN', expiry: '2026-10-27', strike: 1400, side: 'CE', lots: 1, qty: 625,
+        reason: 'manual', limit_price: 3.6, bid: 3.4, ask: 3.6, valid_until: '2026-10-02', order_type: 'limit' }] : []
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result }) }
 }
 
@@ -47,6 +49,9 @@ const cell = document.querySelector('td[data-label="Mark"]')
 check('Mark column replaces LTP', !!cell && [...document.querySelectorAll('th')].some((t) => t.textContent === 'Mark'))
 check('leg shows the mid, not the stale 6.00', cell?.textContent.includes('3.50') && !cell?.textContent.startsWith('6.00'), cell?.textContent)
 check('source labelled', cell?.textContent.includes('mid'), cell?.textContent)
+const oo = document.querySelector('.oo-table tbody tr')
+check('open orders: every value cell labelled for the phone cards', ['Price', 'Bid / ask now', 'Valid for'].every((l) => oo?.querySelector(`td[data-label="${l}"]`)),
+  oo?.innerHTML)
 check('stale LTP flagged', !!cell?.querySelector('.stale-ltp[aria-label*="stale"]'))
 check('bid/ask/LTP in the tooltip', cell?.title.includes('Bid 3.40') && cell?.title.includes('LTP 6.00'), cell?.title)
 check('If closed now per group', text.includes('If closed now') && (text.includes('−₹125') || text.includes('-₹125')))

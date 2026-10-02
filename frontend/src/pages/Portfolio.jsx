@@ -262,7 +262,7 @@ function OpenOrders({ rows, busy, onImprove, onCancel }) {
                     <b>{o.action}</b> {o.symbol} {shortDate(o.expiry)} {o.strike} {o.side}
                     <span className="muted small block">{o.lots} lot{o.lots > 1 ? 's' : ''} ({int(o.qty)} qty){o.reason !== 'manual' ? `, ${o.reason.replace('_', ' ')}` : ''}</span>
                   </td>
-                  <td className="num mono">
+                  <td data-label="Price" className="num mono">
                     {o.order_type && o.order_type !== 'limit' ? (
                       <>
                         <span className="chip small">{o.order_type === 'slm' ? 'SL-M' : 'SL'}</span>{' '}
@@ -272,8 +272,8 @@ function OpenOrders({ rows, busy, onImprove, onCancel }) {
                       </>
                     ) : rupee2(o.limit_price)}
                   </td>
-                  <td className="num mono">{o.bid == null ? '—' : `${rupee2(o.bid)} / ${rupee2(o.ask)}`}</td>
-                  <td className="mono small">{shortDate(o.valid_until)}</td>
+                  <td data-label="Bid / ask now" className="num mono">{o.bid == null ? '—' : `${rupee2(o.bid)} / ${rupee2(o.ask)}`}</td>
+                  <td data-label="Valid for" className="mono small">{shortDate(o.valid_until)}</td>
                   <td className="oo-actions">
                     {!waitingStop && o.order_type !== 'slm' && (
                       <button className="btn small ghost" disabled={busy || better <= 0} onClick={() => onImprove(o, better)}
