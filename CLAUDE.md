@@ -17,7 +17,7 @@ python server.py                        # API on 127.0.0.1:8000 (POST /rpc, GET 
 python -m engine.worker                 # background worker (separate terminal; required for screens/SL/auto-trade)
 python scripts/set_admin.py you@example.com
 npm --prefix frontend run dev           # http://localhost:5173, proxies /rpc and /healthz to :8000
-npm --prefix frontend run lint          # oxlint
+npm --prefix frontend run lint          # oxlint (.oxlintrc.json; no-undef is on: browser globals in src/, Node in tests/)
 npm --prefix frontend run build
 npm --prefix frontend test              # UI tests (happy-dom), frontend/tests/*.test.jsx
 make test                               # backend integration tests in throwaway Postgres + Redis containers
