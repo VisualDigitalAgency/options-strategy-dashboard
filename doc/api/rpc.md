@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-87 methods: 15 public, 4 account, 7 market data, 45 user, 16 admin.
+89 methods: 15 public, 4 account, 7 market data, 45 user, 18 admin.
 
 ## Tiers
 
@@ -61,7 +61,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`va_exit_group`](#va_exit_group) | user | Closes every open leg in one stock and expiry, the same way as exit_position. |
 | [`va_set_sl_mode`](#va_set_sl_mode) | user | Sets the stop-loss mode (auto, alert or off) of one short position, or the account default for new positions when position_id is omitted. |
 | [`va_dismiss_alert`](#va_dismiss_alert) | user | Clears a position's stop-loss alert. |
-| [`va_reset`](#va_reset) | user | Deletes every order and position and restarts the virtual account with its base capital (₹2 lakh for accounts made since #47) plus every capital grant earned. |
+| [`va_reset`](#va_reset) | user | Deletes every order and position and restarts the virtual account with its base capital (₹2 lakh for accounts made since #47) plus every capital grant earned and not revoked (#194). |
 | [`lesson_submit_quiz`](#lesson_submit_quiz) | user | Scores one attempt. |
 | [`lesson_progress`](#lesson_progress) | user | The caller's quiz record per lesson: attempts, best score, when it was passed, and when a failed quiz can be retaken. |
 | [`progress_get`](#progress_get) | user | Scores any newly passed lessons, moves up one level if every check passes, and returns the user's progress: level, XP, the next level's checks with live values, and gate metrics. |
@@ -103,6 +103,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_get_settings`](#admin_get_settings) | admin | Owner only: the app switches (such as auto_approve) with their values and descriptions. |
 | [`admin_set_brand_name`](#admin_set_brand_name) | admin | Owner only: renames the app everywhere it is shown (pages, emails, share cards). |
 | [`admin_approve_final`](#admin_approve_final) | admin | Owner only: signs off the Level 10 final assessment for a Level 9 user who has passed every other check, which moves them up at once. |
+| [`admin_user_grants`](#admin_user_grants) | admin | Owner only: every capital grant an account has earned, with whether each is revoked or can be (#194). |
+| [`admin_revoke_grant`](#admin_revoke_grant) | admin | Owner only: takes one capital grant back, for example after abuse. |
 | [`admin_reset_logo`](#admin_reset_logo) | admin | Owner only: drops the uploaded logo and favicon and goes back to the built-in ones. |
 | [`admin_get_overrides`](#admin_get_overrides) | admin | Owner only: one account's per-user feature overrides (grant or deny). |
 | [`admin_set_override`](#admin_set_override) | admin | Owner only: grant or deny one feature for one account, or `clear` to go back to its role and level. |
@@ -610,7 +612,7 @@ Set by the server, never by the client: `user_id`.
 ### `va_reset`
 
 Deletes every order and position and restarts the virtual account with its base capital
-(₹2 lakh for accounts made since #47) plus every capital grant earned. The amount is never the
+(₹2 lakh for accounts made since #47) plus every capital grant earned and not revoked (#194). The amount is never the
 caller's choice: capital only grows by completing tasks (engine/capital.py).
 
 No params.
@@ -1047,6 +1049,31 @@ other check, which moves them up at once. Audited.
 | Param | Type | Default |
 |---|---|---|
 | `target_id` | `int` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_user_grants`
+
+Owner only: every capital grant an account has earned, with whether each is revoked or can
+be (#194).
+
+| Param | Type | Default |
+|---|---|---|
+| `target_id` | `int` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_revoke_grant`
+
+Owner only: takes one capital grant back, for example after abuse. The task can't be paid
+again, the amount comes off the account's capital, and the revoke is audited with the reason.
+A coin exchange can't be revoked.
+
+| Param | Type | Default |
+|---|---|---|
+| `target_id` | `int` | required |
+| `grant_id` | `int` | required |
+| `reason` | `str` | required |
 
 Set by the server, never by the client: `_ctx`.
 

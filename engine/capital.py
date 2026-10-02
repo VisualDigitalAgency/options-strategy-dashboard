@@ -144,7 +144,8 @@ def status(user_id: int) -> dict:
     it has paid, and where to do it; the level rewards; and the grant history."""
     evaluate(user_id)
     with db.tx(user_id) as c:
-        grants = c.all("SELECT task, ref, amount, created_at FROM capital_grants WHERE user_id=:u ORDER BY created_at DESC",
+        grants = c.all("SELECT task, ref, amount, created_at, revoked_at IS NOT NULL AS revoked FROM capital_grants "
+                       "WHERE user_id=:u ORDER BY created_at DESC",
                        u=user_id)
         acct = c.one("SELECT starting_capital, base_capital FROM accounts WHERE user_id=:u", u=user_id)
         level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
@@ -162,3 +163,45 @@ def status(user_id: int) -> dict:
     return {"capital": acct["starting_capital"] if acct else None, "base": acct["base_capital"] if acct else None,
             "start": config.STARTING_CAPITAL, "tasks": tasks, "levels": levels,
             "grants": [{**g, "label": _label(g["task"], g["ref"])} for g in grants]}
+
+
+class GrantError(ValueError):
+    pass
+
+
+def admin_grants(user_id: int) -> list[dict]:
+    """Every capital grant an account has earned, newest first, for the owner's Admin view (#194).
+    A coin exchange is listed but `revocable` is false: taking its capital back would leave the
+    coins already spent."""
+    with db.tx(user_id) as c:
+        rows = c.all("SELECT id, task, ref, amount, created_at, revoked_at FROM capital_grants WHERE user_id=:u "
+                     "ORDER BY created_at DESC, id DESC", u=user_id)
+    return [{"id": r["id"], "label": _label(r["task"], r["ref"]), "amount": r["amount"], "at": r["created_at"],
+             "revoked": r["revoked_at"] is not None, "revocable": r["task"] != "coins" and r["revoked_at"] is None}
+            for r in rows]
+
+
+def revoke(owner_id: int, user_id: int, grant_id: int, reason: str, ip: str | None = None) -> dict:
+    """Takes one grant back (#194). The row stays, marked revoked, so the task can't be paid again;
+    its amount comes off the account's capital under the account lock, so a reset skips it too.
+    Audited with who, why and how much. If the account is left short of margin, the RMS check
+    deals with it on its next pass."""
+    from . import auth
+    reason = (reason or "").strip()
+    if not 3 <= len(reason) <= 200:
+        raise GrantError("Give a reason of 3 to 200 characters")
+    with db.tx(user_id) as c:
+        if not c.value("SELECT 1 FROM accounts WHERE user_id=:u FOR UPDATE", u=user_id):
+            raise GrantError("No virtual account")
+        g = c.one("SELECT task, ref, amount, revoked_at FROM capital_grants WHERE id=:g AND user_id=:u", g=grant_id, u=user_id)
+        if not g:
+            raise GrantError("No such grant")
+        if g["revoked_at"]:
+            raise GrantError("Already revoked")
+        if g["task"] == "coins":
+            raise GrantError("A coin exchange can't be revoked: the coins are already spent")
+        c.run("UPDATE capital_grants SET revoked_at=now(), revoked_by=:o WHERE id=:g", o=owner_id, g=grant_id)
+        c.run("UPDATE accounts SET starting_capital = starting_capital - :a WHERE user_id=:u", a=g["amount"], u=user_id)
+    auth.audit("grant_revoked", actor_id=owner_id, target_user_id=user_id, ip=ip, grant_id=grant_id,
+               task=g["task"], ref=g["ref"], amount=float(g["amount"]), reason=reason)
+    return {"revoked": grant_id, "amount": g["amount"], "label": _label(g["task"], g["ref"])}

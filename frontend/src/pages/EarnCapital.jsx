@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Circle, Coins } from 'lucide-react'
 import { rpc } from '../rpc'
-import { rupee, shortDate } from '../format'
+import { dateTime, rupee } from '../format'
 import { useTitle } from '../brand'
 
 // Virtual capital milestones (#47): every account starts at ₹2 lakh and grows only by completing
@@ -63,7 +63,8 @@ export default function EarnCapital() {
               <ul className="capital-grants">
                 {s.grants.map((g) => (
                   <li key={`${g.task}:${g.ref}`}><span>{g.label}{g.ref && g.task !== 'level' ? <span className="muted small"> · {g.ref}</span> : null}</span>
-                    <span className="muted small">{shortDate(g.created_at)}</span><b className="mono pos">+{rupee(g.amount)}</b></li>
+                    <span className="muted small">{dateTime(g.created_at)}</span>
+                    {g.revoked ? <b className="mono muted" title="Taken back by the owner">Revoked</b> : <b className="mono pos">+{rupee(g.amount)}</b>}</li>
                 ))}
               </ul>
             ) : <p className="muted">Nothing yet. Start with the Level 1 lessons and a first trade with its stop-loss on.</p>}
