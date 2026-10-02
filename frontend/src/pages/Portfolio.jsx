@@ -15,6 +15,7 @@ import PivotLevels from '../components/PivotLevels'
 import SLModeSwitch from '../components/SLModeSwitch'
 import RealAccountView from '../components/RealAccountView'
 import { ConfirmDialog } from '../components/Modal'
+import StopOrderDialog from '../components/StopOrderDialog'
 import { useTitle } from '../brand'
 
 const POLL_MS = 30000
@@ -186,7 +187,10 @@ function Group({ g, onAction }) {
                   )}
                 </td>
                 <td className="num">
-                  <button className="btn small" onClick={() => onAction('exitLeg', l, g)}>Exit</button>
+                  <span className="leg-actions">
+                    <button className="btn small ghost" onClick={() => onAction('stop', l, g)} title="Place a stop-loss order on this leg">SL</button>
+                    <button className="btn small" onClick={() => onAction('exitLeg', l, g)}>Exit</button>
+                  </span>
                 </td>
               </tr>
             ))}
@@ -242,27 +246,39 @@ function OpenOrders({ rows, busy, onImprove, onCancel }) {
   return (
     <section className="card open-orders" aria-label="Open limit orders">
       <header className="card-head">
-        <h2><Hourglass size={16} aria-hidden /> Open limit orders</h2>
-        <span className="muted small">Fill when the market reaches your limit. Day orders expire at 15:30.</span>
+        <h2><Hourglass size={16} aria-hidden /> Open orders</h2>
+        <span className="muted small">Limit orders fill when the market reaches your price; day orders expire at 15:30. Stop-loss orders wait for their trigger until the leg's expiry.</span>
       </header>
       <div className="table-scroll">
         <table className="oo-table">
-          <thead><tr><th>Order</th><th className="num">Limit</th><th className="num">Bid / ask now</th><th>Valid for</th><th /></tr></thead>
+          <thead><tr><th>Order</th><th className="num">Price</th><th className="num">Bid / ask now</th><th>Valid for</th><th /></tr></thead>
           <tbody>
             {rows.map((o) => {
               const better = o.action === 'SELL' ? o.limit_price - TICK : o.limit_price + TICK
+              const waitingStop = o.order_type && o.order_type !== 'limit' && !o.triggered_at
               return (
                 <tr key={o.id}>
                   <td>
                     <b>{o.action}</b> {o.symbol} {shortDate(o.expiry)} {o.strike} {o.side}
                     <span className="muted small block">{o.lots} lot{o.lots > 1 ? 's' : ''} ({int(o.qty)} qty){o.reason !== 'manual' ? `, ${o.reason.replace('_', ' ')}` : ''}</span>
                   </td>
-                  <td className="num mono">{rupee2(o.limit_price)}</td>
+                  <td className="num mono">
+                    {o.order_type && o.order_type !== 'limit' ? (
+                      <>
+                        <span className="chip small">{o.order_type === 'slm' ? 'SL-M' : 'SL'}</span>{' '}
+                        Trigger {rupee2(o.trigger_price)}
+                        {o.order_type === 'sl' && <span className="muted small block">Limit {rupee2(o.limit_price)}</span>}
+                        {o.triggered_at && <span className="muted small block">Triggered</span>}
+                      </>
+                    ) : rupee2(o.limit_price)}
+                  </td>
                   <td className="num mono">{o.bid == null ? '—' : `${rupee2(o.bid)} / ${rupee2(o.ask)}`}</td>
                   <td className="mono small">{shortDate(o.valid_until)}</td>
                   <td className="oo-actions">
-                    <button className="btn small ghost" disabled={busy || better <= 0} onClick={() => onImprove(o, better)}
-                      title={`Move the limit to ${rupee2(better)}`}>Improve 1 tick</button>
+                    {!waitingStop && o.order_type !== 'slm' && (
+                      <button className="btn small ghost" disabled={busy || better <= 0} onClick={() => onImprove(o, better)}
+                        title={`Move the limit to ${rupee2(better)}`}>Improve 1 tick</button>
+                    )}
                     <button className="btn small ghost danger-text" disabled={busy} onClick={() => onCancel(o)}>Cancel</button>
                   </td>
                 </tr>
@@ -302,6 +318,7 @@ export default function Portfolio() {
   const [error, setError] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [confirm, setConfirm] = useState(null)
+  const [stop, setStop] = useState(null) // { leg, symbol } while the stop-loss dialog is open (#183)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState(null)
   const [openOrders, setOpenOrders] = useState(null)
@@ -408,6 +425,8 @@ export default function Portfolio() {
       else if (already) setNotice('An exit order for this position is already waiting. See Open limit orders to change its price or cancel it.')
       if (method === 'va_modify_order' && out?.filled) setNotice('Filled at the new limit.')
       setConfirm(null)
+      setStop(null)
+      if (method === 'va_place_stop') setNotice(`Stop-loss placed: it triggers at ${rupee2(out.trigger)}. See Open orders.`)
       await load()
       refreshBudget()
     } catch (e) {
@@ -420,6 +439,7 @@ export default function Portfolio() {
   function onAction(kind, arg, g) {
     if (kind === 'sl') return run('va_set_sl_mode', arg)
     if (kind === 'dismiss') return run('va_dismiss_alert', arg)
+    if (kind === 'stop') { setActionError(null); return setStop({ leg: arg, symbol: g.symbol }) }
     setActionError(null)
     if (kind === 'exitLeg')
       setConfirm({
@@ -549,6 +569,10 @@ export default function Portfolio() {
 
       {actionError && !confirm && <p className="form-error" role="alert">{actionError}</p>}
 
+      {stop && (
+        <StopOrderDialog leg={stop.leg} symbol={stop.symbol} busy={busy} error={actionError}
+          onSubmit={(p) => run('va_place_stop', p)} onClose={() => setStop(null)} />
+      )}
       {confirm && (
         <ConfirmDialog
           title={confirm.title}
