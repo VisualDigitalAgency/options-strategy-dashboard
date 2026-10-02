@@ -15,7 +15,7 @@ import MarginBanner from '../components/MarginBanner'
 import EquityBar from '../components/EquityBar'
 import { useTitle } from '../brand'
 
-const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry', rms_squareoff: 'RMS square-off' }
+const REASON = { manual: 'Manual', auto: 'Auto-trade', sl_auto: 'Group SL', time_exit: 'Time exit', target_exit: 'Profit target', expiry: 'Expiry', rms_squareoff: 'RMS square-off', sl_order: 'Stop-loss order' }
 
 /** XIRR for one deposit (starting capital) and today's value, no withdrawals: the annual rate r
  *  that solves capital x (1 + r)^(days/365) = value. Annualising under a week turns tiny moves

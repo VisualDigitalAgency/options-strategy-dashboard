@@ -2072,3 +2072,8 @@ img.brand-logo { object-fit: contain; }
 .margin-banner.warning { background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: var(--warn); }
 .margin-banner.warning svg { color: var(--warn); }
 .reason-rms_squareoff { color: var(--down-text); border-color: var(--down); background: color-mix(in srgb, var(--down) 10%, transparent); }
+
+/* Stop-loss orders (#183). */
+.leg-actions { display: inline-flex; gap: 6px; }
+.stop-form { display: grid; gap: 12px; }
+.stop-form .field { display: grid; gap: 4px; }
