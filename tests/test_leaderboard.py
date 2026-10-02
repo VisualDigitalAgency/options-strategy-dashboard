@@ -1,11 +1,11 @@
 """Monthly leaderboard (issue #125): rankings match hand-computed fixtures including the tie-break,
-opted-out / under-5-trade / below-Level-4 users are excluded, a reset splits capital, RLS (anyone
+opted-out and under-5-trade users are excluded, Levels 1-3 rank in the Rising band, quarters, a reset splits capital, RLS (anyone
 reads, only the worker writes), and the public RPC carries nothing beyond nicknames."""
 import os
 import sys
 
 import server
-from engine import cache, db, leaderboard
+from engine import cache, db, leaderboard, progress
 from support import EXP, new_user
 
 ORIGIN = "https://t.example"
@@ -49,7 +49,7 @@ person("Cara", 6, [5000] * 5)
 person("Dev", 8, [-10000, 30000, 0, 0, 0])
 person("OptedOut", 5, [50000] * 5, opt_in=False)
 person("FourOnly", 5, [50000] * 4)
-person("Lvl3", 3, [50000] * 5)
+lvl3 = person("Lvl3", 3, [50000] * 5)
 person("OtherMonth", 5, [50000] * 5, day="2026-07-%02d 10:00+05:30")
 person("PreReset", 5, [50000] * 5, reset="2026-08-20 00:00+05:30")  # all trades before the reset
 
@@ -59,17 +59,18 @@ check("4-6 ranked by ratio, tie broken by return", mid == [(1, "Cara", 2.5, 2.5)
 top = [(r["rank"], r["nickname"], r["level"]) for r in b["7-10"]]
 check("7-10 band", top == [(1, "Dev", 8)], top)
 names = {r["nickname"] for rows in b.values() for r in rows}
-for n in ("OptedOut", "FourOnly", "Lvl3", "OtherMonth", "PreReset"):
+check("Levels 1-3 rank in the Rising band", [r["nickname"] for r in b["1-3"]] == ["Lvl3"], b["1-3"])
+for n in ("OptedOut", "FourOnly", "OtherMonth", "PreReset"):
     check(f"excluded: {n}", n not in names)
 check("rows carry no user id, email or rupee amount", set(b["4-6"][0]) == set(leaderboard.FIELDS), b["4-6"][0])
 
 # 3. Finalize, idempotent; RLS.
-check("finalize writes 4 rows", leaderboard.finalize(MONTH) == 4)
-check("re-running replaces, never duplicates", leaderboard.finalize(MONTH) == 4)
+check("finalize writes 5 rows", leaderboard.finalize(MONTH) == 5)
+check("re-running replaces, never duplicates", leaderboard.finalize(MONTH) == 5)
 check("month listed", MONTH in leaderboard.finalized_months())
 someone = new_user("someone@test.example", CAP)
 with db.tx(someone) as c:
-    check("any user reads the board", c.value("SELECT count(*) FROM leaderboard_entries") == 4)
+    check("any user reads the board", c.value("SELECT count(*) FROM leaderboard_entries") == 5)
 for sql in ("INSERT INTO leaderboard_entries VALUES ('2026-08', '4-6', 9, 'x', 5, 9, 9, 0, 5, 100)",
             "DELETE FROM leaderboard_entries"):
     try:
@@ -78,9 +79,11 @@ for sql in ("INSERT INTO leaderboard_entries VALUES ('2026-08', '4-6', 9, 'x', 5
             n = c.value("SELECT count(*) FROM leaderboard_entries")
     except Exception as e:
         n = type(e).__name__
-    check(f"a user transaction can't write ({sql.split()[0]})", n == 4 or n == "ProgrammingError", n)
+    check(f"a user transaction can't write ({sql.split()[0]})", n == 5 or n == "ProgrammingError", n)
 with db.tx() as c:
-    check("still 4 rows", c.value("SELECT count(*) FROM leaderboard_entries") == 4)
+    check("still 5 rows", c.value("SELECT count(*) FROM leaderboard_entries") == 5)
+with db.tx(lvl3) as c:
+    check("a Rising-band win doesn't count toward the Level 8 gate", progress._top_boards(c, lvl3)["value"] == 0)
 
 # 4. Public RPC, no cookie.
 cache.delete("leaderboard:current")
@@ -94,12 +97,44 @@ def call(params):
 
 r = call({"month": MONTH})
 res = r.get("result", {})
-check("loads without sign-in", not res.get("provisional") and res["bands"][0]["rows"][1]["nickname"] == "Bo", r)
+band = {x["band"]: x for x in res.get("bands", [])}
+check("loads without sign-in", not res.get("provisional") and band["4-6"]["rows"][1]["nickname"] == "Bo", r)
+check("Rising band named and listed first", res["bands"][0]["levels"] == "Rising" and band["1-3"]["rows"][0]["nickname"] == "Lvl3")
 check("no personal data in the response", "@" not in str(r) and "1000000" not in str(r) and "user_id" not in str(r))
 r = call({})
 check("no month gives the provisional running month", r["result"]["provisional"] and r["result"]["month"] == leaderboard.this_month(), r)
 check("finished months offered", MONTH in r["result"]["months"], r["result"]["months"])
 check("bad month refused", "error" in call({"month": "2026-13"}))
+check("bad quarter refused", "error" in call({"month": "2026-Q5"}))
+
+# 5. Quarters: 15 legs in all, scored over the whole quarter.
+person("Quinn", 5, [2000] * 5, day="2026-07-%02d 10:00+05:30")
+with db.tx() as c:
+    quinn = c.value("SELECT id FROM users WHERE nickname='Quinn'")
+with db.tx(quinn) as c:
+    for mo in ("08", "09"):
+        for i in range(1, 6):
+            c.run("INSERT INTO trade_results (user_id, symbol, expiry, side, strike, short, lots, avg_price, realized_pnl,"
+                  " capital, opened_at, closed_at, exit_reason, had_sl) VALUES (:u, 'SBIN', :e, 'CE', 1200, true, 1, 5,"
+                  " 2000, :c, :t, :t, 'manual', true)", u=quinn, e=EXP, c=CAP, t=f"2026-{mo}-{i:02d} 10:00+05:30")
+check("quarter months", leaderboard.quarter_months("2026-Q3") == ["2026-07", "2026-08", "2026-09"]
+      and leaderboard.quarter_of("2026-08") == "2026-Q3")
+r = call({"month": "2026-Q3"})["result"]
+q = {x["band"]: [y["nickname"] for y in x["rows"]] for x in r["bands"]}
+check("a quarter needs 5 legs a month: only Quinn qualifies", q["4-6"] == ["Quinn"] and r["kind"] == "quarter"
+      and not r["provisional"], q)
+quinn_row = next(x for x in r["bands"] if x["band"] == "4-6")["rows"][0]
+check("scored over all 15 legs", quinn_row["trades"] == 15 and quinn_row["return_pct"] == 3.0, quinn_row)
+check("quarters offered", "2026-Q3" in call({})["result"]["quarters"])
+
+# 6. Getting there: opted-in players short of the count, running period only, count and nickname only.
+cur = leaderboard.this_month() + "-01 10:00+05:30"
+person("Nearly", 2, [1000] * 3, day=cur.replace("-01 ", "-%02d "))
+person("Shy", 2, [1000] * 3, opt_in=False, day=cur.replace("-01 ", "-%02d "))
+cache.delete("leaderboard:current")
+now = call({})["result"]
+check("a player short of the count is listed with their count", now["near"] == [{"nickname": "Nearly", "level": 2, "trades": 3, "need": 5}], now["near"])
+check("finished periods list nobody", call({"month": MONTH})["result"]["near"] == [])
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)

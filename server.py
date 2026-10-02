@@ -374,8 +374,8 @@ def reader_levels(_ctx: Ctx, symbol: str):
 
 
 def leaderboard_get(_ctx: Ctx, month: str | None = None):
-    """Monthly paper-trading leaderboard (no sign-in needed). `month` is "YYYY-MM"; omitted, it is
-    the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
+    """Paper-trading leaderboard (no sign-in needed). `month` is a period: "YYYY-MM" for a month or
+    "YYYY-Qn" for a calendar quarter; omitted, it is the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
     Signed out, only while the owner keeps the leaderboard on for readers."""
     app_settings.require_reader(_ctx.user, "leaderboard")
     return leaderboard.get(month)
