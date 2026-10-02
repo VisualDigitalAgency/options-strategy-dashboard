@@ -57,6 +57,18 @@ check('bid/ask/LTP in the tooltip', cell?.title.includes('Bid 3.40') && cell?.ti
 check('If closed now per group', text.includes('If closed now') && (text.includes('−₹125') || text.includes('-₹125')))
 check('premium earned uses the mark, not -76%', !text.includes('-76%') && !text.includes('−76%'), text.match(/[-−]?\d+% of the premium/)?.[0])
 
+// Negative theta (a long leg) reads as a loss, not profit green.
+DATA.totals.theta = -40
+DATA.groups[0].greeks.theta = -40
+await act(async () => root.render(h(MemoryRouter, null, h(SettingsProvider, null, h(Portfolio, { key: 2 })))))
+await act(async () => { await new Promise((r) => setTimeout(r, 30)) })
+const theta = [...document.querySelectorAll('.stat')].find((e) => e.querySelector('.stat-label')?.textContent === 'Theta / day')?.querySelector('.stat-value')
+check('negative theta: red with a minus', theta?.classList.contains('neg') && !theta.classList.contains('pos') && theta.textContent === '−₹40', theta?.className + ' ' + theta?.textContent)
+check('negative theta: summary says losing', document.body.textContent.includes('losing ₹40 a day'))
+
+const { shortDate } = await import('../src/format.js')
+check('shortDate takes a timestamp', shortDate('2026-09-29T10:00:00+05:30') === shortDate('2026-09-29') && !shortDate('2026-09-29 10:00:00').includes('Invalid'), shortDate('2026-09-29T10:00:00'))
+
 await act(async () => root.unmount())
 console.log(ok ? 'ALL PASS' : 'SOME FAILED')
 process.exit(ok ? 0 : 1)

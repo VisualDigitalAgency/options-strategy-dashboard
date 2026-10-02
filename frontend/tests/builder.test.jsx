@@ -87,6 +87,9 @@ check('free account: buy rule explained up front', text().includes('until Level 
 const tpl = (t) => [...document.querySelectorAll('.tpl')].find((b) => b.textContent.startsWith(t))
 check('Level 1: strangle and straddle templates locked with their level', tpl('Short strangle')?.disabled && tpl('Short straddle')?.disabled
   && tpl('Short strangle').textContent.includes('Level 5'))
+const tpls = [...document.querySelectorAll('.tpl')].filter((b) => b.textContent !== 'Blank')
+check('Level 1: locked templates listed after the open ones', tpls.findIndex((b) => b.disabled) > tpls.findLastIndex((b) => !b.disabled),
+  tpls.map((b) => b.textContent))
 check('Level 1: spreads and the condor stay open', ['Iron condor', 'Bull put spread', 'Bear call spread'].every((t) => !tpl(t)?.disabled))
 await act(async () => btn('Iron condor').click())
 await settle(500)
