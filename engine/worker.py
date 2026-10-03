@@ -126,6 +126,9 @@ def start_eod_refresher() -> None:
         while True:
             try:
                 eod.refresh()
+                # In end-of-day mode: fills, stops and exits on the new file, once per file (#216).
+                if n := virtual.run_eod_pass():
+                    log.info("eod pass: %s users", n)
             except Exception:
                 log.exception("eod refresh failed")
             time.sleep(900)

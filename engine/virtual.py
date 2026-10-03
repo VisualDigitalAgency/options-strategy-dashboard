@@ -12,13 +12,15 @@ bid (sells) / ask (buys); margin is blocked with SPAN + exposure per underlying/
 same as the screener.
 """
 
+import contextvars
+import logging
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
-from . import cache, config, data_fetch, db, greeks_sr, permissions, pivots, pricing, progress, risk_rules, span, users
+from . import cache, config, data_fetch, db, eod, greeks_sr, permissions, pivots, pricing, progress, risk_rules, span, users
 
 IST = timezone(timedelta(hours=5, minutes=30))  # fixed offset: Windows Python has no tz database
 SL_MODES = ("auto", "alert", "off")
@@ -26,6 +28,7 @@ QUOTE_TTL = 60  # seconds an option chain is shared before the next NSE fetch
 TICK = 0.05     # NSE tick size for stock options
 MONITOR_INTERVAL = 60
 
+log = logging.getLogger("theta.virtual")
 _lock = threading.RLock()  # serialises trades in this process; the account row lock covers other processes
 _quote_cache: dict = {}
 _exposure_cache: dict = {}
@@ -41,8 +44,27 @@ def _today() -> pd.Timestamp:
     return pd.Timestamp(datetime.now(IST).date())
 
 
+# End-of-day mode (data plan B, owner setting `eod_prices`): prices come from NSE's end-of-day file
+# (engine/eod.py), never the live API. Nothing fills during the day: a user's order rests and fills at
+# the settlement price of the first session that opens after it was placed, and stops, exits and
+# RMS run once a day in run_eod_pass() on the new settlement prices. Off by default.
+_eod_pass = contextvars.ContextVar("eod_pass", default=False)
+_eod_flag = {"at": 0.0, "on": False}
+
+
+def eod_mode() -> bool:
+    """Whether the owner switched pricing to end-of-day data. Read at most every 30 s per process."""
+    if time.time() - _eod_flag["at"] > 30:
+        from . import app_settings
+        _eod_flag.update(at=time.time(), on=bool(app_settings.get("eod_prices")))
+    return _eod_flag["on"]
+
+
 def market_open() -> bool:
-    """NSE derivatives session: a trading day (weekday, not an NSE holiday), 09:15–15:30 IST."""
+    """NSE derivatives session: a trading day (weekday, not an NSE holiday), 09:15–15:30 IST. In
+    end-of-day mode nothing fills at a live price, so it reads as closed except inside the daily pass."""
+    if eod_mode():
+        return _eod_pass.get()
     now = datetime.now(IST)
     return pricing.trading_day(now) and (9, 15) <= (now.hour, now.minute) < (15, 30)
 
@@ -58,6 +80,11 @@ def market_window() -> bool:
 def _chain(symbol: str, expiry: str) -> tuple[float, pd.DataFrame]:
     """Option chain, cached QUOTE_TTL (60 s) in this process and in Redis (`quote:{sym}:{expiry}`), so every
     user and process holding the same contract shares one NSE call."""
+    if eod_mode():
+        got = eod.chain(symbol, expiry)
+        if got is None:
+            raise ValueError(f"No end-of-day price for {symbol} {expiry} yet")
+        return got[0], got[1].set_index("strikePrice")
     key = (symbol, expiry)
     hit = _quote_cache.get(key)
     if hit and time.time() - hit[0] < QUOTE_TTL:
@@ -143,9 +170,24 @@ def _fill_price(q: dict, action: str) -> tuple[float, str | None]:
     raise ValueError("No live bid/ask for this contract; the exit waits for one")
 
 
+def eod_fill_day(now: datetime) -> str:
+    """End-of-day mode: the session whose settlement price fills an order placed at `now`, the
+    first that opens after it. Placed before 09:15 on a trading day: that day; else the next trading
+    day. Never the session already running, whose close a late order could all but see."""
+    day = now.astimezone(IST)
+    if not (pricing.trading_day(day) and (day.hour, day.minute) < (9, 15)):
+        day = (day + timedelta(days=1)).replace(hour=12, minute=0)
+        while not pricing.trading_day(day):
+            day += timedelta(days=1)
+    return day.date().isoformat()
+
+
 def _valid_until() -> str:
-    """Day orders: today's session if the market is open now, else the next weekday's."""
+    """Day orders: today's session if the market is open now, else the next weekday's. In
+    end-of-day mode: the session whose settlement fills it (eod_fill_day)."""
     now = datetime.now(IST)
+    if eod_mode():
+        return eod_fill_day(now)
     day = now.date()
     if not (now.weekday() < 5 and (now.hour, now.minute) < (15, 30)):
         day += timedelta(days=1)
@@ -433,7 +475,10 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         fills.append({**l, "strike": float(l["strike"]), "qty": int(l["lots"]) * lot, "limit": limit,
                       "price": px, "fills_now": now, "bid": q["bid"], "ask": q["ask"], "ltp": q["ltp"],
                       "spot": q["spot"], "iv": q["iv"]})
-    if not market_open():
+    if eod_mode():
+        notes.add(f"Fills at the {eod_fill_day(datetime.now(IST))} closing settlement price if it reaches your limit "
+                  "(NSE publishes it about 18:30)")
+    elif not market_open():
         notes.add("Market closed: the order waits and fills in the next session if the price is reached")
     elif not all(f["fills_now"] for f in fills):
         notes.add("A limit away from the market waits as an open order and expires at 15:30")
@@ -705,6 +750,10 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
             contract = dict(u=user_id, s=r["symbol"], e=r["expiry"], sd=r["side"], k=r["strike"], a=action)
             q = quote(r["symbol"], r["expiry"], r["side"], r["strike"])
             limit = _default_limit(q, action)
+            if eod_mode() and not _eod_pass.get():
+                # End-of-day mode: an exit must happen, so its limit always crosses and it fills at
+                # the next settlement price, whatever it is (_match_eod fills at the settlement).
+                limit = tick(max(limit, 1.0) * 100) if action == "BUY" else TICK
             if _marketable(q, action, limit):
                 px = _touch(q, action)
                 _apply_trade(c, user_id, r["symbol"], r["expiry"], r["side"], r["strike"], action, abs(r["qty"]),
@@ -733,7 +782,8 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
                 " limit_price, reason, sl_mode, valid_until) VALUES (:u,:s,:e,:sd,:k,:a,:q,:lot,:lim,:r,:m,:v)"
                 " RETURNING id", **contract, q=left, lot=r["lot_size"], lim=limit, r=reason, m=r["sl_mode"],
                 v=_valid_until())
-            done.append({"id": r["id"], "price": limit, "status": "open", "order_id": oid})
+            # In end-of-day mode the limit only makes it cross; the price is the next settlement.
+            done.append({"id": r["id"], "price": None if eod_mode() else limit, "status": "open", "order_id": oid})
     return done
 
 
@@ -850,6 +900,8 @@ def match_pending(user_id: int, only: int | None = None) -> list[int]:
     """Fills open orders the market has reached, and expires those past their session.
     A resting order fills at its own limit, as on the exchange."""
     filled = []
+    if eod_mode():
+        return _match_eod(user_id) if _eod_pass.get() else filled
     with db.tx(user_id) as c:
         c.run("UPDATE pending_orders SET status='expired', updated_at=now() WHERE user_id=:u AND status='open'"
               " AND (valid_until < CURRENT_DATE OR (valid_until = CURRENT_DATE AND :closed))",
@@ -887,6 +939,76 @@ def match_pending(user_id: int, only: int | None = None) -> list[int]:
                              px, r["lot_size"], r["reason"], r["note"], r["sl_mode"], r["limit_price"])
                 filled.append(r["id"])
     return filled
+
+
+def _match_eod(user_id: int) -> list[int]:
+    """End-of-day pass: day orders for the session in the file fill at its settlement price when that
+    is at or better than their limit, like a closing auction; any not filled then expire. Orders for
+    a later session wait. Stop orders are checked against the settlement price like the live market."""
+    data = eod.latest()
+    if not data:
+        return []
+    day = data["date"]
+    with db.tx(user_id) as c:
+        rows = c.all("SELECT * FROM pending_orders WHERE user_id=:u AND status='open' "
+                     "AND (order_type <> 'limit' OR valid_until <= :d) ORDER BY id", u=user_id, d=day)
+    filled = []
+    for r in rows:
+        try:
+            q = quote(r["symbol"], str(r["expiry"]), r["side"], float(r["strike"]))
+        except Exception:
+            continue
+        if r["order_type"] != "limit" and r["triggered_at"] is None:
+            if _triggered(r, q) and r["order_type"] == "slm" and _fill_slm(user_id, r, q):
+                filled.append(r["id"])
+            continue
+        touch = _touch(q, r["action"])
+        if touch <= 0 or (touch < r["limit_price"] if r["action"] == "SELL" else touch > r["limit_price"]):
+            continue
+        with _lock, db.tx(user_id) as c:
+            _lock_account(c, user_id)
+            if c.run("UPDATE pending_orders SET status='filled', fill_price=:p, updated_at=now() "
+                     "WHERE id=:i AND user_id=:u AND status='open'", p=touch, i=r["id"], u=user_id):
+                _apply_trade(c, user_id, r["symbol"], r["expiry"], r["side"], r["strike"], r["action"], r["qty"],
+                             touch, r["lot_size"], r["reason"], r["note"], r["sl_mode"], r["limit_price"])
+                filled.append(r["id"])
+    with db.tx(user_id) as c:
+        c.run("UPDATE pending_orders SET status='expired', updated_at=now() WHERE user_id=:u AND status='open' "
+              "AND order_type='limit' AND valid_until <= :d", u=user_id, d=day)
+    return filled
+
+
+def run_eod_pass() -> int:
+    """End-of-day mode, once per published file (worker, after eod.refresh): for every active user,
+    fill and expire day orders, then run the rules (time exit, profit target, stop loss) and RMS on the
+    new settlement prices, with exits filling at them. Returns how many users it ran for; 0 when the
+    mode is off, there is no file, or this file was already processed."""
+    data = eod.latest() if eod_mode() else None
+    if not data:
+        return 0
+    key = f"eod_pass:{data['date']}"
+    if cache.exists(key):
+        return 0
+    from . import rms
+    token = _eod_pass.set(True)
+    n = 0
+    try:
+        for uid in _safe_user_ids():
+            try:
+                if has_pending(uid):
+                    match_pending(uid)
+                if has_open(uid):
+                    run_checks(uid)
+                if has_open(uid) or has_pending(uid):
+                    rms.check(uid)
+                refresh_positions(uid)
+                n += 1
+            except Exception:
+                log.exception("eod pass failed for user %s", uid)
+    finally:
+        _eod_pass.reset(token)
+    cache.set_json(key, 1, ttl=10 * 86400)
+    return n
 
 
 def _triggered(r: dict, q: dict) -> bool:
