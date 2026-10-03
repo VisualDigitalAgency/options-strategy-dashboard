@@ -9,8 +9,13 @@ export const num = (v, d = 2) => (v == null || Number.isNaN(v) ? '—' : fmtFixe
 export const pnlClass = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : '')
 export const signedPct = (v, d = 2) =>
   v == null || Number.isNaN(v) ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}%`
-export const rupee = (v) => (v == null ? '—' : `₹${inr.format(Math.round(v))}`)
-export const rupee2 = (v) => (v == null ? '—' : `₹${inr2.format(v)}`)
+// A negative amount reads −₹153, like signedRupee and rupeeShort, never ₹-153 (#197).
+export const rupee = (v) => {
+  if (v == null) return '—'
+  const r = Math.round(v)
+  return `${r < 0 ? '−' : ''}₹${inr.format(Math.abs(r))}`
+}
+export const rupee2 = (v) => (v == null ? '—' : `${v <= -0.005 ? '−' : ''}₹${inr2.format(Math.abs(v))}`)
 export const int = (v) => (v == null ? '—' : inr.format(v))
 export const pct = (v, d = 1) => (v == null ? '—' : `${Number(v).toFixed(d)}%`)
 export const signed = (v, d = 2) => (v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(d)}`)
