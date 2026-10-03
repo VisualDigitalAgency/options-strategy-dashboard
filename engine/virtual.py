@@ -174,7 +174,8 @@ def mark(symbol: str, expiry: str, side: str, strike: float, q: dict) -> tuple[f
     key = f"mark:{symbol}:{expiry}:{side}:{float(strike):g}"
     if market_open() and pricing.has_book(q["bid"], q["ask"]):
         px = pricing.mid(q["bid"], q["ask"])
-        cache.set_json(key, {"px": px}, ttl=MARK_TTL)
+        if _live_user() is None:  # a user's own broker data is never kept where other users read it
+            cache.set_json(key, {"px": px}, ttl=MARK_TTL)
         return px, "mid"
     if not market_open():
         kept = cache.get_json(key)
@@ -324,6 +325,16 @@ def _sl_status(r: dict, today: pd.Timestamp) -> str:
 def get_positions(user_id: int) -> dict:
     with db.tx(user_id) as c:
         rows = _open_rows(c, user_id)
+    groups, totals = priced_groups(rows)
+    return {"groups": groups, "totals": totals, "market_open": market_open(),
+            "account": get_account(user_id, _positions=groups)}
+
+
+def priced_groups(rows: list[dict]) -> tuple[list[dict], dict]:
+    """Open position rows -> (groups by stock and expiry with each leg marked, greeks, margin and
+    P&L; totals). Rows need id, symbol, expiry, side, strike, qty, avg_price, lot_size, sl_mode,
+    sl_price, sl_activates_on, sl_alert_at, opened_at: virtual `positions` rows, or a real broker's
+    positions shaped like them (broker.get_position_groups)."""
     today = _today()
     groups, totals = [], {"pnl": 0.0, "pnl_exit": 0.0, "margin": 0.0, "delta": 0.0, "theta": 0.0, "vega": 0.0, "gamma": 0.0}
     for (symbol, expiry), legs in _groups(rows).items():
@@ -369,8 +380,7 @@ def get_positions(user_id: int) -> dict:
         totals["margin"] += m["total"] if m else 0
         for k in greeks:
             totals[k] += greeks[k]
-    return {"groups": groups, "totals": {k: (round(v, 2) if v is not None else None) for k, v in totals.items()},
-            "market_open": market_open(), "account": get_account(user_id, _positions=groups)}
+    return groups, {k: (round(v, 2) if v is not None else None) for k, v in totals.items()}
 
 
 def get_account(user_id: int, _positions: list | None = None) -> dict:

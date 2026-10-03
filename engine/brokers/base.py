@@ -4,8 +4,8 @@ A `BrokerSession` is whatever an adapter needs to make authenticated calls; it n
 package as plaintext — `engine/brokers/registry.py`'s caller decrypts a stored access token into
 one right before use and lets it go out of scope after.
 
-This app only ever SELLs options (a selling screener), so `place_order` has no BUY/side param
-for the transaction type: every order this app places is a sell. `side` here means the option
+This app opens positions only by SELLing options (a selling screener); the one BUY it places is
+the limit order that closes a short ("Exit group"). `side` here means the option
 type (CE/PE), same as the rest of the codebase (see engine/virtual.py).
 """
 
@@ -50,6 +50,17 @@ class BrokerAdapter(ABC):
     def place_sell_limit_order(self, session: BrokerSession, *, symbol: str, expiry, side: str,
                                 strike: float, qty: int, limit_price: float) -> BrokerOrderResult:
         """Places one SELL, LIMIT order for one option leg (NFO segment)."""
+
+    @abstractmethod
+    def place_buy_limit_order(self, session: BrokerSession, *, symbol: str, expiry, side: str,
+                               strike: float, qty: int, limit_price: float) -> BrokerOrderResult:
+        """Places one BUY, LIMIT order for one option leg (NFO segment): the only way this app buys,
+        used to close a short ("Exit group")."""
+
+    @abstractmethod
+    def contract(self, session: BrokerSession, tradingsymbol: str) -> dict | None:
+        """{"symbol", "expiry" (ISO), "side" (CE/PE), "strike", "lot_size"} for one of the broker's
+        option instruments (the inverse of `tradingsymbol`), or None if it isn't an option."""
 
     @abstractmethod
     def get_order_status(self, session: BrokerSession, broker_order_id: str) -> dict:

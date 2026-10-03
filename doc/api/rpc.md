@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-92 methods: 15 public, 4 account, 7 market data, 48 user, 18 admin.
+95 methods: 15 public, 4 account, 7 market data, 51 user, 18 admin.
 
 ## Tiers
 
@@ -94,6 +94,9 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`broker_preview_order`](#broker_preview_order) | user | Prices every leg (all SELL) and checks the total margin required against the broker's own real available funds — never against the virtual account. |
 | [`broker_place_order`](#broker_place_order) | user | Places a previewed order on the real broker account; the only function that calls the broker. |
 | [`broker_stop_alerts`](#broker_stop_alerts) | user | Real legs and their broker-side stop, newest first, for the Broker account page. |
+| [`broker_position_groups`](#broker_position_groups) | user | The real account's open option positions grouped by stock and expiry, with the same marks, greeks, margin and P&L as the virtual Portfolio's groups (`va_get_positions`). |
+| [`broker_preview_exit_group`](#broker_preview_exit_group) | user | Prices the orders that close one real position group: every short bought back with a BUY LIMIT at the live ask, every long sold with a SELL LIMIT at the live bid, shorts first. |
+| [`broker_place_exit_group`](#broker_place_exit_group) | user | Sends a previewed exit to the real broker, one leg at a time. |
 | [`admin_list_users`](#admin_list_users) | admin | Every account past email confirmation, waiting requests first. |
 | [`admin_set_status`](#admin_set_status) | admin | Approves (active), rejects or disables an account. |
 | [`admin_reset_password`](#admin_reset_password) | admin | Issues a one-time temporary password, returned once. |
@@ -955,6 +958,43 @@ Set by the server, never by the client: `user_id`.
 Real legs and their broker-side stop, newest first, for the Broker account page.
 
 No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `broker_position_groups`
+
+The real account's open option positions grouped by stock and expiry, with the same marks,
+greeks, margin and P&L as the virtual Portfolio's groups (`va_get_positions`).
+
+No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `broker_preview_exit_group`
+
+Prices the orders that close one real position group: every short bought back with a BUY
+LIMIT at the live ask, every long sold with a SELL LIMIT at the live bid, shorts first. Returns
+a one-time token for place_exit_group; nothing is sent to the broker here.
+
+`symbol` may be outside the Nifty 50: the method only acts on stocks the caller holds.
+
+| Param | Type | Default |
+|---|---|---|
+| `symbol` | `str` | required |
+| `expiry` | `str` | required |
+
+Set by the server, never by the client: `user_id`.
+
+### `broker_place_exit_group`
+
+Sends a previewed exit to the real broker, one leg at a time. Before each leg it checks the
+position at the broker is still exactly what the preview closed; if not, it stops. Like
+place_order it never retries and never rolls back: a leg that fails or gets no answer stops the
+rest, and what already went out stays live.
+
+| Param | Type | Default |
+|---|---|---|
+| `confirm_token` | `str` | required |
 
 Set by the server, never by the client: `user_id`.
 
