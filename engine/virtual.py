@@ -49,6 +49,10 @@ def _today() -> pd.Timestamp:
 # the settlement price of the first session that opens after it was placed, and stops, exits and
 # RMS run once a day in run_eod_pass() on the new settlement prices. Off by default.
 _eod_pass = contextvars.ContextVar("eod_pass", default=False)
+# Data plan D (#216): whose request or monitor pass this is. A user with an active broker login
+# prices from their own broker data (live), and their trades are stamped price_source='live' so
+# they never rank on the leaderboard; everyone else stays on the end-of-day file.
+_viewer = contextvars.ContextVar("viewer", default=None)
 _eod_flag = {"at": 0.0, "on": False}
 
 
@@ -60,10 +64,37 @@ def eod_mode() -> bool:
     return _eod_flag["on"]
 
 
+def _live_user() -> int | None:
+    """In end-of-day mode, the current user when they price from their own broker data."""
+    uid = _viewer.get()
+    if uid is None or not eod_mode():
+        return None
+    from . import broker  # broker imports this module
+    return uid if broker.live_ok(uid) else None
+
+
+def _eod() -> bool:
+    """End-of-day pricing applies to this request: the mode is on and the user isn't live."""
+    return eod_mode() and _live_user() is None
+
+
+class as_viewer:
+    """`with as_viewer(uid):` runs a block for one user (server dispatch, monitor pass)."""
+
+    def __init__(self, user_id):
+        self.user_id = user_id
+
+    def __enter__(self):
+        self.token = _viewer.set(self.user_id)
+
+    def __exit__(self, *exc):
+        _viewer.reset(self.token)
+
+
 def market_open() -> bool:
     """NSE derivatives session: a trading day (weekday, not an NSE holiday), 09:15–15:30 IST. In
     end-of-day mode nothing fills at a live price, so it reads as closed except inside the daily pass."""
-    if eod_mode():
+    if _eod():
         return _eod_pass.get()
     now = datetime.now(IST)
     return pricing.trading_day(now) and (9, 15) <= (now.hour, now.minute) < (15, 30)
@@ -80,6 +111,12 @@ def market_window() -> bool:
 def _chain(symbol: str, expiry: str, live: bool = False) -> tuple[float, pd.DataFrame]:
     """Option chain, cached QUOTE_TTL (60 s) in this process and in Redis (`quote:{sym}:{expiry}`), so every
     user and process holding the same contract shares one NSE call."""
+    uid = None if live else _live_user()
+    if uid is not None:  # the user's own broker data, cached for them only; the file if it fails
+        from . import broker
+        got = broker.live_chain(uid, symbol, expiry)
+        if got:
+            return got
     if eod_mode() and not live:  # real broker orders always price live (live=True)
         got = eod.chain(symbol, expiry)
         if got is None:
@@ -111,7 +148,7 @@ def lot_size(symbol: str, expiry: str) -> int | None:
 
 def as_of() -> str | None:
     """The trading day whose close prices are shown, in end-of-day mode; None when prices are live."""
-    return (eod.latest() or {}).get("date") if eod_mode() else None
+    return (eod.latest() or {}).get("date") if _eod() else None
 
 
 def quote(symbol: str, expiry: str, side: str, strike: float, live: bool = False) -> dict:
@@ -196,7 +233,7 @@ def _valid_until() -> str:
     """Day orders: today's session if the market is open now, else the next weekday's. In
     end-of-day mode: the session whose settlement fills it (eod_fill_day)."""
     now = datetime.now(IST)
-    if eod_mode():
+    if _eod():
         return eod_fill_day(now)
     day = now.date()
     if not (now.weekday() < 5 and (now.hour, now.minute) < (15, 30)):
@@ -389,9 +426,16 @@ def _lock_account(c, user_id) -> None:
 
 
 def _close_row(c, user_id, pid, price, realized, reason) -> None:
+    _stamp(c, user_id, pid)  # before record_close copies it to trade_results
     c.run("UPDATE positions SET qty=0, status='closed', closed_at=now(), exit_price=:p,"
           " realized_pnl=realized_pnl+:r WHERE id=:i AND user_id=:u", p=price, r=realized, i=pid, u=user_id)
     progress.record_close(c, user_id, pid, reason)  # learning-path trade log and XP (#122), same transaction
+
+
+def _stamp(c, user_id, pid) -> None:
+    """A fill at the user's own live price marks the position (and so its trade result) live."""
+    if pid and _live_user() == user_id:
+        c.run("UPDATE positions SET price_source='live' WHERE id=:i AND user_id=:u", i=pid, u=user_id)
 
 
 def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, lot, reason, note, sl_mode,
@@ -437,6 +481,7 @@ def _apply_trade(c, user_id, symbol, expiry, side, strike, action, qty, price, l
             flip = abs(new_qty)
             _apply_trade(c, user_id, symbol, expiry, side, strike, action, flip, price, lot, reason, note, sl_mode, limit)
             qty -= flip
+    _stamp(c, user_id, pid)
     c.run("INSERT INTO orders (user_id, symbol, expiry, side, strike, action, qty, price, reason, position_id,"
           " realized_pnl, note, limit_price) VALUES (:u,:s,:e,:sd,:k,:a,:q,:p,:r,:pid,:rp,:n,:lim)",
           u=user_id, s=symbol, e=expiry, sd=side, k=strike, a=action, q=qty, p=price, r=reason, pid=pid,
@@ -485,7 +530,7 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         fills.append({**l, "strike": float(l["strike"]), "qty": int(l["lots"]) * lot, "limit": limit,
                       "price": px, "fills_now": now, "bid": q["bid"], "ask": q["ask"], "ltp": q["ltp"],
                       "spot": q["spot"], "iv": q["iv"]})
-    if eod_mode():
+    if _eod():
         notes.add(f"Fills at the {eod_fill_day(datetime.now(IST))} closing settlement price if it reaches your limit "
                   "(NSE publishes it about 18:30)")
     elif not market_open():
@@ -760,7 +805,7 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
             contract = dict(u=user_id, s=r["symbol"], e=r["expiry"], sd=r["side"], k=r["strike"], a=action)
             q = quote(r["symbol"], r["expiry"], r["side"], r["strike"])
             limit = _default_limit(q, action)
-            if eod_mode() and not _eod_pass.get():
+            if _eod() and not _eod_pass.get():
                 # End-of-day mode: an exit must happen, so its limit always crosses and it fills at
                 # the next settlement price, whatever it is (_match_eod fills at the settlement).
                 limit = tick(max(limit, 1.0) * 100) if action == "BUY" else TICK
@@ -793,7 +838,7 @@ def _exit_rows(user_id: int, rows: list[dict], reason: str, price_override: dict
                 " RETURNING id", **contract, q=left, lot=r["lot_size"], lim=limit, r=reason, m=r["sl_mode"],
                 v=_valid_until())
             # In end-of-day mode the limit only makes it cross; the price is the next settlement.
-            done.append({"id": r["id"], "price": None if eod_mode() else limit, "status": "open", "order_id": oid})
+            done.append({"id": r["id"], "price": None if _eod() else limit, "status": "open", "order_id": oid})
     return done
 
 
@@ -910,7 +955,7 @@ def match_pending(user_id: int, only: int | None = None) -> list[int]:
     """Fills open orders the market has reached, and expires those past their session.
     A resting order fills at its own limit, as on the exchange."""
     filled = []
-    if eod_mode():
+    if _eod():
         return _match_eod(user_id) if _eod_pass.get() else filled
     with db.tx(user_id) as c:
         c.run("UPDATE pending_orders SET status='expired', updated_at=now() WHERE user_id=:u AND status='open'"
@@ -1005,13 +1050,16 @@ def run_eod_pass() -> int:
     try:
         for uid in _safe_user_ids():
             try:
-                if has_pending(uid):
-                    match_pending(uid)
-                if has_open(uid):
-                    run_checks(uid)
-                if has_open(uid) or has_pending(uid):
-                    rms.check(uid)
-                refresh_positions(uid)
+                with as_viewer(uid):
+                    if _live_user():  # priced live all day by the monitor, not at the settlement
+                        continue
+                    if has_pending(uid):
+                        match_pending(uid)
+                    if has_open(uid):
+                        run_checks(uid)
+                    if has_open(uid) or has_pending(uid):
+                        rms.check(uid)
+                    refresh_positions(uid)
                 n += 1
             except Exception:
                 log.exception("eod pass failed for user %s", uid)
@@ -1328,16 +1376,17 @@ def start_monitor() -> None:
         while True:
             for uid in _safe_user_ids():
                 try:
-                    if has_pending(uid):
-                        match_pending(uid)
-                    if has_open(uid):
-                        run_checks(uid)
-                    from . import rms  # rms builds on this module
-                    if has_open(uid) or has_pending(uid):
-                        rms.check(uid)  # margin shortfall: record it, square off at the RMS limit (#178)
-                    if _session_over():
-                        rms.apply_penalties(uid)  # once per day; a repeat call is a no-op
-                    refresh_positions(uid)
+                    with as_viewer(uid):
+                        if has_pending(uid):
+                            match_pending(uid)
+                        if has_open(uid):
+                            run_checks(uid)
+                        from . import rms  # rms builds on this module
+                        if has_open(uid) or has_pending(uid):
+                            rms.check(uid)  # margin shortfall: record it, square off at the RMS limit (#178)
+                        if _session_over():
+                            rms.apply_penalties(uid)  # once per day; a repeat call is a no-op
+                        refresh_positions(uid)
                 except Exception:
                     pass  # one user's failure never stops the others; next pass retries
             time.sleep(config.POSITIONS_REFRESH_MARKET_SECONDS if market_window()

@@ -950,12 +950,13 @@ def rpc():
         return _internal(req_id, f"validating rpc {name}")
 
     try:
-        if kind == "user":
-            result = method(ctx.user_id, **params)
-        elif kind == "shared":
-            result = method(**params)
-        else:
-            result = method(ctx, **params)
+        with virtual.as_viewer(ctx.user_id):  # live prices for a broker-connected user (#216)
+            if kind == "user":
+                result = method(ctx.user_id, **params)
+            elif kind == "shared":
+                result = method(**params)
+            else:
+                result = method(ctx, **params)
     except UPSTREAM_ERRORS:  # before USER_ERRORS: requests' JSON decode error is a ValueError
         log.warning("rpc %s: upstream data failed", name, exc_info=True)
         return _error(req_id, -32000, UPSTREAM_MESSAGE)

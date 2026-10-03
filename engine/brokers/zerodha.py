@@ -166,6 +166,43 @@ class ZerodhaAdapter(BrokerAdapter):
     def delete_alert(self, session: BrokerSession, alert_id: str) -> None:
         self._alerts_client(session)._delete("alerts.delete", params={"uuid": alert_id})
 
+    def option_chain(self, session: BrokerSession, symbol: str, expiry: str):
+        """The chain from Kite quotes under the user's own login (data plan D, #216): never shared
+        with other users. Kite has no previous-day OI, so the OI change is 0."""
+        import pandas as pd
+        from .. import greeks_sr
+        kite = self._client(session)
+        rows = [r for r in self._instruments(kite) if r.get("name") == symbol and str(r.get("expiry")) == expiry
+                and r.get("instrument_type") in ("CE", "PE")]
+        if not rows:
+            return None
+        keys = [f"NFO:{r['tradingsymbol']}" for r in rows]
+        got = {}
+        for i in range(0, len(keys), 450):  # Kite takes up to 500 instruments per call
+            got |= kite.quote(keys[i:i + 450] + ([f"NSE:{symbol}"] if i == 0 else []))
+        spot = float((got.get(f"NSE:{symbol}") or {}).get("last_price") or 0)
+        dte = max((pd.Timestamp(expiry) - pd.Timestamp.now().normalize()).days, 0)
+        by = {}
+        for r, k in zip(rows, keys):
+            q = got.get(k) or {}
+            side, ltp = r["instrument_type"], float(q.get("last_price") or 0)
+            depth = q.get("depth") or {}
+            bid = float(((depth.get("buy") or [{}])[0]).get("price") or 0)
+            ask = float(((depth.get("sell") or [{}])[0]).get("price") or 0)
+            close = float((q.get("ohlc") or {}).get("close") or 0)
+            b = by.setdefault(float(r["strike"]), {"strikePrice": float(r["strike"])})
+            b |= {f"{side}_OI": int(q.get("oi") or 0), f"{side}_OI_CHG": 0, f"{side}_LTP": ltp, f"{side}_BID": bid,
+                  f"{side}_ASK": ask, f"{side}_PCHG": round((ltp - close) / close * 100, 2) if close and ltp else None,
+                  f"{side}_IV": greeks_sr.implied_vol(ltp, spot, float(r["strike"]), dte, side) if spot and ltp else 0.0}
+        df = pd.DataFrame(sorted(by.values(), key=lambda x: x["strikePrice"]))
+        for side in ("CE", "PE"):
+            for col, fill in (("OI", 0), ("OI_CHG", 0), ("LTP", 0.0), ("BID", 0.0), ("ASK", 0.0), ("IV", 0.0)):
+                c = f"{side}_{col}"
+                df[c] = df[c].fillna(fill) if c in df else fill
+            if f"{side}_PCHG" not in df:
+                df[f"{side}_PCHG"] = None
+        return spot, df
+
     def get_positions(self, session: BrokerSession) -> list[dict]:
         return self._client(session).positions().get("net", [])
 
