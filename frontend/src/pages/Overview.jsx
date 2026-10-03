@@ -13,7 +13,7 @@ import RangeStrip from '../components/RangeStrip'
 import UpdatedTag from '../components/UpdatedTag'
 import EventBadge from '../components/EventBadge'
 import { screenerEvents } from '../events'
-import { addDaysIso, num, pct, rupee, shortDate, signedPct, suggestLots, todayIso } from '../format'
+import { addDaysIso, asOfText, num, pct, rupee, shortDate, signedPct, suggestLots, todayIso } from '../format'
 
 const dayChange = (c) => (c.prev_close && c.spot ? ((c.spot - c.prev_close) / c.prev_close) * 100 : null)
 const stripIv = (c) => (c.legs.length ? c.legs.reduce((s, l) => s + l.iv, 0) / c.legs.length : c.atm_iv)
@@ -149,6 +149,7 @@ export default function Overview() {
   const avgPop = actionable.length ? actionable.reduce((s, c) => s + (c.strategy?.pop ?? 0), 0) / actionable.length : null
   const best = [...actionable].sort((a, b) => (b.strategy?.roi_pct ?? 0) - (a.strategy?.roi_pct ?? 0))[0]
   // Trend is per stock, not per expiry cycle: count each stock once.
+  const asOf = candidates.find((c) => c.as_of)?.as_of
   const perStock = [...new Map(candidates.map((c) => [c.symbol, c])).values()]
   const moods = ['Bullish', 'Neutral', 'Bearish'].map((m) => [m, perStock.filter((c) => c.sentiment?.label === m).length])
   // Nearest cycle still shown under the Expiry slider.
@@ -255,6 +256,7 @@ export default function Overview() {
           <dt><Database size={13} aria-hidden />Data</dt>
           <dd>{scanned ? <>Scanned <span className="num">{scanned}</span></> : 'Scanning…'}</dd>
           <p title="NSE SPAN risk-parameter file used for margin">{data?.span_source ? data.span_source.replace(/\.zip$/, '') : 'NSE option chain'}</p>
+          {asOf && <p className="as-of">{asOfText(asOf)}</p>}
         </div>
       </dl>
 

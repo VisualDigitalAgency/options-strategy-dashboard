@@ -104,6 +104,16 @@ def _chain(symbol: str, expiry: str) -> tuple[float, pd.DataFrame]:
     return spot, df
 
 
+def lot_size(symbol: str, expiry: str) -> int | None:
+    """Lot size: from the end-of-day file in end-of-day mode, else NSE's lot-size list."""
+    return eod.lot(symbol) if eod_mode() else data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry))
+
+
+def as_of() -> str | None:
+    """The trading day whose close prices are shown, in end-of-day mode; None when prices are live."""
+    return (eod.latest() or {}).get("date") if eod_mode() else None
+
+
 def quote(symbol: str, expiry: str, side: str, strike: float) -> dict:
     spot, df = _chain(symbol, expiry)
     if strike not in df.index:

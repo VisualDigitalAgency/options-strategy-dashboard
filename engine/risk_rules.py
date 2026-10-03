@@ -140,7 +140,9 @@ def evaluate_symbol_cycles(symbol: str, yf_symbol: str, today: pd.Timestamp | No
 
 def screen_cycles(symbol: str, today: pd.Timestamp) -> list[pd.Timestamp]:
     """The stock's expiries worth screening, nearest first (one cheap NSE call)."""
-    return filters.eligible_expiries(data_fetch.fetch_expiries(symbol), today, config.SCREEN_DTE_FLOOR,
+    from . import eod, virtual
+    listed = eod.expiries(symbol) if virtual.eod_mode() else data_fetch.fetch_expiries(symbol)
+    return filters.eligible_expiries(listed, today, config.SCREEN_DTE_FLOOR,
                                      config.SCREEN_DTE_CEIL, config.SCREEN_MAX_EXPIRY_CYCLES)
 
 
@@ -173,9 +175,15 @@ def _evaluate_for_expiry(symbol: str, expiry: pd.Timestamp, dte: int, today: pd.
     _check(checks, "Expiry", "pass" if dte >= config.MIN_DTE else "warn",
            f"{expiry:%d %b %Y}, {dte} days out (strategy min {config.MIN_DTE}){note}")
 
-    raw = data_fetch.fetch_option_chain(symbol, expiry)
-    spot = data_fetch.get_spot_price(raw)
-    chain = data_fetch.normalize_option_chain(raw)
+    from . import virtual
+    if virtual.eod_mode():  # data plan C (#216): the end-of-day file, never the live API
+        spot, chain = virtual._chain(symbol, expiry.strftime("%Y-%m-%d"))
+        chain = chain.reset_index()
+        result["as_of"] = virtual.as_of()
+    else:
+        raw = data_fetch.fetch_option_chain(symbol, expiry)
+        spot = data_fetch.get_spot_price(raw)
+        chain = data_fetch.normalize_option_chain(raw)
     result["spot"] = spot
     if chain.empty:
         _check(checks, "Option chain", "fail", "NSE returned no option chain data")
@@ -183,7 +191,7 @@ def _evaluate_for_expiry(symbol: str, expiry: pd.Timestamp, dte: int, today: pd.
 
     max_pain = greeks_sr.compute_max_pain(chain)
     result["max_pain"] = max_pain
-    result["lot_size"] = data_fetch.fetch_lot_size(symbol, expiry)
+    result["lot_size"] = virtual.lot_size(symbol, expiry.strftime("%Y-%m-%d"))
 
     result["sentiment"] = greeks_sr.compute_sentiment(price_hist, spot, chain)
     result["history"] = [

@@ -19,7 +19,7 @@ SETTINGS = {
     # Data plan B (#216): off until the owner has checked real files with scripts/check_eod.py.
     "eod_prices": (bool, False, "End-of-day prices: the virtual account prices from NSE's end-of-day file instead of "
                                 "the live feed. Orders fill at the next closing settlement; stops and exits run once a "
-                                "day after 18:30. Scheduled auto-trade pauses until the screener moves over too."),
+                                "day after 18:30, and the screener, builder and scheduled auto-trade use the same file."),
 }
 READER_PAGES = ("builder", "learn", "progress", "leaderboard")
 

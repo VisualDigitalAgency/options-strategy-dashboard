@@ -6,8 +6,10 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+
 import support
-from engine import app_settings, db, eod, users, virtual
+from engine import app_settings, builder, data_fetch, db, eod, risk_rules, users, virtual
 from engine.progress import IST
 
 fails = []
@@ -90,7 +92,25 @@ with db.tx(uid) as c:
     closed = c.one("SELECT exit_price, realized_pnl FROM positions WHERE id=:i", i=pid)
 check("exit filled at the next settlement even though it moved against", float(closed["exit_price"]) == 14.0, closed)
 
-# 6. Off again: back to the live path.
+# 6. Data plan C: the screener and builder read the same file, never the live API.
+def no_live(*a, **k):
+    raise AssertionError("live NSE call in end-of-day mode")
+saved = data_fetch.fetch_option_chain, data_fetch.fetch_expiries, data_fetch.fetch_lot_size
+data_fetch.fetch_option_chain = data_fetch.fetch_expiries = data_fetch.fetch_lot_size = no_live
+check("expiries and lot from the file", builder.expiries(SYM) == [EXP] and virtual.lot_size(SYM, EXP) == 100)
+b = builder.chain(SYM, EXP)
+check("builder chain is labelled with the file's date", b["as_of"] == nxt and b["lot_size"] == 100, b["as_of"])
+days = pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=120)
+closes = [1000 + 30 * ((i % 20) - 10) / 10 for i in range(len(days))]
+hist = pd.DataFrame({"Open": closes, "High": [c + 5 for c in closes], "Low": [c - 5 for c in closes], "Close": closes,
+                     "Volume": 1000}, index=days)
+today = pd.Timestamp.today().normalize()
+row = risk_rules._evaluate_for_expiry(SYM, pd.Timestamp(EXP), (pd.Timestamp(EXP) - today).days, today, hist)
+check("screen row priced from the file, stamped as_of", row["as_of"] == nxt and row["spot"] == 1000.0 and row["lot_size"] == 100,
+      {k: row.get(k) for k in ("as_of", "spot", "lot_size", "action")})
+data_fetch.fetch_option_chain, data_fetch.fetch_expiries, data_fetch.fetch_lot_size = saved
+
+# 7. Off again: back to the live path.
 mode(False)
 check("off: market hours are live again", virtual.eod_mode() is False and virtual.market_open() == real_open())
 

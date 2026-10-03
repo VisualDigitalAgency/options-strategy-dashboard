@@ -196,7 +196,7 @@ def get_config():
 
 def calc_margin(symbol: str, expiry: str, legs: list, lots: int = 1):
     """SPAN + exposure for SHORT legs [{side, strike}] at `lots` lots, ignoring existing positions."""
-    lot = data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry))
+    lot = virtual.lot_size(symbol, expiry)
     if not lot:
         raise ValueError(f"Lot size for {symbol} {expiry} not found")
     spot = virtual.quote(symbol, expiry, legs[0]["side"], float(legs[0]["strike"]))["spot"]

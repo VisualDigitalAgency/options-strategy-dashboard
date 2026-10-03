@@ -202,10 +202,23 @@ def start_scheduler(get_candidates) -> None:
                         continue
                     s = get_settings(uid)
                     now = datetime.now(virtual.IST)
-                    due = (s["enabled"] and virtual.market_open() and now.strftime("%H:%M") >= s["run_at"]
-                           and s["last_run_date"] != now.strftime("%Y-%m-%d"))
+                    today = now.strftime("%Y-%m-%d")
+                    if virtual.eod_mode():
+                        # End-of-day mode (#216): once a day, after the pass on today's file, on a screen
+                        # of that file; the orders rest and fill at the next session's settlement price.
+                        day = virtual.as_of()
+                        due = (s["enabled"] and day == today and cache.exists(f"eod_pass:{day}")
+                               and s["last_run_date"] != today)
+                    else:
+                        due = (s["enabled"] and virtual.market_open() and now.strftime("%H:%M") >= s["run_at"]
+                               and s["last_run_date"] != today)
                     if due:
-                        run(uid, get_candidates(), trigger="schedule")
+                        cands = get_candidates()
+                        if virtual.eod_mode():
+                            cands = [c for c in cands if c.get("as_of") == day]
+                            if not cands:  # the screen hasn't caught up with the new file yet
+                                continue
+                        run(uid, cands, trigger="schedule")
                         virtual.refresh_positions(uid)
                 except Exception:  # one user's failure never stops the others; next pass retries
                     log.exception("auto-trade pass failed for user %s", uid)

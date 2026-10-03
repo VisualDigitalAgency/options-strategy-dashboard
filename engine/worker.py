@@ -121,7 +121,8 @@ def start_nudger() -> None:
 
 def start_eod_refresher() -> None:
     """End-of-day option prices (data plan, PR A): NSE's bhavcopy, from EOD_READY_IST on a trading
-    day, tried every 15 minutes until it is published. Ingest only: nothing prices from it yet."""
+    day, tried every 15 minutes until it is published. In end-of-day mode it then runs the daily pass
+    and asks for a full rescreen on the new file."""
     def loop():
         while True:
             try:
@@ -129,6 +130,7 @@ def start_eod_refresher() -> None:
                 # In end-of-day mode: fills, stops and exits on the new file, once per file (#216).
                 if n := virtual.run_eod_pass():
                     log.info("eod pass: %s users", n)
+                    cache.set_json(FORCE, time.time(), ttl=600)  # rescreen on the new file (auto-trade waits for it)
             except Exception:
                 log.exception("eod refresh failed")
             time.sleep(900)
