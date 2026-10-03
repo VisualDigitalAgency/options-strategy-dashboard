@@ -28,6 +28,7 @@ def stub(market: bool, bid: float = 5.0, oi: int = 10_000):
     # Order-mechanics tests sell naked from Level 1 accounts; the strategy gate (#170) has its own
     # test (test_strategy_gate.py), which doesn't use this stub.
     virtual._strategy_rule = lambda *a: None
+    virtual.lessons_lock = lambda user_id: None  # the Level 1 lessons gate; tests that need it restore it
     data_fetch.fetch_lot_size = lambda s, e: 100
 
     def gm(symbol, expiry, legs, spot):

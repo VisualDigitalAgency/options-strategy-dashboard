@@ -12,14 +12,15 @@ import os
 import secrets
 import time
 import traceback
+from urllib.parse import urlencode
 
 import pandas as pd
 import requests
-from flask import Flask, Response, abort, jsonify, request
+from flask import Flask, Response, abort, jsonify, redirect, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, cohort, config, habits, prizes, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
+from engine import app_settings, auth, google_auth, autotrade, brand, broker, builder, cache, capital, cards, coins, cohort, config, habits, prizes, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -196,7 +197,7 @@ def get_config():
 
 def calc_margin(symbol: str, expiry: str, legs: list, lots: int = 1):
     """SPAN + exposure for SHORT legs [{side, strike}] at `lots` lots, ignoring existing positions."""
-    lot = data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry))
+    lot = virtual.lot_size(symbol, expiry)
     if not lot:
         raise ValueError(f"Lot size for {symbol} {expiry} not found")
     spot = virtual.quote(symbol, expiry, legs[0]["side"], float(legs[0]["strike"]))["spot"]
@@ -328,10 +329,12 @@ def lessons_get(_ctx: Ctx, slug: str):
 
 def app_info(_ctx: Ctx):
     """The app's name and logo version (null while the built-in mark is used), and the pages a
-    signed-out visitor may open (`reader_pages`) and NSE trading holidays (`holidays`, ISO dates).
+    signed-out visitor may open (`reader_pages`), whether Sign in with Google is on (`google_login`) and NSE
+    trading holidays (`holidays`, ISO dates).
     Public; every page loads it."""
     return {**brand.info(), "reader_pages": app_settings.reader_pages(),
-            "auto_approve": app_settings.get("auto_approve"),  # sign-up copy: instant or waits for approval
+            "auto_approve": app_settings.get("auto_approve"),
+            "google_login": google_auth.enabled(),  # shows "Continue with Google" on sign-in and join  # sign-up copy: instant or waits for approval
             "holidays": sorted(pricing.holidays())}  # NSE trading holidays, for the market clock
 
 
@@ -829,6 +832,57 @@ def card_png(slug: str):
     logo = brand.asset("logo")
     resp = Response(cards.png(_card(slug), site, brand.name(), logo and logo[0]), mimetype="image/png")
     resp.headers["Cache-Control"] = "public, max-age=3600"
+    return resp
+
+
+# ---------- sign in with Google ----------
+# Plain GET redirects, not RPC: the browser leaves for Google and comes back. `state` and the
+# browser-binding cookie stop a forged callback (engine/google_auth.py).
+GOOGLE_COOKIE = COOKIE + "-g"
+
+
+def _cookie_secure() -> bool:
+    return COOKIE.startswith("__Host-") or os.environ.get("COOKIE_SECURE", "1") == "1"
+
+
+def _to_login(message: str) -> Response:
+    return redirect("/login?" + urlencode({"google": message}), code=303)
+
+
+@app.get("/auth/google/start")
+def google_start():
+    try:
+        url, browser = google_auth.start(request.args.get("ref"), request.remote_addr)
+    except auth.AuthError as e:
+        return _to_login(str(e))
+    resp = redirect(url, code=303)
+    resp.set_cookie(GOOGLE_COOKIE, browser, max_age=google_auth.STATE_TTL, path="/", secure=_cookie_secure(),
+                    httponly=True, samesite="Lax")
+    return resp
+
+
+@app.get("/auth/google/callback")
+def google_callback():
+    ctx = Ctx()
+    try:
+        if request.args.get("error"):  # the user cancelled on Google's page
+            raise auth.AuthError("Google sign-in was cancelled")
+        token, answer = google_auth.finish(request.args.get("state"), request.args.get("code"),
+                                           request.cookies.get(GOOGLE_COOKIE), ip=ctx.ip, ua=ctx.ua, device=ctx.device)
+    except auth.AuthError as e:
+        resp = _to_login(str(e))
+    except requests.RequestException:
+        log.warning("google sign-in: token endpoint failed", exc_info=True)
+        resp = _to_login("Couldn't reach Google. Try again")
+    else:
+        resp = redirect("/", code=303) if token else _to_login(answer["message"])
+        if token:
+            resp.set_cookie(COOKIE, token, max_age=auth.SESSION_CAP_DAYS * 86400, path="/", secure=_cookie_secure(),
+                            httponly=True, samesite="Lax")
+    resp.delete_cookie(GOOGLE_COOKIE, path="/", secure=_cookie_secure(), httponly=True, samesite="Lax")
+    if ctx.new_device:
+        resp.set_cookie(DEVICE_COOKIE, ctx.new_device, max_age=DEVICE_DAYS * 86400, path="/",
+                        secure=_cookie_secure(), httponly=True, samesite="Lax")
     return resp
 
 

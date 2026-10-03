@@ -260,7 +260,7 @@ export default function OrderModal({ d, lots, onClose, intent = 'virtual' }) {
       )}
       {!brokerConnected && (
         <p className="notice muted-notice">
-          <AlertTriangle size={16} aria-hidden /> Live broker not connected. Virtual orders use live NSE prices but no real money.
+          <AlertTriangle size={16} aria-hidden /> Live broker not connected. Virtual orders use market prices but no real money.
         </p>
       )}
 

@@ -117,6 +117,7 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
     free = acct["available_margin"]
 
     placed, skipped = [], []
+    locked = virtual.lessons_lock(user_id)  # no new trades before the Level 1 lessons are passed
     # The screen carries several expiry cycles per stock. Auto-trade stays at one position per stock
     # per run: only cycles at least MIN_DTE out (a nearer one would hit the time exit before its stop
     # ever arms), and of those the best-scoring one, nearer expiry on a tie.
@@ -134,6 +135,9 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
     for c in ready:
         sym, exp, st = c["symbol"], c["expiry"], c["strategy"]
         tag = {"symbol": sym, "pop": st["pop"], "roi_pct": st["roi_pct"], "score": scores[sym]}
+        if locked:
+            skipped.append({**tag, "reason": locked})
+            continue
         if st["pop"] < s["min_pop"]:
             skipped.append({**tag, "reason": f"POP {st['pop']:.1f}% below {s['min_pop']:g}% floor"})
             continue
@@ -198,10 +202,23 @@ def start_scheduler(get_candidates) -> None:
                         continue
                     s = get_settings(uid)
                     now = datetime.now(virtual.IST)
-                    due = (s["enabled"] and virtual.market_open() and now.strftime("%H:%M") >= s["run_at"]
-                           and s["last_run_date"] != now.strftime("%Y-%m-%d"))
+                    today = now.strftime("%Y-%m-%d")
+                    if virtual.eod_mode():
+                        # End-of-day mode (#216): once a day, after the pass on today's file, on a screen
+                        # of that file; the orders rest and fill at the next session's settlement price.
+                        day = virtual.as_of()
+                        due = (s["enabled"] and day == today and cache.exists(f"eod_pass:{day}")
+                               and s["last_run_date"] != today)
+                    else:
+                        due = (s["enabled"] and virtual.market_open() and now.strftime("%H:%M") >= s["run_at"]
+                               and s["last_run_date"] != today)
                     if due:
-                        run(uid, get_candidates(), trigger="schedule")
+                        cands = get_candidates()
+                        if virtual.eod_mode():
+                            cands = [c for c in cands if c.get("as_of") == day]
+                            if not cands:  # the screen hasn't caught up with the new file yet
+                                continue
+                        run(uid, cands, trigger="schedule")
                         virtual.refresh_positions(uid)
                 except Exception:  # one user's failure never stops the others; next pass retries
                     log.exception("auto-trade pass failed for user %s", uid)

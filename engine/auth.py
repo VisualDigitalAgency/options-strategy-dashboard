@@ -323,6 +323,67 @@ def login(email: str, password: str, ip: str | None = None, ua: str | None = Non
     return token, me(u["id"])
 
 
+def google_login(sub: str, email: str, name: str, ip: str | None = None, ua: str | None = None,
+                 device: str | None = None, ref: str | None = None) -> tuple[str | None, dict]:
+    """Sign in with Google (engine/google_auth.py has already checked the ID token and that Google
+    verified `email`). Finds the user by Google id, else by mailbox, and links the Google id to it;
+    a new mailbox gets an account under the same rules as register(), with the email already
+    confirmed and no password (Forgot password sets one). The owner never signs in this way.
+    Returns (session token or None while the account waits for approval, answer)."""
+    email = _clean_email(email)
+    with db.tx() as c:
+        u = (c.one("SELECT id, role, status, google_sub FROM users WHERE google_sub=:s", s=sub)
+             or c.one("SELECT id, role, status, google_sub FROM users WHERE email_canonical=:ce",
+                      ce=users.canonical_email(email)))
+    if u and u["role"] == "owner":
+        audit("google_login_blocked", target_user_id=u["id"], ip=ip, reason="owner")
+        raise AuthError("This account signs in with its email and password")
+    if u and u["google_sub"] and u["google_sub"] != sub:
+        audit("google_login_blocked", target_user_id=u["id"], ip=ip, reason="other_google_account")
+        raise AuthError("This email is linked to a different Google account")
+    auto = app_settings.get("auto_approve")
+    if u is None:
+        if email.split("@")[1] in DISPOSABLE:
+            raise AuthError("Use a permanent email address, not a temporary inbox")
+        owners = device_owners(device)
+        if owners:
+            audit("register_same_device", ip=ip, email=email, existing=[o["id"] for o in owners], via="google")
+            raise AuthError("This browser already has an account. Sign in with it, or ask the admin for help")
+        key = f"rl:register:{ip or '-'}"
+        if _count(key) >= SIGNUPS_PER_IP:
+            raise AuthError("Too many sign-ups from this network. Try again in an hour")
+        cache._call(lambda r: (r.incr(key), r.expire(key, 3600, nx=True)))
+        name = " ".join(name.split())[:80] or email.split("@")[0]
+        try:
+            uid = users.create_user(email, name, status="unverified", ip=ip)
+        except IntegrityError:
+            raise AuthError(TAKEN)
+        with db.tx() as c:
+            if ref:  # an unknown invite code is ignored, as in register()
+                c.run("UPDATE users SET referred_by=(SELECT id FROM users WHERE ref_code=:r) WHERE id=:u", r=ref[:32], u=uid)
+        audit("register", target_user_id=uid, ip=ip, via="google")
+        u = {"id": uid, "status": "unverified"}
+    with db.tx() as c:
+        c.run("UPDATE users SET google_sub=:s WHERE id=:u AND google_sub IS NULL", s=sub, u=u["id"])
+        if u["status"] == "unverified":  # Google has confirmed the mailbox: same as entering the code
+            c.run("UPDATE users SET status=:st, email_verified_at=now(), email_code_hash=NULL, email_code_expires_at=NULL, "
+                  "approved_at=CASE WHEN :st='active' THEN now() END WHERE id=:u AND status='unverified'",
+                  st="active" if auto else "pending", u=u["id"])
+            u["status"] = "active" if auto else "pending"
+            audit("email_verified", target_user_id=u["id"], ip=ip, via="google")
+    see_device(u["id"], device, ip)
+    if u["status"] != "active":
+        audit("login_blocked", target_user_id=u["id"], ip=ip, status=u["status"], via="google")
+        return None, {"message": {"pending": "Your account is waiting for approval. Sign in once an admin has approved it.",
+                                  "rejected": "This sign-up request was not approved",
+                                  "disabled": "This account is disabled. Contact the admin"}[u["status"]]}
+    token = new_session(u["id"], ip, ua)
+    with db.tx() as c:
+        c.run("UPDATE users SET last_login_at=now() WHERE id=:u", u=u["id"])
+    audit("login", actor_id=u["id"], target_user_id=u["id"], ip=ip, via="google")
+    return token, {"signed_in": True}
+
+
 # ---------- email verification (#45) ----------
 # A 6-digit code, stored only as a hash, valid CODE_TTL, CODE_TRIES wrong guesses. Verify and
 # resend answer the same way whether or not the email has an unverified account.

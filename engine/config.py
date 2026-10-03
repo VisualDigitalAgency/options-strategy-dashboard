@@ -178,6 +178,10 @@ CHAMPION_PRO_MONTHS = 1
 PRIZE_WINNERS = 1
 PRIZE_RUPEES = 1000
 PRIZE_TDS_PCT = 30
+
+# End-of-day prices (data plan, PR A): NSE's F&O bhavcopy is fetched from this time (IST) on a
+# trading day, retried until it appears. Nothing prices from it until PR B.
+EOD_READY_IST = "18:30"
 LEVEL_MIN = {"coin_store": 4}
 LEVEL_FEATURES = {3: ("market_calendar",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
 # Gates for Levels 6-9 (#146). Leaving 9 also needs the owner's final-assessment sign-off.
