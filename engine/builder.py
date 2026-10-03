@@ -16,7 +16,8 @@ def expiries(symbol: str) -> list[str]:
     hit = [str(e.date()) for e in eod.expiries(symbol)] if virtual.eod_mode() else cache.get_json(key)
     if hit is None:
         hit = [str(e.date()) for e in data_fetch.fetch_expiries(symbol)]
-        cache.set_json(key, hit, ttl=EXPIRIES_TTL)
+        if hit:  # an empty answer from NSE is never cached: the next load asks again
+            cache.set_json(key, hit, ttl=EXPIRIES_TTL)
     today = str(virtual._today().date())
     return sorted(e for e in hit if e >= today)
 
@@ -100,6 +101,8 @@ def chain_expiry(symbol: str) -> str:
     """The builder's default expiry: the first at least MIN_DTE days out (else the last one)."""
     exps = expiries(symbol)
     if not exps:
+        if virtual.eod_mode():
+            raise ValueError(f"No end-of-day prices for {symbol} yet. They load from NSE's closing file; try again in a few minutes")
         raise ValueError(f"No open expiries for {symbol}")
     today = virtual._today()
     return next((e for e in exps if (pd.Timestamp(e) - today).days >= config.MIN_DTE), exps[-1])

@@ -68,9 +68,9 @@ check("latest() reads the newest", eod.latest()["symbols"]["SBIN"]["spot"] == SP
 
 # 4. When to fetch: after EOD_READY_IST on a trading day, once.
 thu = datetime(2026, 10, 1, 19, 0, tzinfo=IST)
-check("before the ready time: nothing", eod.due(thu.replace(hour=17)) is None)
+check("before the ready time: the trading day before", eod.due(thu.replace(hour=17)) == date(2026, 9, 30))
 check("after it on a trading day: today", eod.due(thu) == date(2026, 10, 1))
-check("weekend: nothing", eod.due(datetime(2026, 10, 3, 20, 0, tzinfo=IST)) is None)
+check("weekend: Friday's file", eod.due(datetime(2026, 10, 3, 20, 0, tzinfo=IST)) == date(2026, 10, 2))
 eod.download = lambda d: None
 check("not published yet: retried later", eod.refresh(thu) is None)
 eod.download = lambda d: blob
