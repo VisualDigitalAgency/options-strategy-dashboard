@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 import support
-from engine import app_settings, builder, data_fetch, db, eod, risk_rules, users, virtual
+from engine import app_settings, broker, builder, leaderboard, data_fetch, db, eod, risk_rules, users, virtual
 from engine.progress import IST
 
 fails = []
@@ -130,7 +130,34 @@ except Live:
 check("a real broker order still prices live", went_live)
 data_fetch.fetch_option_chain = saved[0]
 
-# 7. Off again: back to the live path.
+# 7. Data plan D: a user with an active broker login prices live from their own data, their trades
+# are stamped live, and they don't rank; everyone else stays on the file.
+live_uid = support.new_user("live@test.example", 1_000_000)
+live_df = pd.DataFrame([{"strikePrice": 900.0, "PE_LTP": 20.0, "PE_BID": 20.0, "PE_ASK": 20.5, "PE_IV": 30.0, "PE_OI": 9000,
+                         "CE_LTP": 0.0, "CE_BID": 0.0, "CE_ASK": 0.0, "CE_IV": 0.0, "CE_OI": 0}]).set_index("strikePrice")
+broker.live_ok = lambda u: u == live_uid
+broker.live_chain = lambda u, s, e: (1001.0, live_df) if u == live_uid else None
+with virtual.as_viewer(live_uid):
+    q = virtual.quote(SYM, EXP, "PE", 900.0)
+check("a broker-connected user sees their live price", q["bid"] == 20.0 and q["spot"] == 1001.0, q)
+with virtual.as_viewer(uid):
+    q = virtual.quote(SYM, EXP, "PE", 900.0)
+check("everyone else still sees the file", q["spot"] == 1000.0, q)
+with virtual.as_viewer(live_uid), db.tx(live_uid) as c:
+    virtual._apply_trade(c, live_uid, SYM, EXP, "PE", 900.0, "SELL", 100, 20.0, 100, "test", "", "auto")
+    virtual._apply_trade(c, live_uid, SYM, EXP, "PE", 900.0, "BUY", 100, 15.0, 100, "test", "", "auto")
+with db.tx(live_uid) as c:
+    src = c.value("SELECT price_source FROM trade_results WHERE user_id=:u", u=live_uid)
+check("a live-priced trade is stamped live", src == "live", src)
+month = leaderboard.this_month()
+check("a live-priced trade keeps the user off the leaderboard", leaderboard._entry(live_uid, month) is None)
+file_uid = support.new_user("file@test.example", 1_000_000)
+with virtual.as_viewer(file_uid), db.tx(file_uid) as c:
+    virtual._apply_trade(c, file_uid, SYM, EXP, "PE", 900.0, "SELL", 100, 20.0, 100, "test", "", "auto")
+    virtual._apply_trade(c, file_uid, SYM, EXP, "PE", 900.0, "BUY", 100, 15.0, 100, "test", "", "auto")
+check("the same trade off the file counts", leaderboard._entry(file_uid, month) is not None)
+
+# 8. Off again: back to the live path.
 mode(False)
 check("off: market hours are live again", virtual.eod_mode() is False and virtual.market_open() == real_open())
 

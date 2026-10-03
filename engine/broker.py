@@ -13,6 +13,7 @@ transaction-type choice is exposed to the caller.
 
 import logging
 import secrets as _secrets
+import time
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -151,6 +152,48 @@ def _require_active(user_id: int) -> dict:
             c.run("UPDATE broker_connections SET status='expired' WHERE id=:id", id=row["id"])
         raise _Inactive("Your broker connection has expired; please reconnect", {**row, "status": "expired"})
     return row
+
+
+LIVE_TTL = 60  # seconds a user's own live chain is reused
+
+
+def live_ok(user_id: int) -> bool:
+    """Whether this user prices from their own broker data right now (data plan D, #216): an
+    active, unexpired connection. Remembered for 30 s in this process."""
+    hit = _live_ok.get(user_id)
+    if hit and time.time() - hit[0] < 30:
+        return hit[1]
+    try:
+        _require_active(user_id)
+        ok = True
+    except _Inactive:
+        ok = False
+    _live_ok[user_id] = (time.time(), ok)
+    return ok
+
+
+_live_ok: dict[int, tuple[float, bool]] = {}
+
+
+def live_chain(user_id: int, symbol: str, expiry: str):
+    """(spot, chain indexed by strike) from the user's own broker login, cached LIVE_TTL for that
+    user only (no redistribution); None when it can't be had, so the caller falls back to the
+    end-of-day file."""
+    key = f"quote:u{user_id}:{symbol}:{expiry}"
+    hit = cache.get_json(key)
+    if hit:
+        return hit["spot"], pd.DataFrame(hit["chain"]).set_index("strikePrice")
+    try:
+        row = _require_active(user_id)
+        got = registry.adapter(row["broker"]).option_chain(_row_to_session(row), symbol, expiry)
+    except Exception:
+        log.warning("live chain failed for user %s %s %s", user_id, symbol, expiry, exc_info=True)
+        return None
+    if not got:
+        return None
+    spot, df = got
+    cache.set_json(key, {"spot": spot, "chain": df.to_dict(orient="list")}, ttl=LIVE_TTL)
+    return spot, df.set_index("strikePrice")
 
 
 _EMPTY_MARGINS = {"available_margin": 0.0, "cash_margin": 0.0, "collateral_margin": 0.0, "used_margin": 0.0,

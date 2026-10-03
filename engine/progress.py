@@ -53,12 +53,12 @@ def record_close(c, user_id: int, pid: int, exit_reason: str) -> None:
                   i=pid, u=user_id, a=opening["action"] if opening else "SELL")
     trade_id = c.value(
         "INSERT INTO trade_results (user_id, position_id, symbol, expiry, side, strike, short, lots, avg_price, exit_price,"
-        " realized_pnl, capital, opened_at, exit_reason, had_sl, entry_delta) VALUES"
-        " (:u,:i,:s,:e,:sd,:k,:sh,:l,:ap,:xp,:pnl,:cap,:o,:why,:sl,:d) RETURNING id",
+        " realized_pnl, capital, opened_at, exit_reason, had_sl, entry_delta, price_source) VALUES"
+        " (:u,:i,:s,:e,:sd,:k,:sh,:l,:ap,:xp,:pnl,:cap,:o,:why,:sl,:d,:src) RETURNING id",
         u=user_id, i=pid, s=r["symbol"], e=r["expiry"], sd=r["side"], k=r["strike"], sh=short,
         l=max(1, round(qty / r["lot_size"])), ap=r["avg_price"], xp=r["exit_price"],
         pnl=r["realized_pnl"], cap=r["starting_capital"], o=r["opened_at"], why=exit_reason,
-        sl=r["sl_mode"] != "off", d=r["entry_delta"])
+        sl=r["sl_mode"] != "off", d=r["entry_delta"], src=r["price_source"])
     held = c.value("SELECT EXTRACT(EPOCH FROM (now() - :o)) / 60", o=r["opened_at"])
     if not short or held < config.QUICK_FLIP_MINUTES:
         return

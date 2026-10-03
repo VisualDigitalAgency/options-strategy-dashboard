@@ -78,6 +78,11 @@ class BrokerAdapter(ABC):
     def get_positions(self, session: BrokerSession) -> list[dict]:
         ...
 
+    def option_chain(self, session: BrokerSession, symbol: str, expiry: str):
+        """(spot, chain) for one stock and expiry from the user's own market data, in
+        data_fetch.normalize_option_chain's columns. Data plan D (#216)."""
+        raise NotImplementedError
+
     @abstractmethod
     def get_margins(self, session: BrokerSession) -> dict:
         """Returns at least {"available_margin": float}."""

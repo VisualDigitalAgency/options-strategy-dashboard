@@ -79,12 +79,14 @@ def _entry(user_id: int, month: str, months: list[str] | None = None) -> dict | 
         level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
         if level < MIN_LEVEL:
             return None
-        rows = c.all("SELECT t.realized_pnl, t.capital, t.had_sl, t.short, t.entry_delta FROM trade_results t "
+        rows = c.all("SELECT t.realized_pnl, t.capital, t.had_sl, t.short, t.entry_delta, t.price_source FROM trade_results t "
                      "JOIN accounts a ON a.user_id = t.user_id "
                      "WHERE t.user_id=:u AND t.closed_at >= a.created_at "
                      "AND to_char(t.closed_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') = ANY(:ms) "
                      "ORDER BY t.closed_at, t.id", u=user_id, ms=months or [month])
     if not rows or not float(rows[-1]["capital"]):
+        return None
+    if any(r["price_source"] == "live" for r in rows):  # traded on live prices this period (#216): not ranked
         return None
     if len(rows) < MIN_TRADES * len(months or [month]):
         return {"level": level, "trades": len(rows)}  # not ranked yet: shown under "Getting there"
