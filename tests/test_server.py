@@ -6,6 +6,7 @@ import requests
 
 import server
 from engine import auth, users, virtual
+from rpc_guard import InvalidParams, validate
 from support import EXP
 
 ORIGIN = "https://t.example"
@@ -72,6 +73,21 @@ server.METHODS["get_config"] = server.get_config
 virtual.refresh_positions = lambda user_id: (_ for _ in ()).throw(requests.ConnectionError("nse down"))
 s, j = call("va_set_sl_mode", {"mode": "alert"}, token)
 check("failed re-price after commit -> success", j.get("result") == {"ok": True}, j)
+
+# va_place_stop's `limit` is an SL limit price, not a row count: no 1-500 cap, null allowed
+for lim in (1250.5, None):
+    try:
+        validate(virtual.place_stop, {"position_id": 1, "trigger": 1200.0, "order_type": "sl", "limit": lim})
+        ok = True
+    except InvalidParams as e:
+        ok = e
+    check(f"SL limit price {lim} passes validate", ok is True, ok)
+try:
+    validate(virtual.get_orders, {"limit": 501})
+    ok = False
+except InvalidParams:
+    ok = True
+check("row-count limit still capped at 500", ok, ok)
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)
