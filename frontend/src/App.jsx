@@ -73,6 +73,7 @@ function TickerItem({ c, hidden }) {
 }
 
 function TickerBar() {
+  const { user } = useAuth()
   const { data } = useScreen()
   const { account } = useBudget()
   const sorted = (data?.candidates ?? [])
@@ -87,17 +88,20 @@ function TickerBar() {
   return (
     <div className="ticker-bar">
       <div className="ticker-inner">
-        <div className="ticker-viewport" aria-label="Setups by POP, scrolling">
-          {items.length === 0 ? (
-            <span className="ticker-empty muted">Scanning setups…</span>
-          ) : (
-            <ul className="ticker-track" style={{ '--ticker-duration': duration }}>
-              {items.map((c) => <TickerItem key={c.symbol} c={c} />)}
-              {/* Second copy makes the loop seamless; hidden from screen readers and tab order */}
-              {items.map((c) => <TickerItem key={`dup-${c.symbol}`} c={c} hidden />)}
-            </ul>
-          )}
-        </div>
+        {/* Setups come from the screen, so without the screener there is nothing to scroll (#198) */}
+        {can(user, 'screener') && (
+          <div className="ticker-viewport" aria-label="Setups by POP, scrolling">
+            {items.length === 0 ? (
+              <span className="ticker-empty muted">Scanning setups…</span>
+            ) : (
+              <ul className="ticker-track" style={{ '--ticker-duration': duration }}>
+                {items.map((c) => <TickerItem key={c.symbol} c={c} />)}
+                {/* Second copy makes the loop seamless; hidden from screen readers and tab order */}
+                {items.map((c) => <TickerItem key={`dup-${c.symbol}`} c={c} hidden />)}
+              </ul>
+            )}
+          </div>
+        )}
         <div className="ticker-right">
           <span title="P&L locked in from closed trades">Booked <b className={`num ${booked > 0 ? 'pos' : booked < 0 ? 'neg' : ''}`}>{account ? signedRupee(booked) : '—'}</b></span>
           <span className="ticker-sep" aria-hidden>|</span>
@@ -422,8 +426,15 @@ function SignedOut() {
   const { pathname, search } = useLocation()
   const here = pathname + search
   const open = useReaderPages()
+  // The home page sends a new visitor to the first public page, not the sign-in form, so they can
+  // try the app before joining. Sign-in is the fallback only when the owner has every page off.
+  // Wait for app_info first: until it says which pages are public, every page counts as open.
+  const known = useBrand().reader != null
+  const home = READER_NAV.find((n) => open(n.page))?.to
   return (
     <Routes>
+      {!known && <Route path="/" element={<Splash />} />}
+      {known && home && <Route path="/" element={<Navigate to={home} replace />} />}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />

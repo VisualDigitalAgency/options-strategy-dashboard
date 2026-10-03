@@ -36,6 +36,14 @@ FEATURES = {
 }
 
 
+# Short labels for the public Levels page, where the level is already the heading (#198).
+LEVEL_LABELS = {
+    "market_calendar": "Market Calendar page",
+    "saved_strategies": "Save strategies in the builder and open them again",
+    "hedges": "Buy option legs on their own in the strategy builder",
+    "coin_store": "Coin store page",
+}
+
 NEVER_BY_LEVEL = frozenset({"live_trading", "manage_users", "manage_roles", "screener", "coin_store"})
 # Features that mean nothing without another: auto-trade places the screen's picks.
 NEEDS = {"autotrade": "screener"}

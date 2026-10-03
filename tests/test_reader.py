@@ -3,7 +3,7 @@ reader_*); the public builder methods are limited per IP; signed-in users are ne
 import sys
 
 import server
-from engine import app_settings, auth, builder, users
+from engine import app_settings, auth, builder, permissions, users
 
 ORIGIN = "https://t.example"
 server.ALLOWED_ORIGINS = {ORIGIN}
@@ -44,6 +44,10 @@ check("symbol still validated", "error" in call("reader_chain", {"symbol": "NOTR
 check("universe", call("reader_universe")["result"] == ["SBIN"])
 lv = call("levels_overview")["result"]
 check("levels overview: 10 levels with unlocks", len(lv) == 10 and lv[4]["level"] == 5 and lv[4]["unlocks"], lv[4])
+# #198: each level's capital reward, short unlock labels, and the coin store only while it is on.
+check("levels overview: capital reward per level", lv[1]["capital"] == 25_000 and lv[0]["capital"] is None, lv[1])
+check("levels overview: no '(Level n unlock)' in labels", not any("unlock)" in u for l in lv for u in l["unlocks"]), lv[2])
+check("levels overview: coin store hidden while off", not lv[3]["unlocks"], lv[3])
 
 # 3. Signed in: never limited.
 uid = users.create_user("r@test.example", "R", status="active")
@@ -59,6 +63,10 @@ check("builder off: refused", "Sign in" in err(call("reader_chain", {"symbol": "
 check("learn off: refused", "Sign in" in err(call("lessons_list")))
 check("leaderboard off: refused", "Sign in" in err(call("leaderboard_get")))
 check("progress off: refused", "Sign in" in err(call("levels_overview")))
+app_settings.set_value(owner, "reader_progress", True)
+permissions.set_feature(owner, "user", "coin_store", True)
+check("levels overview: coin store at Level 4 once on", call("levels_overview")["result"][3]["unlocks"] == ["Coin store page"])
+app_settings.set_value(owner, "reader_progress", False)
 check("signed-in users keep them", "result" in call("lessons_list", token=tok) and "result" in call("leaderboard_get", token=tok))
 
 print("ALL PASS" if not fails else f"FAILED: {fails}")

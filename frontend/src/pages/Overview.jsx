@@ -393,10 +393,15 @@ export default function Overview() {
         </table>
         {data && !firstLoad && rows.length === 0 && (
           <div className="empty">
-            <p>No stocks match these filters.</p>
-            <button className="btn ghost" onClick={() => { setFilter('all'); setMood('all'); setQuery('') }}>
-              Clear filters
-            </button>
+            {!data.candidates?.length
+              // Nothing filtered out: the screen itself found nothing today (#198)
+              ? <p>No setups pass the screen today. It re-runs through the session.</p>
+              : <>
+                  <p>No stocks match these filters.</p>
+                  <button className="btn ghost" onClick={() => { setFilter('all'); setMood('all'); setQuery('') }}>
+                    Clear filters
+                  </button>
+                </>}
           </div>
         )}
       </div>

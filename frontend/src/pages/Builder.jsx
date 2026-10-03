@@ -5,7 +5,6 @@ import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
 import { useTitle } from '../brand'
-import GettingStarted from '../components/GettingStarted'
 import { int, num, rupee, rupee2, shortDate, signedRupee, todayIso } from '../format'
 import { BuilderPayoff } from '../components/Charts'
 import { bsGreeks, sdRange } from '../bs'
@@ -220,6 +219,14 @@ function JoinPrompt({ onClose }) {
 
 const cloneWithItm = (el, itm) => (itm ? cloneElement(el, { className: `${el.props.className} itm` }) : el)
 
+// Signed-out visitors may load one chain per 2 s (server READER_EVERY). Switching stock faster
+// waits out the gap and retries once, instead of showing "Too many requests" (#198).
+const READER_WAIT_MS = 2100
+const builderRpc = (method, params) => rpc(method, params).catch((e) =>
+  /^Too many requests/.test(e.message)
+    ? new Promise((r) => setTimeout(r, READER_WAIT_MS)).then(() => rpc(method, params))
+    : Promise.reject(e))
+
 export default function Builder() {
   useTitle('Strategy builder')
   const { user } = useAuth()
@@ -273,7 +280,10 @@ export default function Builder() {
     if (!symbol || checking) return
     setChain(null); setError(null); setLegs([]); setDone(null); setBaseline(null); setDaysAhead(0); setIvShift(0)
     // `asked` records which request a chain answers, so a saved strategy waits for the right one.
-    rpc(reader ? 'reader_chain' : 'builder_chain', expiry ? { symbol, expiry } : { symbol }).then((c) => setChain({ ...c, asked: expiry })).catch((e) => setError(e.message))
+    let live = true // a quiet retry can land after the visitor picked another stock
+    builderRpc(reader ? 'reader_chain' : 'builder_chain', expiry ? { symbol, expiry } : { symbol })
+      .then((c) => live && setChain({ ...c, asked: expiry })).catch((e) => live && setError(e.message))
+    return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, expiry, checking])
 
@@ -298,7 +308,10 @@ export default function Builder() {
 
   useEffect(() => {
     setLevels(null)
-    if (symbol && !checking) rpc(reader ? 'reader_levels' : 'builder_levels', { symbol }).then(setLevels).catch(() => {})
+    if (!symbol || checking) return
+    let live = true
+    builderRpc(reader ? 'reader_levels' : 'builder_levels', { symbol }).then((l) => live && setLevels(l)).catch(() => {})
+    return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, checking])
 
@@ -424,7 +437,6 @@ export default function Builder() {
   return (
     <div className={`builder-page${legs.length ? ' has-dock' : ''}`}>
       {join && <JoinPrompt onClose={() => setJoin(false)} />}
-      <GettingStarted />
       <header className="builder-hero">
         <div>
           <h1 className="page-title"><Wrench size={20} aria-hidden /> Strategy builder</h1>

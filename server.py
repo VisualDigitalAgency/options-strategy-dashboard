@@ -347,11 +347,16 @@ def _reader_builder(ctx: Ctx, what: str) -> None:
 
 
 def levels_overview(_ctx: Ctx):
-    """The 10 levels: title, minimum days and the features each unlocks (labels). Public while
-    Progress is on for readers; signed-out visitors see it in place of their own progress."""
+    """The 10 levels: title, minimum days, the capital reward for reaching it and the features it
+    unlocks (labels). Level floors (config.LEVEL_MIN, e.g. the coin store) are listed only while the
+    owner has the feature on for ordinary users. Public while Progress is on for readers; signed-out
+    visitors see it in place of their own progress."""
     app_settings.require_reader(_ctx.user, "progress")
-    return [{"level": lv, "title": t, "min_days": config.LEVEL_MIN_DAYS.get(lv),
-             "unlocks": [permissions.FEATURES[f] for f in config.LEVEL_FEATURES.get(lv, ()) if f in permissions.FEATURES]}
+    on = set(permissions.features_for("user"))
+    floors = {lv: [f for f, m in config.LEVEL_MIN.items() if m == lv and f in on] for lv in config.LEVEL_TITLES}
+    return [{"level": lv, "title": t, "min_days": config.LEVEL_MIN_DAYS.get(lv), "capital": config.LEVEL_CAPITAL.get(lv),
+             "unlocks": [permissions.LEVEL_LABELS.get(f, permissions.FEATURES[f])
+                         for f in (*config.LEVEL_FEATURES.get(lv, ()), *floors[lv]) if f in permissions.FEATURES]}
             for lv, t in config.LEVEL_TITLES.items()]
 
 

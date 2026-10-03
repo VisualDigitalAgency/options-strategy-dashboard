@@ -3,6 +3,7 @@ import { Bot, X } from 'lucide-react'
 import { useBudget } from '../settings'
 import { rupee, signedRupee } from '../format'
 import { AutoTradeStatus, AutoTradeSwitch } from './AutoTrade'
+import PalettePicker from './PalettePicker'
 import { useCan } from '../auth'
 
 export default function SettingsPanel({ onClose }) {
@@ -52,6 +53,8 @@ export default function SettingsPanel({ onClose }) {
             </p>
           </div>
         </div>}
+        {/* With the other settings, not on the Virtual account page (#198) */}
+        <PalettePicker />
         <button className="icon-btn" onClick={onClose} aria-label="Close wallet">
           <X size={18} />
         </button>

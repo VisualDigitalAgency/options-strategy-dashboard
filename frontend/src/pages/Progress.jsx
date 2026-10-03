@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Circle, Clock, Copy, Medal, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
 import { rpc } from '../rpc'
+import { rupee } from '../format'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
+import GettingStarted from '../components/GettingStarted'
 import ShareCard from '../components/ShareCard'
 import { useTitle } from '../brand'
 
@@ -58,7 +60,8 @@ function LevelLadder() {
             <li key={l.level}>
               <b>Level {l.level} · {l.title}</b>
               {l.min_days && <span className="muted small"> · at least {l.min_days} days</span>}
-              {l.unlocks.map((u) => <span key={u} className="muted small block">Unlocks: {u}</span>)}
+              {l.capital && <span className="muted small level-line">Reward: {rupee(l.capital)} added to your capital</span>}
+              {l.unlocks.map((u) => <span key={u} className="muted small level-line">Unlocks: {u}</span>)}
             </li>
           ))}
         </ol>
@@ -117,6 +120,7 @@ function MyProgress() {
 
   return (
     <div className="detail progress-page">
+      <GettingStarted />
       <header className="page-head">
         <div>
           <h1 className="display"><Trophy size={26} aria-hidden /> My progress</h1>
@@ -179,7 +183,7 @@ function MyProgress() {
               <div className="card-head"><h2><UserPlus size={16} aria-hidden /> Invite friends</h2>
                 <span className="muted small">{invite.joined} joined through your link</span></div>
               <div className="invite-row">
-                <input className="mono" readOnly value={invite.url} aria-label="Your invite link" onFocus={(e) => e.target.select()} />
+                <input className="input mono" readOnly value={invite.url} aria-label="Your invite link" onFocus={(e) => e.target.select()} />
                 <button className="btn" onClick={async () => {
                   try { await navigator.clipboard.writeText(invite.url); setCopied(true) } catch { /* clipboard blocked */ }
                 }}><Copy size={15} aria-hidden /> {copied ? 'Copied' : 'Copy'}</button>

@@ -58,7 +58,7 @@ export default function EarnCapital() {
             </ol>
           </section>
           <section className="card" aria-labelledby="cg-h">
-            <h2 id="cg-h">Earned so far</h2>
+            <div className="card-head"><h2 id="cg-h">Earned so far</h2></div>
             {s.grants.length ? (
               <ul className="capital-grants">
                 {s.grants.map((g) => (

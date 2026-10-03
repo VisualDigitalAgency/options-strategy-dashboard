@@ -290,7 +290,9 @@ code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.9em; 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
 .field input { height: 44px; width: 220px; padding: 0 12px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-family: var(--mono); }
-.field input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(91, 155, 255, 0.2); }
+/* The same look for a lone control outside a .field (#198: they rendered as native white boxes in dark mode) */
+.input { height: 36px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.field input:focus, .input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(91, 155, 255, 0.2); }
 .helper { margin: 0 0 10px; font-size: 14px; color: var(--text-muted); max-width: 420px; }
 .helper strong { color: var(--text); }
 .settings-inner > .icon-btn { position: absolute; right: 16px; top: 12px; }
@@ -497,6 +499,8 @@ td.out { color: var(--down-text); }
 .legs { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 980px; }
 .legs th { text-align: left; font-weight: 500; font-size: 12px; color: var(--text-muted); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .legs td { padding: 12px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+/* The order history's Source note is a sentence: let it wrap rather than run off the card (#198) */
+.history td .sub { white-space: normal; min-width: 16ch; }
 .legs th.num, .legs td.num { text-align: right; }
 .legs tfoot td { border-bottom: 0; color: var(--text); font-weight: 500; background: var(--surface-2); }
 .leg-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 6px; }
@@ -615,9 +619,10 @@ td.out { color: var(--down-text); }
 .session > div { padding: 10px 14px 11px; min-width: 0; }
 .session > div + div { border-left: 1px solid var(--border); }
 .session dt { font-family: var(--cond); font-size: 12.5px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.01em; }
-.session dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+/* Tiles wrap rather than cut a value off ("Closed 21:…" at 1280px, #198) */
+.session dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; line-height: 1.35; font-variant-numeric: tabular-nums; }
 .session dd small { font-size: 12px; font-weight: 500; color: var(--text-muted); }
-.session p { margin: 1px 0 0; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session p { margin: 1px 0 0; font-size: 12px; color: var(--text-muted); }
 .session .split { margin: 8px 0 7px; height: 6px; }
 .session .skeleton { display: inline-block; height: 16px; vertical-align: middle; }
 .mkt-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; vertical-align: 2px; background: var(--text-muted); }
@@ -634,7 +639,6 @@ td.out { color: var(--down-text); }
   .session > div:nth-child(even) { border-left: 1px solid var(--border); }
   .session > div:nth-child(n + 3) { border-top: 1px solid var(--border); }
   .session > div:last-child { grid-column: 1 / -1; }
-  .session dd, .session p { white-space: normal; }
   .session dd { font-size: 16px; }
 }
 .m-card-reason { margin: 0; font-size: 13px; color: var(--text-muted); }
@@ -936,8 +940,9 @@ td.out { color: var(--down-text); }
   .ticker-track { animation: none; }
   .ticker-viewport { overflow-x: auto; scrollbar-width: none; }
 }
-.ticker-empty { display: inline-flex; align-items: center; min-height: 38px; font-size: 13px; }
-.ticker-right { display: flex; align-items: center; gap: 10px; flex: none; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+/* Clear of the 40px edge fade, which ate the first letter (#198) */
+.ticker-empty { display: inline-flex; align-items: center; min-height: 38px; padding-left: 40px; font-size: 13px; }
+.ticker-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
 .ticker-right b { color: var(--text); font-weight: 600; margin-left: 2px; }
 .ticker-right b.pos { color: var(--up-text); }
 .ticker-right b.neg { color: var(--down-text); }
@@ -1165,6 +1170,7 @@ td.out { color: var(--down-text); }
 .run-line { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin: 0; font-size: 13px; }
 .run-line svg { flex: none; color: var(--text-muted); }
 .run-line.placed svg { color: var(--up); }
+.settings-inner > .card { margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; }
 .wallet-auto { display: flex; align-items: center; gap: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
 .wallet-auto b { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .wallet-auto p { margin: 2px 0 0; }
@@ -1536,6 +1542,8 @@ td.out { color: var(--down-text); }
 .oo-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .oo-table tr:last-child td { border-bottom: 0; }
 .oo-table .block { display: block; margin-top: 2px; }
+/* One line each on the public Levels page (#198: "60 daysUnlocks" ran together) */
+.level-ladder .level-line { display: block; margin-top: 2px; }
 .oo-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 @media (max-width: 767px) {
   .limit-input { width: 76px; font-size: 16px; }
