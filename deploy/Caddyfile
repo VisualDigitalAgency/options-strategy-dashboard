@@ -22,7 +22,7 @@
 		reverse_proxy api:8000
 	}
 	# Public share cards (#126) and the uploaded logo and favicon (#133) come from the API.
-	@served_by_api path /c/* /brand/*
+	@served_by_api path /c/* /brand/* /auth/google/*
 	handle @served_by_api {
 		reverse_proxy api:8000
 	}

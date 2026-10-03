@@ -54,6 +54,20 @@ function PasswordField({ label, id, autoComplete, value, onChange, hint }) {
   )
 }
 
+// Sign in with Google (owner switch `google_login`): a plain link, the server redirects to Google
+// and back, then lands on / signed in, or on /login?google=<message> when it couldn't.
+function GoogleButton({ refCode }) {
+  const { google } = useBrand()
+  if (!google) return null
+  const href = '/auth/google/start' + (refCode ? `?ref=${encodeURIComponent(refCode)}` : '')
+  return (
+    <>
+      <a className="btn lg auth-google" href={href}>Continue with Google</a>
+      <p className="auth-or" aria-hidden><span>or</span></p>
+    </>
+  )
+}
+
 function useSubmit(fn) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -141,7 +155,9 @@ function VerifyEmail({ email, intro }) {
 export function Login() {
   const { login } = useAuth()
   const nav = useNavigate()
-  const next = new URLSearchParams(useLocation().search).get('next')
+  const query = new URLSearchParams(useLocation().search)
+  const next = query.get('next')
+  const googleNote = query.get('google')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [verify, setVerify] = useState(null)
@@ -160,6 +176,8 @@ export function Login() {
   return (
     <Shell title="Sign in" lede="Your virtual account, lessons and progress."
       foot={<>No account yet? <Link to="/register">Join free</Link></>}>
+      {googleNote && <p className="form-error" role="alert">{googleNote}</p>}
+      <GoogleButton />
       <form className="auth-form" onSubmit={submit} noValidate>
         <Field label="Email" id="email" type="email" autoComplete="username" inputMode="email" required
           value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -291,6 +309,7 @@ export function Register() {
         ? 'Practise option selling on a ₹2,00,000 virtual account. Confirm your email and you are in.'
         : 'Confirm your email, then an admin approves the account. You start with ₹2,00,000 of virtual capital.'}
       foot={<>Already have an account? <Link to="/login">Sign in</Link></>}>
+      <GoogleButton refCode={ref} />
       <form className="auth-form" onSubmit={submit} noValidate>
         <Field label="Name" id="name" autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} />
         <Field label="Email" id="email" type="email" autoComplete="email" inputMode="email" required
