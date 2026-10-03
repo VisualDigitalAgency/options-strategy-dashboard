@@ -11,6 +11,8 @@
 		X-Frame-Options "DENY"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "same-origin"
+		# Keep the app out of search results for now (a CMS will own public, indexable pages later).
+		X-Robots-Tag "noindex, nofollow"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 		-Server
 	}
