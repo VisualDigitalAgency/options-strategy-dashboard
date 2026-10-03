@@ -449,7 +449,8 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
         "sl_mode_default": default_sl, "notes": sorted(notes), "market_open": market_open(),
         "waiting": waiting, "illiquid": illiquid,
         # Any rule blocks the order; the builder shows the reason (#137, #170, #178).
-        "buy_rule": _buy_rule(user_id, existing, fills) or _strategy_rule(user_id, existing, fills)
+        "buy_rule": _lessons_rule(user_id, existing, fills) or _buy_rule(user_id, existing, fills)
+        or _strategy_rule(user_id, existing, fills)
         or _rms_rule(existing, fills, impact),
     }
 
@@ -530,6 +531,30 @@ def _buy_rule(user_id: int, existing: list[dict], fills: list[dict]) -> str | No
         if sum(l["qty"] for l in longs) > -sum(s["qty"] for s in shorts):
             return f"Buy no more {side} than you sell; more unlocks at Level 6"
     return None
+
+
+def lessons_lock(user_id: int) -> str | None:
+    """Why this account can't open trades yet, or None: every account but the owner's must pass
+    the Level 1 lesson quizzes first. Closing, stops and the exit monitor are never blocked."""
+    from . import progress
+    with db.tx() as c:
+        if c.value("SELECT role FROM users WHERE id=:u", u=user_id) == "owner":
+            return None
+    with db.tx(user_id) as c:
+        check = progress._lessons_check(c, user_id, 1, "")
+    if check["ok"]:
+        return None
+    return f"Pass the Level 1 lesson quizzes first ({check['value']} passed). They unlock virtual trading"
+
+
+def _lessons_rule(user_id: int, existing: list[dict], fills: list[dict]) -> str | None:
+    """lessons_lock for an order that opens or grows a position; closing or reducing always passes."""
+    before = {(r["side"], r["strike"]): r["qty"] for r in existing}
+    legs = _after([{"side": r["side"], "strike": r["strike"], "qty": r["qty"], "price": r["avg_price"]}
+                   for r in existing], fills)
+    if not any(abs(l["qty"]) > abs(before.get((l["side"], l["strike"]), 0)) for l in legs):
+        return None
+    return lessons_lock(user_id)
 
 
 def _strategy_rule(user_id: int, existing: list[dict], fills: list[dict]) -> str | None:

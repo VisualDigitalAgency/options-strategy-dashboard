@@ -117,6 +117,7 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
     free = acct["available_margin"]
 
     placed, skipped = [], []
+    locked = virtual.lessons_lock(user_id)  # no new trades before the Level 1 lessons are passed
     # The screen carries several expiry cycles per stock. Auto-trade stays at one position per stock
     # per run: only cycles at least MIN_DTE out (a nearer one would hit the time exit before its stop
     # ever arms), and of those the best-scoring one, nearer expiry on a tie.
@@ -134,6 +135,9 @@ def _run(user_id: int, candidates: list[dict], trigger: str) -> dict:
     for c in ready:
         sym, exp, st = c["symbol"], c["expiry"], c["strategy"]
         tag = {"symbol": sym, "pop": st["pop"], "roi_pct": st["roi_pct"], "score": scores[sym]}
+        if locked:
+            skipped.append({**tag, "reason": locked})
+            continue
         if st["pop"] < s["min_pop"]:
             skipped.append({**tag, "reason": f"POP {st['pop']:.1f}% below {s['min_pop']:g}% floor"})
             continue
