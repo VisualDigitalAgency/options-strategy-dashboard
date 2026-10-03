@@ -192,7 +192,7 @@ export function Lesson() {
         <section className="card quiz-cta level-done">
           <h2>You've read every Level 1 lesson</h2>
           <p>Join free to take the quizzes, earn your first XP and reach Level 2. You'll practise on a ₹2 lakh
-            paper-trading account with live NSE prices. No real money, no card.</p>
+            paper-trading account. No real money, no card.</p>
           <div className="quiz-cta-actions">
             <Link to="/register" className="btn primary">Join free and claim Level 1</Link>
             <Link to={`/login?next=${encodeURIComponent(`/learn/${lesson.slug}`)}`} className="btn ghost">Sign in</Link>
@@ -202,7 +202,7 @@ export function Lesson() {
         <section className="card quiz-cta">
           <h2>Take the quiz and practise for free</h2>
           <p>Create a free account to take this quiz, track your progress through the levels, and practise
-            option selling on a ₹2 lakh paper-trading account with live NSE prices.</p>
+            option selling on a ₹2 lakh paper-trading account.</p>
           <div className="quiz-cta-actions">
             <Link to="/register" className="btn primary">Join free</Link>
             <Link to={`/login?next=${encodeURIComponent(`/learn/${lesson.slug}`)}`} className="btn ghost">Sign in</Link>
