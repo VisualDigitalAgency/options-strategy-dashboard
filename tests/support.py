@@ -22,7 +22,7 @@ EXP = _expiry()
 def stub(market: bool, bid: float = 5.0, oi: int = 10_000):
     """Every contract quotes `bid` / bid+0.1 with spot 1,000; lot size 100; margin 1,000 per short unit
     (so one 100-qty lot needs 1 lakh). `oi` defaults well above the liquidity gate (#80)."""
-    virtual.quote = lambda s, e, side, k: {"spot": 1000.0, "ltp": 5.0, "bid": bid, "ask": bid + 0.1 if bid else 0.0,
+    virtual.quote = lambda s, e, side, k, live=False: {"spot": 1000.0, "ltp": 5.0, "bid": bid, "ask": bid + 0.1 if bid else 0.0,
                                             "iv": 20.0, "oi": oi}
     virtual.market_open = lambda: market
     # Order-mechanics tests sell naked from Level 1 accounts; the strategy gate (#170) has its own

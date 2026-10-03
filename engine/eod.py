@@ -21,7 +21,7 @@ import io
 import json
 import logging
 import zipfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -101,13 +101,16 @@ def latest() -> dict | None:
 
 
 def due(now: datetime) -> date | None:
-    """The trading day whose file the worker should fetch now, or None: after EOD_READY_IST on a
-    trading day whose file isn't saved yet."""
+    """The file the worker should fetch now, or None once it is saved: the latest trading day whose
+    file is out (today after EOD_READY_IST, else the trading day before). So switching end-of-day
+    mode on over a weekend or during the day still loads the last close at once."""
     now = now.astimezone(IST)
-    today = now.date()
-    if not pricing.trading_day(now) or now.strftime("%H:%M") < config.EOD_READY_IST:
-        return None
-    return None if path_for(today).exists() else today
+    d = now
+    if not pricing.trading_day(d) or d.strftime("%H:%M") < config.EOD_READY_IST:
+        d -= timedelta(days=1)
+        while not pricing.trading_day(d):
+            d -= timedelta(days=1)
+    return None if path_for(d.date()).exists() else d.date()
 
 
 def refresh(now: datetime | None = None) -> str | None:

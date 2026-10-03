@@ -77,10 +77,10 @@ def market_window() -> bool:
 
 # ---------- market data ----------
 
-def _chain(symbol: str, expiry: str) -> tuple[float, pd.DataFrame]:
+def _chain(symbol: str, expiry: str, live: bool = False) -> tuple[float, pd.DataFrame]:
     """Option chain, cached QUOTE_TTL (60 s) in this process and in Redis (`quote:{sym}:{expiry}`), so every
     user and process holding the same contract shares one NSE call."""
-    if eod_mode():
+    if eod_mode() and not live:  # real broker orders always price live (live=True)
         got = eod.chain(symbol, expiry)
         if got is None:
             raise ValueError(f"No end-of-day price for {symbol} {expiry} yet")
@@ -114,8 +114,8 @@ def as_of() -> str | None:
     return (eod.latest() or {}).get("date") if eod_mode() else None
 
 
-def quote(symbol: str, expiry: str, side: str, strike: float) -> dict:
-    spot, df = _chain(symbol, expiry)
+def quote(symbol: str, expiry: str, side: str, strike: float, live: bool = False) -> dict:
+    spot, df = _chain(symbol, expiry, live)
     if strike not in df.index:
         raise ValueError(f"{symbol} {expiry} {strike:g} {side} not in the option chain")
     r = df.loc[strike]
