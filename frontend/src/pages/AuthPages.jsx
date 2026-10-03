@@ -288,7 +288,7 @@ export function Register() {
   return (
     <Shell title={autoApprove ? 'Join free' : 'Request access'}
       lede={autoApprove
-        ? 'Practise option selling on a ₹2,00,000 virtual account with live NSE prices. Confirm your email and you are in.'
+        ? 'Practise option selling on a ₹2,00,000 virtual account. Confirm your email and you are in.'
         : 'Confirm your email, then an admin approves the account. You start with ₹2,00,000 of virtual capital.'}
       foot={<>Already have an account? <Link to="/login">Sign in</Link></>}>
       <form className="auth-form" onSubmit={submit} noValidate>

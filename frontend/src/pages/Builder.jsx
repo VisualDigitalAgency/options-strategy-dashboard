@@ -204,7 +204,7 @@ function JoinPrompt({ onClose }) {
     <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="join-h">
       <div className="modal">
         <h2 id="join-h"><UserPlus size={20} aria-hidden /> Place this trade for free</h2>
-        <p>Create a free account to place this strategy on a ₹2 lakh virtual account with live NSE prices,
+        <p>Create a free account to place this strategy on a ₹2 lakh virtual account,
           see its margin, and track your progress through the levels. Your legs are kept: they will be
           here when you come back signed in.</p>
         <div className="modal-actions">
