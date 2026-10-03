@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Circle, Clock, Copy, Flame, Medal, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
+import { AlertCircle, Award, CheckCircle2, Circle, Clock, Copy, Flame, Medal, PartyPopper, Share2, Trophy, UserPlus, Users } from 'lucide-react'
 import { rpc } from '../rpc'
 import { rupee } from '../format'
 import { useAuth } from '../auth'
@@ -94,6 +94,20 @@ function ThisWeek({ week: { streak, challenge: ch } }) {
   )
 }
 
+// Signup cohort (retention phase 2): everyone who joined the same week, as counts only.
+function Cohort({ c }) {
+  return (
+    <section className="card cohort" aria-labelledby="co-h">
+      <div className="card-head"><h2 id="co-h"><Users size={16} aria-hidden /> Your cohort</h2>
+        <span className="muted small">Joined in {c.week} · {c.size} people</span></div>
+      <p className="small">{c.ahead === 0 ? 'Nobody from your week is ahead of you.' : `${c.ahead} of ${c.size - 1} from your week ${c.ahead === 1 ? 'is' : 'are'} at a higher level.`}</p>
+      <ul className="cohort-levels">
+        {c.levels.map((l) => <li key={l.level} className={l.level === c.level ? 'me' : ''}><span className="num">L{l.level}</span> <span className="muted small num">{l.count}</span></li>)}
+      </ul>
+    </section>
+  )
+}
+
 export default function Progress() {
   return useAuth().user ? <MyProgress /> : <LevelLadder />
 }
@@ -110,6 +124,8 @@ function MyProgress() {
   const [copied, setCopied] = useState(false)
   const [optBusy, setOptBusy] = useState(false)
   const [week, setWeek] = useState(null)
+  const [titles, setTitles] = useState([])
+  const [cohort, setCohort] = useState(null)
 
   useTitle('My progress')
   useEffect(() => {
@@ -122,6 +138,8 @@ function MyProgress() {
     }).catch((e) => setError(e.message))
     rpc('progress_history', { limit: 50 }).then(setHist).catch(() => {})
     rpc('referral_get').then(setInvite).catch(() => {})
+    rpc('season_titles').then(setTitles).catch(() => {})
+    rpc('cohort_get').then(setCohort).catch(() => {})
     rpc('habits_get').then(setWeek).catch(() => {})
     // A course is every lesson of one level; finished ones can be shared.
     Promise.all([rpc('lessons_list'), rpc('lesson_progress')]).then(([list, done]) => {
@@ -147,6 +165,7 @@ function MyProgress() {
       </header>
       {error && <div className="alert" role="alert"><AlertCircle size={18} aria-hidden /> {error}</div>}
       {week && <ThisWeek week={week} />}
+      {cohort?.size > 1 && <Cohort c={cohort} />}
       {p && (
         <>
           <section className="card">
@@ -190,6 +209,11 @@ function MyProgress() {
               <button className="btn" onClick={() => setShare({ kind: 'level', refNo: p.level, label: levelLabel(p) })}>
                 {levelLabel(p)}
               </button>
+              {titles.map((t) => (
+                <button key={t.month} className="btn" onClick={() => setShare({ kind: 'season', refNo: Number(t.month.replace('-', '')), label: `Season champion · ${t.month}` })}>
+                  <Award size={15} aria-hidden />Season champion · {t.month}
+                </button>
+              ))}
               {courses.map((c) => (
                 <button key={c} className="btn" onClick={() => setShare({ kind: 'course', refNo: c, label: `Level ${c} course complete` })}>
                   Level {c} course complete

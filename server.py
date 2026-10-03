@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, config, habits, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
+from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, cohort, config, habits, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -612,6 +612,8 @@ USER_METHODS = {
     "capital_status": capital.status,
     "coins_status": coins.status,
     "habits_get": habits.get,
+    "season_titles": leaderboard.titles,
+    "cohort_get": cohort.get,
     "payout_news": capital.news,
     "va_place_stop": virtual.place_stop,
     "va_charges": rms.charges,

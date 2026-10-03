@@ -9,13 +9,14 @@ WhatsApp and X show.
 import io
 import json
 import secrets
+from datetime import datetime
 from functools import lru_cache
 
 from PIL import Image, ImageDraw, ImageFont
 
 from . import config, db, lessons, progress
 
-KINDS = ("level", "course")
+KINDS = ("level", "course", "season")
 LABEL = "Paper trading · educational"
 W, H = 1200, 630
 
@@ -32,6 +33,13 @@ def _payload(c, user_id: int, kind: str, ref: int, show_return: bool) -> dict:
         if not 1 <= ref <= level:
             raise CardError("You haven't reached that level")
         out |= {"level": ref, "title": config.LEVEL_TITLES[ref]}
+    elif kind == "season":  # ref is the month as YYYYMM (retention phase 2)
+        from . import leaderboard
+        month = f"{ref // 100:04d}-{ref % 100:02d}"
+        won = [t for t in leaderboard.titles(user_id) if t["month"] == month]
+        if not won:
+            raise CardError("You weren't a season champion that month")
+        out |= {"month": month, "band": won[0]["band"]}
     else:
         course = [l["slug"] for l in lessons.list_lessons() if l["level"] == ref]
         passed = {r["slug"] for r in c.all("SELECT slug FROM lesson_progress WHERE user_id=:u AND passed_at IS NOT NULL",
@@ -81,6 +89,9 @@ def headline(p: dict, app: str) -> tuple[str, str]:
     who = p["name"] or f"A {app} trader"
     if p["kind"] == "level" and p["level"] == 10:  # the Level 10 certificate (#120)
         return f"Certificate · {p['title']}", f"{who} completed all ten levels on {app}"
+    if p["kind"] == "season":
+        nice = datetime.strptime(p["month"], "%Y-%m").strftime("%B %Y")
+        return f"Season champion · {nice}", f"{who} won {p['band']} on {app}"
     if p["kind"] == "level":
         return f"Level {p['level']} · {p['title']}", f"{who} reached Level {p['level']} on {app}"
     return f"Level {p['course']} course complete", f"{who} passed all {p['lessons']} lessons on {app}"

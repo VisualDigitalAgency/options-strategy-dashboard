@@ -22,6 +22,7 @@ function Stats({ r }) {
       <span className={pctClass(r.return_pct)}>{fix(r.return_pct)}% return</span>
       <span>{fix(r.max_dd_pct)}% drawdown</span>
       <span>{r.trades} trades · {fix(r.win_rate, 0)}% won</span>
+      {r.discipline != null && <span title="Share of legs with the stop-loss on and sold below delta 0.15">Discipline {r.discipline}</span>}
     </span>
   )
 }
@@ -37,7 +38,7 @@ function Board({ band, me }) {
             <span className="lb-medal" aria-label={`Rank ${r.rank}`}>{r.rank}</span>
             <strong className="lb-nick">{r.nickname}{r.nickname === me && <span className="chip">You</span>}</strong>
             <span className="chip">Level {r.level}</span>
-            <Badges list={r.badges} />
+            <Badges list={r.badges} />{r.champion && <span className="chip badge-champion">Season champion</span>}
             <span className="lb-ratio num">{fix(r.ratio)}<small>return ÷ drawdown</small></span>
             <Stats r={r} />
           </li>
@@ -48,7 +49,7 @@ function Board({ band, me }) {
           {band.rows.slice(3).map((r) => (
             <li key={r.rank} className={r.nickname === me ? 'me' : ''}>
               <span className="lb-rank num">{r.rank}</span>
-              <span className="lb-who"><strong>{r.nickname}</strong> <span className="chip">L{r.level}</span><Badges list={r.badges} />{r.nickname === me && <span className="chip">You</span>}</span>
+              <span className="lb-who"><strong>{r.nickname}</strong> <span className="chip">L{r.level}</span><Badges list={r.badges} />{r.champion && <span className="chip badge-champion">Season champion</span>}{r.nickname === me && <span className="chip">You</span>}</span>
               <Stats r={r} />
               <strong className="lb-ratio-sm num">{fix(r.ratio)}</strong>
             </li>
