@@ -28,6 +28,7 @@ const LESSON = {
   questions: [{ q: 'Who receives the premium?', options: ['Buyer', 'Seller'] }, { q: 'Lot 500 × ₹6?', options: ['₹6', '₹3,000'] }],
   prev: null, next: 'stop-losses',
 }
+let lastL1 = false
 let me = { id: 1, name: 'Asha', email: 'a@x', role: 'user', features: [], prefs: {} }
 const calls = []
 globalThis.fetch = async (_url, opts) => {
@@ -35,7 +36,9 @@ globalThis.fetch = async (_url, opts) => {
   calls.push({ method, params })
   const result = {
     auth_me: me, lessons_list: LIST,
-    lessons_get: params?.slug === 'short-strangle' ? { ...LESSON, slug: 'short-strangle', prev: 'stop-losses', next: null } : LESSON,
+    lessons_get: params?.slug === 'short-strangle' ? { ...LESSON, slug: 'short-strangle', prev: 'stop-losses', next: null }
+      : params?.slug === 'stop-losses' ? { ...LESSON, slug: 'stop-losses', level: 2, prev: 'what-is-an-option', next: 'short-strangle' }
+        : { ...LESSON, last_of_level: lastL1 },
     lesson_progress: [{ slug: 'what-is-an-option', passed_at: '2026-09-30T10:00:00Z' }],
     lesson_submit_quiz: { score: 50, passed: false, first_pass: false, pass_pct: 80, retry_at: '2026-10-01T10:00:00Z',
       results: [{ correct: true, why: 'Seller gets it.' }, { correct: false, why: '₹6 × 500 = ₹3,000.' }] },
@@ -101,7 +104,16 @@ me = null
 await render('/learn/what-is-an-option')
 await settle()
 check('signed out: lesson readable', !!document.querySelector('.md'))
-check('signed out: no quiz, a Join free call to action', !document.querySelector('.quiz')
-  && document.querySelector('.quiz-cta a[href="/register"]')?.textContent === 'Join free')
+check('signed out, Level 1: no quiz and no sign-up wall, a light note', !document.querySelector('.quiz')
+  && !document.querySelector('.quiz-cta') && !!document.querySelector('.soft-join a[href="/register"]'))
+lastL1 = true
+await render('/learn/what-is-an-option')
+await settle()
+check('signed out, last Level 1 lesson: the join prompt', document.querySelector('.level-done h2')?.textContent === "You've read every Level 1 lesson"
+  && !!document.querySelector('.level-done a[href="/register"]'))
+await render('/learn/stop-losses')
+await settle()
+check('signed out, Level 2: quiz call to action', document.querySelector('.quiz-cta a[href="/register"]')?.textContent === 'Join free'
+  && !document.querySelector('.level-done'))
 
 process.exit(ok ? 0 : 1)

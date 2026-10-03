@@ -136,5 +136,19 @@ now = call({})["result"]
 check("a player short of the count is listed with their count", now["near"] == [{"nickname": "Nearly", "level": 2, "trades": 3, "need": 5}], now["near"])
 check("finished periods list nobody", call({"month": MONTH})["result"]["near"] == [])
 
+# #120: badges by level, the Level 10 hall of fame (opted-in only, oldest first), the certificate.
+check("badges by level", (progress.badges(6), progress.badges(7), progress.badges(10)) == ([], ["Mentor"], ["Mentor", "Master"]))
+dev_row = next(r for band in call({"month": MONTH})["result"]["bands"] for r in band["rows"] if r["nickname"] == "Dev")
+check("ranked rows carry their badges", dev_row["badges"] == ["Mentor"], dev_row)
+person("Tara", 10, [])
+person("HiddenMaster", 10, [], opt_in=False)
+early = person("Early", 10, [])
+with db.tx(early) as c:
+    c.run("UPDATE user_levels SET level_since='2026-01-05 10:00+05:30' WHERE user_id=:u", u=early)
+hof = call({})["result"]["hall_of_fame"]
+check("hall of fame: opted-in Level 10 only, first there first", [r["nickname"] for r in hof] == ["Early", "Tara"] and hof[0]["since"] == "2026-01-05", hof)
+from engine import cards  # noqa: E402
+check("Level 10 card is the certificate", cards.headline({"kind": "level", "level": 10, "title": "Theta Master", "name": "Tara"}, "X")[0] == "Certificate · Theta Master")
+
 print("ALL PASS" if not fails else f"FAILED: {fails}")
 sys.exit(1 if fails else 0)

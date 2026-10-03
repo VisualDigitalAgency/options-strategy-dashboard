@@ -66,6 +66,8 @@ def get_lesson(slug: str) -> dict:
         "questions": [{"q": q["q"], "options": q["options"]} for q in l["questions"]],
         "prev": order[i - 1]["slug"] if i > 0 else None,
         "next": order[i + 1]["slug"] if i + 1 < len(order) else None,
+        # The last lesson of its level: a signed-out reader who gets here has read the whole course.
+        "last_of_level": i + 1 == len(order) or order[i + 1]["level"] != l["level"],
     }
 
 

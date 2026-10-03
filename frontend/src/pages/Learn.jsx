@@ -184,7 +184,21 @@ export function Lesson() {
             <Link to={`/learn/${lesson.prev}`} className="btn primary"><ArrowLeft size={15} aria-hidden /> Previous lesson</Link>
           </div>
         </section>
-      ) : <Quiz key={lesson.slug} lesson={lesson} />) : (
+      ) : <Quiz key={lesson.slug} lesson={lesson} />) : lesson.level === 1 && !lesson.last_of_level ? (
+        // Level 1 reads freely: a light note, not a sign-up wall, until the visitor finishes it.
+        <p className="muted small soft-join">Quizzes and XP need a free account. Read on through Level 1 first,{' '}
+          or <Link to="/register">join now</Link>.</p>
+      ) : lesson.level === 1 ? (
+        <section className="card quiz-cta level-done">
+          <h2>You've read every Level 1 lesson</h2>
+          <p>Join free to take the quizzes, earn your first XP and reach Level 2. You'll practise on a ₹2 lakh
+            paper-trading account with live NSE prices. No real money, no card.</p>
+          <div className="quiz-cta-actions">
+            <Link to="/register" className="btn primary">Join free and claim Level 1</Link>
+            <Link to={`/login?next=${encodeURIComponent(`/learn/${lesson.slug}`)}`} className="btn ghost">Sign in</Link>
+          </div>
+        </section>
+      ) : (
         <section className="card quiz-cta">
           <h2>Take the quiz and practise for free</h2>
           <p>Create a free account to take this quiz, track your progress through the levels, and practise

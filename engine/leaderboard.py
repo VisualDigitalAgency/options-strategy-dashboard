@@ -24,7 +24,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from . import cache, db
+from . import cache, db, progress
 from .progress import IST
 
 log = logging.getLogger("theta.leaderboard")
@@ -191,8 +191,24 @@ def get(month: str | None = None) -> dict:
     return _out(month, provisional, [current, *months], quarters, bands, near)
 
 
+def hall_of_fame() -> list[dict]:
+    """Level 10 players who show on the leaderboard, first to get there first: nickname and the date
+    they reached it. Opt-in like the boards, and never an email or an amount."""
+    with db.tx() as c:
+        people = c.all("SELECT id, nickname FROM users WHERE status = 'active' AND leaderboard_opt_in "
+                       "AND nickname IS NOT NULL")
+    out = []
+    for p in people:  # user_levels is per-user under RLS
+        with db.tx(p["id"]) as c:
+            row = c.one("SELECT level, level_since FROM user_levels WHERE user_id=:u", u=p["id"])
+        if row and row["level"] == 10:
+            out.append({"nickname": p["nickname"], "since": str(row["level_since"])[:10]})
+    return sorted(out, key=lambda r: r["since"])
+
+
 def _out(period: str, provisional: bool, months: list[str], quarters: list[str], bands: dict, near: list) -> dict:
-    return {"month": period, "kind": "quarter" if QUARTER_RE.fullmatch(period) else "month", "provisional": provisional,
+    bands = {b: [{**r, "badges": progress.badges(r["level"])} for r in rows] for b, rows in bands.items()}
+    return {"hall_of_fame": hall_of_fame(), "month": period, "kind": "quarter" if QUARTER_RE.fullmatch(period) else "month", "provisional": provisional,
             "months": months, "quarters": quarters, "min_trades": MIN_TRADES, "min_level": MIN_LEVEL, "near": near,
             "bands": [{"band": b, "levels": BAND_NAMES[b], "range": f"Levels {lo}-{hi}", "rows": bands.get(b, [])}
                       for b, lo, hi in BANDS]}

@@ -40,6 +40,9 @@ q = r["result"]["questions"]
 check("lessons_get works signed out", r["result"]["title"].startswith("Margin"), r.get("error"))
 check("no answers or explanations in the lesson payload", all(set(x) == {"q", "options"} for x in q), q[0])
 check("prev/next links", r["result"]["prev"] == "delta-and-the-015-rule" and r["result"]["next"] == "stop-losses")
+check("not the last of its level", r["result"]["last_of_level"] is False)
+check("last Level 1 lesson flagged (soft sign-up prompt)", lessons.get_lesson("first-trade-credit-spread")["last_of_level"] is True
+      and lessons.get_lesson("closing-early")["last_of_level"] is True)
 r = call("lessons_get", {"slug": "../../etc/passwd"})
 check("unknown slug refused", r.get("error", {}).get("message") == "Lesson not found", r)
 

@@ -382,9 +382,10 @@ function SignedIn() {
 
 // Readers (#163): what a signed-out visitor may open, as the owner set it in Admin. Until app_info
 // answers every page counts as on; the server refuses anything that is off.
+// The first page open is the visitors' home: Learn, so a new visitor starts on lesson 1.
 const READER_NAV = [
-  { to: '/builder', page: 'builder', label: 'Builder', icon: Wrench },
   { to: '/learn', page: 'learn', label: 'Learn', icon: GraduationCap },
+  { to: '/builder', page: 'builder', label: 'Builder', icon: Wrench },
   { to: '/progress', page: 'progress', label: 'Levels', icon: Trophy },
   { to: '/leaderboard', page: 'leaderboard', label: 'Leaderboard', icon: Medal },
 ]
@@ -400,7 +401,7 @@ function PublicShell({ children }) {
   return (
     <>
       <header className="topbar">
-        <div className="topbar-inner">
+        <div className="topbar-inner public-bar">
           <Link to="/learn" className="brand" aria-label={`${name} lessons`}>
             <Logo />
             <span className="wordmark">{name}</span>

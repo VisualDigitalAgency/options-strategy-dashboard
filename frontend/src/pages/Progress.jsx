@@ -6,6 +6,7 @@ import { rupee } from '../format'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
 import GettingStarted from '../components/GettingStarted'
+import { Badges } from '../components/Badges'
 import ShareCard from '../components/ShareCard'
 import { useTitle } from '../brand'
 
@@ -78,6 +79,8 @@ function LevelLadder() {
   )
 }
 
+const levelLabel = (p) => (p.level === 10 ? `Certificate · ${p.title}` : `Level ${p.level} · ${p.title}`)
+
 export default function Progress() {
   return useAuth().user ? <MyProgress /> : <LevelLadder />
 }
@@ -133,7 +136,7 @@ function MyProgress() {
           <section className="card">
             <div className="level-head">
               <span className="level-badge num">{p.level}</span>
-              <div><b>Level {p.level} · {p.title}</b><div className="muted small num">{p.xp.toLocaleString('en-IN')} XP</div></div>
+              <div><b>Level {p.level} · {p.title}</b> <Badges list={p.badges} /><div className="muted small num">{p.xp.toLocaleString('en-IN')} XP</div></div>
             </div>
             {n ? (
               <div className="progress">
@@ -167,8 +170,9 @@ function MyProgress() {
           <section className="card">
             <div className="card-head"><h2><Share2 size={16} aria-hidden /> Share</h2></div>
             <div className="share-list">
-              <button className="btn" onClick={() => setShare({ kind: 'level', refNo: p.level, label: `Level ${p.level} · ${p.title}` })}>
-                Level {p.level} · {p.title}
+              {/* Level 10's card is the certificate (#120) */}
+              <button className="btn" onClick={() => setShare({ kind: 'level', refNo: p.level, label: levelLabel(p) })}>
+                {levelLabel(p)}
               </button>
               {courses.map((c) => (
                 <button key={c} className="btn" onClick={() => setShare({ kind: 'course', refNo: c, label: `Level ${c} course complete` })}>
@@ -221,7 +225,7 @@ function MyProgress() {
         </>
       )}
       {party && p && <Celebration level={p.level} title={p.title} onClose={close}
-        onShare={() => { close(); setShare({ kind: 'level', refNo: p.level, label: `Level ${p.level} · ${p.title}` }) }} />}
+        onShare={() => { close(); setShare({ kind: 'level', refNo: p.level, label: levelLabel(p) }) }} />}
       {share && <ShareCard {...share} onClose={() => setShare(null)} />}
     </div>
   )

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, ChevronLeft, ChevronRight, Medal } from 'lucide-react'
+import { AlertCircle, Award, ChevronLeft, ChevronRight, Medal } from 'lucide-react'
+import { shortDate } from '../format'
+import { Badges } from '../components/Badges'
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import { useTitle } from '../brand'
@@ -35,6 +37,7 @@ function Board({ band, me }) {
             <span className="lb-medal" aria-label={`Rank ${r.rank}`}>{r.rank}</span>
             <strong className="lb-nick">{r.nickname}{r.nickname === me && <span className="chip">You</span>}</strong>
             <span className="chip">Level {r.level}</span>
+            <Badges list={r.badges} />
             <span className="lb-ratio num">{fix(r.ratio)}<small>return ÷ drawdown</small></span>
             <Stats r={r} />
           </li>
@@ -45,7 +48,7 @@ function Board({ band, me }) {
           {band.rows.slice(3).map((r) => (
             <li key={r.rank} className={r.nickname === me ? 'me' : ''}>
               <span className="lb-rank num">{r.rank}</span>
-              <span className="lb-who"><strong>{r.nickname}</strong> <span className="chip">L{r.level}</span>{r.nickname === me && <span className="chip">You</span>}</span>
+              <span className="lb-who"><strong>{r.nickname}</strong> <span className="chip">L{r.level}</span><Badges list={r.badges} />{r.nickname === me && <span className="chip">You</span>}</span>
               <Stats r={r} />
               <strong className="lb-ratio-sm num">{fix(r.ratio)}</strong>
             </li>
@@ -136,6 +139,15 @@ export default function Leaderboard() {
         <>
           {filled.map((band) => <Board key={band.band} band={band} me={user?.nickname} />)}
           {b.near?.length > 0 && <Near rows={b.near} me={user?.nickname} />}
+          {b.hall_of_fame?.length > 0 && (
+            <section className="card lb-hall" aria-labelledby="hof-h">
+              <div className="card-head"><h2 id="hof-h"><Award size={16} aria-hidden /> Hall of fame</h2>
+                <span className="muted small">Every Theta Master, first to get there first</span></div>
+              <ol>
+                {b.hall_of_fame.map((r) => <li key={r.nickname}><strong>{r.nickname}</strong> <span className="muted small">since {shortDate(r.since)} {r.since.slice(0, 4)}</span></li>)}
+              </ol>
+            </section>
+          )}
           {empty.length > 0 && (
             <p className="muted lb-empty">{filled.length ? 'Still open: ' : 'Nobody ranked yet this period: '}
               {empty.map((x) => x.levels).join(' · ')}. Be the first.</p>

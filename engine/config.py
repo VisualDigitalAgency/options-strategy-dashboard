@@ -152,6 +152,11 @@ QUICK_FLIP_MINUTES = 5   # legs opened and closed faster than this score nothing
 # engine/permissions.FEATURES yet (the feature hasn't shipped) is ignored until it exists.
 # Features a role toggle alone isn't enough for (#175): the role must have it on AND the user must
 # have reached this level. The owner's per-user grant still opens it early.
+# Badges a level earns (#120), shown next to the nickname on the leaderboard and Progress.
+BADGES = {7: "Mentor", 9: "Master"}
+# Level 8 marks an account as eligible for real trading in Admin. A tag only: live_trading is
+# never granted by level (permissions.NEVER_BY_LEVEL); the owner still decides.
+LIVE_ELIGIBLE_LEVEL = 8
 LEVEL_MIN = {"coin_store": 4}
 LEVEL_FEATURES = {3: ("market_calendar",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
 # Gates for Levels 6-9 (#146). Leaving 9 also needs the owner's final-assessment sign-off.

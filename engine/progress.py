@@ -289,8 +289,13 @@ def _snapshot(c, user_id: int, now: datetime) -> dict:
         nxt = {"level": level + 1, "title": config.LEVEL_TITLES[level + 1], "xp_needed": xp_needed(level),
                "xp_from": xp_needed(level - 1), "days": days, "min_days": config.LEVEL_MIN_DAYS[level],
                "checks": checks, "ready": all(ch["ok"] for ch in checks)}
-    return {"level": level, "title": config.LEVEL_TITLES[level], "level_since": since, "gate_since": start,
+    return {"level": level, "title": config.LEVEL_TITLES[level], "badges": badges(level), "level_since": since, "gate_since": start,
             "xp": xp, "next": nxt, "metrics": metrics(trades)}
+
+
+def badges(level: int) -> list[str]:
+    """The badges a level has earned (config.BADGES, #120), lowest first."""
+    return [b for lv, b in sorted(config.BADGES.items()) if level >= lv]
 
 
 def evaluate(user_id: int, _now: datetime | None = None) -> dict:

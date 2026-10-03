@@ -22,7 +22,8 @@ const board = (period) => ({
   month: period, kind: period.includes('Q') ? 'quarter' : 'month', provisional: period === '2026-10' || period === '2026-Q4',
   months: ['2026-10', '2026-09'], quarters: ['2026-Q4', '2026-Q3'], min_level: 1, min_trades: 5,
   near: period === '2026-10' ? [{ nickname: 'Nearly', level: 2, trades: 3, need: 5 }, { nickname: 'Rider2', level: 2, trades: 2, need: 5 }] : [],
-  bands: [{ band: '1-3', levels: 'Rising', range: 'Levels 1-3', rows: period === '2026-10' ? [] : [1, 2, 3, 4].map((n) => row(n, `Rider${n}`, 2)) },
+  hall_of_fame: period === '2026-09' ? [{ nickname: 'Tara', since: '2026-03-14' }] : [],
+  bands: [{ band: '1-3', levels: 'Rising', range: 'Levels 1-3', rows: period === '2026-10' ? [] : [1, 2, 3, 4].map((n) => ({ ...row(n, `Rider${n}`, 2), badges: n === 1 ? ['Mentor'] : [] })) },
     { band: '4-6', levels: 'Levels 4-6', range: 'Levels 4-6', rows: [] }, { band: '7-10', levels: 'Levels 7-10', range: 'Levels 7-10', rows: [] }],
 })
 let me = null
@@ -66,6 +67,9 @@ check('top three on a podium, the rest as rows', document.querySelectorAll('.lb-
 check('podium shows nickname, level and ratio', document.querySelector('.lb-place.p1')?.textContent.includes('Rider1')
   && document.querySelector('.lb-place.p1').textContent.includes('Level 2') && document.querySelector('.lb-place.p1 .lb-ratio').textContent.startsWith('2.90'))
 check('finished periods have no Getting there list', !document.querySelector('.lb-near'))
+check('badges shown next to the nickname (#120)', document.querySelector('.lb-place.p1 .badge-mentor')?.textContent === 'Mentor')
+check('hall of fame lists Level 10 players with the date', document.querySelector('.lb-hall')?.textContent.includes('Tara')
+  && document.querySelector('.lb-hall').textContent.includes('2026'))
 check('empty bands listed as still open', text().includes('Still open: Levels 4-6 · Levels 7-10'))
 check('no emails or rupee amounts', !text().includes('@') && !text().includes('₹'))
 
