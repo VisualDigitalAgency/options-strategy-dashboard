@@ -6,13 +6,13 @@
 Nothing runs until the owner turns on the `prize_draw` setting, and that needs a written legal
 opinion first (doc/2026-10-03-prize-draw.md).
 
-Revision ID: 0032
-Revises: 0031
+Revision ID: 0033
+Revises: 0032
 """
 from alembic import op
 
-revision = "0032"
-down_revision = "0031"
+revision = "0033"
+down_revision = "0032"
 branch_labels = None
 depends_on = None
 
