@@ -1,4 +1,4 @@
-// A new visitor opening the home page lands on the first public page (the builder), not the sign-in
+// A new visitor opening the home page lands on the first public page (Learn), not the sign-in
 // form. Only when the owner has every public page off does "/" go to sign-in.
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 
@@ -33,11 +33,11 @@ const visit = async () => {
 }
 
 await visit()
-check('home opens the public builder, not sign-in', where === '/builder', where)
-pages = ['learn']
+check('home opens the lessons, not sign-in', where === '/learn', where)
+pages = ['builder']
 setBrand({ name: 'X', reader_pages: pages })
 await visit()
-check('builder off: home opens the next public page', where === '/learn', where)
+check('lessons off: home opens the next public page', where === '/builder', where)
 pages = []
 setBrand({ name: 'X', reader_pages: pages })
 await visit()
