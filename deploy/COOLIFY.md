@@ -76,6 +76,17 @@ A failed deploy leaves the previous containers running only if the build failed;
 
 The Coolify UI can redeploy a previous commit. The database is only created by migrations, so rolling back past a migration needs `alembic downgrade` run in `migrate` first.
 
+## Sign in with Google
+
+Off until both env vars are set and the owner turns on **Sign in with Google** under Admin → Settings.
+
+1. Google Cloud Console → APIs & Services → Credentials → Create credentials → OAuth client ID, type **Web application**.
+2. Authorised redirect URI: `${PUBLIC_URL}/auth/google/callback` exactly, e.g. `https://theta.connectbiomedical.com/auth/google/callback`. Add the preview domain's URI too if you test there.
+3. OAuth consent screen: scopes `openid`, `email`, `profile` only; publish it (in "Testing" only listed test users can sign in).
+4. In theta-desk → Environment Variables set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, redeploy, then switch it on in Admin.
+
+The owner account always signs in with its password. Other users with the same verified email are linked to their Google account on first use.
+
 ## Real broker connection (phase 1: Zerodha)
 
 See `doc/2026-09-26-broker-integration-phase1-zerodha.md` for the full design. Coolify env vars to add (theta-desk → Environment Variables):

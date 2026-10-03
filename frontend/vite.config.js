@@ -11,6 +11,7 @@ export default defineConfig({
       '/healthz': 'http://127.0.0.1:8000',
       '^/c/': 'http://127.0.0.1:8000',
       '^/brand/': 'http://127.0.0.1:8000',
+      '^/auth/google/': 'http://127.0.0.1:8000',
     },
   },
 })
