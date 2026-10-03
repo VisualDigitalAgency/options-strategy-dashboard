@@ -43,3 +43,8 @@ export function LegTag({ action, side }) {
     </span>
   )
 }
+
+// Level badges (#120): Mentor from Level 7, Master from Level 9.
+export function Badges({ list }) {
+  return list?.map((b) => <span key={b} className={`chip badge-${b.toLowerCase()}`}>{b}</span>) ?? null
+}

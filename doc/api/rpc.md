@@ -273,6 +273,8 @@ Set by the server, never by the client: `_ctx`.
 
 Paper-trading leaderboard (no sign-in needed). `month` is a period: "YYYY-MM" for a month or
 "YYYY-Qn" for a calendar quarter; omitted, it is the running month, marked provisional. Nicknames, levels and ratios only, never personal data.
+Each ranked row carries its level's badges (Mentor from 7, Master from 9); `hall_of_fame` lists
+opted-in Level 10 players with the date they got there.
 Signed out, only while the owner keeps the leaderboard on for readers.
 
 | Param | Type | Default |
@@ -934,7 +936,8 @@ Callable by: signed in, with the role feature listed in REQUIRES.
 ### `admin_list_users`
 
 Every account past email confirmation, waiting requests first. Each lists the other accounts
-that share its browser or network.
+that share its browser or network, its level, and `live_eligible` from Level 8 (a tag for the
+owner's decision; it never grants real trading).
 
 No params.
 

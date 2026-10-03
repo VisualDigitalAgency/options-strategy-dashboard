@@ -82,6 +82,9 @@ function UserRow({ u, me, onAct, onRole, busy }) {
             {choices.map((r) => <option key={r} value={r}>{ROLE[r]}</option>)}
           </select>
         ) : <span className="small">{ROLE[u.role]}</span>}
+        <span className="muted small block">Level {u.level}</span>
+        {/* A tag for the owner's call (#120): Level 8 never turns on real trading by itself */}
+        {u.live_eligible && <span className="chip small block" title="Reached Level 8. Real trading is still yours to grant">Eligible for real trading</span>}
       </td>
       <td className="mono small" data-label="Signed up">{dateTime(u.created_at)}</td>
       <td className="mono small" data-label="Last sign-in">{u.last_login_at ? dateTime(u.last_login_at) : '—'}</td>

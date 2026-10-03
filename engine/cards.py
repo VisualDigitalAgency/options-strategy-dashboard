@@ -79,6 +79,8 @@ def headline(p: dict, app: str) -> tuple[str, str]:
     """(big line, small line) for a card, shared by the image and the page. `app` is the app's
     current name, so a rename shows on old cards too."""
     who = p["name"] or f"A {app} trader"
+    if p["kind"] == "level" and p["level"] == 10:  # the Level 10 certificate (#120)
+        return f"Certificate · {p['title']}", f"{who} completed all ten levels on {app}"
     if p["kind"] == "level":
         return f"Level {p['level']} · {p['title']}", f"{who} reached Level {p['level']} on {app}"
     return f"Level {p['course']} course complete", f"{who} passed all {p['lessons']} lessons on {app}"

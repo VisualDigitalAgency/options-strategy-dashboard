@@ -640,6 +640,10 @@ def list_users() -> list[dict]:
                 have.append({"kind": kind, "user_id": p["other"], "name": names.get(p["other"], "?"), "ip": p.get("ip")})
     for r in rows:
         r["links"] = links.get(r["id"], [])
+        with db.tx(r["id"]) as c:  # user_levels is per-user under RLS
+            r["level"] = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=r["id"]) or 1
+        # A tag for the owner's decision (#120, Level 8); it never grants live_trading.
+        r["live_eligible"] = r["level"] >= config.LIVE_ELIGIBLE_LEVEL
     return rows
 
 

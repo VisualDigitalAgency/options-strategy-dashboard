@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import server
-from engine import auth, cache, config, db, lessons, nifty, progress, users
+from engine import auth, cache, config, db, lessons, nifty, permissions, progress, users
 from support import EXP
 
 ORIGIN = "https://t.example"
@@ -164,6 +164,9 @@ r = rpc(sub, "admin_approve_final", {"target_id": s9})
 check("a sub-admin can't approve Level 10", r.get("error", {}).get("code") == server.FORBIDDEN, r)
 listed = {u["id"]: u for u in rpc(owner, "admin_list_users")["result"]}
 check("Admin list flags who waits for sign-off", listed[s9]["final_ready"] and not listed[s7]["final_ready"])
+check("Admin list: level and the Level 8 real-trading tag (#120)", listed[s9]["level"] == 9 and listed[s9]["live_eligible"]
+      and listed[s7]["level"] == 7 and not listed[s7]["live_eligible"], (listed[s9]["level"], listed[s7]["level"]))
+check("the tag never grants real trading", not permissions.user_allowed({"id": s9, "role": "user"}, "live_trading"))
 r = rpc(owner, "admin_approve_final", {"target_id": s7})
 check("approving someone not ready is refused", "error" in r, r)
 r = rpc(owner, "admin_approve_final", {"target_id": s9})
