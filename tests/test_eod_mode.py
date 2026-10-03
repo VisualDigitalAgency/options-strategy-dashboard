@@ -110,6 +110,26 @@ check("screen row priced from the file, stamped as_of", row["as_of"] == nxt and 
       {k: row.get(k) for k in ("as_of", "spot", "lot_size", "action")})
 data_fetch.fetch_option_chain, data_fetch.fetch_expiries, data_fetch.fetch_lot_size = saved
 
+
+class Live(Exception):
+    pass
+
+
+def live_call(*a):
+    raise Live()
+
+
+data_fetch.fetch_option_chain = live_call
+virtual.cache.delete(f"quote:{SYM}:{EXP}")
+virtual._quote_cache.clear()
+try:
+    virtual.quote(SYM, EXP, "PE", 900.0, live=True)
+    went_live = False
+except Live:
+    went_live = True
+check("a real broker order still prices live", went_live)
+data_fetch.fetch_option_chain = saved[0]
+
 # 7. Off again: back to the live path.
 mode(False)
 check("off: market hours are live again", virtual.eod_mode() is False and virtual.market_open() == real_open())

@@ -237,7 +237,8 @@ def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> d
     for leg in legs:
         if leg.get("action", "SELL") != "SELL":
             raise ValueError("Only sell orders are supported")
-        q = virtual.quote(symbol, expiry, leg["side"], float(leg["strike"]))
+        # A real order is priced at the live market even in end-of-day mode, never at a past close.
+        q = virtual.quote(symbol, expiry, leg["side"], float(leg["strike"]), live=True)
         spot = q["spot"]
         market = virtual.tick(q["bid"] or q["ltp"])
         if market <= 0:
