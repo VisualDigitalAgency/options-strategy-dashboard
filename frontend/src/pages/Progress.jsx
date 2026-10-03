@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Circle, Clock, Copy, Medal, PartyPopper, Sha
 import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
+import GettingStarted from '../components/GettingStarted'
 import ShareCard from '../components/ShareCard'
 import { useTitle } from '../brand'
 
@@ -117,6 +118,7 @@ function MyProgress() {
 
   return (
     <div className="detail progress-page">
+      <GettingStarted />
       <header className="page-head">
         <div>
           <h1 className="display"><Trophy size={26} aria-hidden /> My progress</h1>
@@ -179,7 +181,7 @@ function MyProgress() {
               <div className="card-head"><h2><UserPlus size={16} aria-hidden /> Invite friends</h2>
                 <span className="muted small">{invite.joined} joined through your link</span></div>
               <div className="invite-row">
-                <input className="mono" readOnly value={invite.url} aria-label="Your invite link" onFocus={(e) => e.target.select()} />
+                <input className="input mono" readOnly value={invite.url} aria-label="Your invite link" onFocus={(e) => e.target.select()} />
                 <button className="btn" onClick={async () => {
                   try { await navigator.clipboard.writeText(invite.url); setCopied(true) } catch { /* clipboard blocked */ }
                 }}><Copy size={15} aria-hidden /> {copied ? 'Copied' : 'Copy'}</button>

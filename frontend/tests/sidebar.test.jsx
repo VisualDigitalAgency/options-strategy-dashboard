@@ -46,6 +46,7 @@ await render()
 await settle()
 check('desktop: sidebar expanded by default', nav() && !nav().classList.contains('shrunk') && menu().getAttribute('aria-label') === 'Shrink menu')
 check('free account: screener marked Pro', labels()[0].includes('Pro'), labels())
+check('free account: no "Scanning setups" ticker (#198)', !document.querySelector('.ticker-viewport') && !!document.querySelector('.ticker-right'))
 // Locked items stay visible with what unlocks them (#165).
 const cal = [...nav().querySelectorAll('a')].find((a) => a.textContent.includes('Calendar'))
 check('locked calendar: badge, leads to Progress', cal?.textContent.includes('Unlocks at Level 3') && cal.getAttribute('href') === '/progress', cal?.outerHTML)
@@ -82,6 +83,7 @@ features = ['market_calendar', 'screener']
 await render()
 await settle()
 check('feature unlocks its page, Pro tag gone', labels().includes('Calendar') && !labels()[0].includes('Pro'), labels())
+check('screener: setups ticker shown', !!document.querySelector('.ticker-viewport'))
 
 // Phone / tablet.
 desktop = false

@@ -5,7 +5,7 @@ import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 
 // New-user checklist (#167): what leaving Level 1 takes, with live values from the level gate itself,
-// so it always matches what the server decides. Shown on Learn, Builder and Portfolio until Level 2;
+// so it always matches what the server decides. Shown on Portfolio and Progress until Level 2 (#198);
 // dismissing hides it for this level only (per browser).
 const LINKS = [[/lesson|quiz/i, '/learn'], [/trade/i, '/builder'], [/XP|days/i, '/progress']]
 const key = (level) => `gs:dismissed:${level}`

@@ -5,7 +5,6 @@ import { rpc } from '../rpc'
 import { useAuth } from '../auth'
 import Markdown from '../components/Markdown'
 import { useTitle } from '../brand'
-import GettingStarted from '../components/GettingStarted'
 
 const LEVEL = {
   1: 'Level 1 · Learner', 2: 'Level 2 · Apprentice', 3: 'Level 3 · Seller', 4: 'Level 4 · Disciplined',
@@ -46,7 +45,6 @@ export function Learn() {
   }
   return (
     <div className="detail learn">
-      <GettingStarted />
       <header className="page-head">
         <div>
           <h1 className="display"><GraduationCap size={26} aria-hidden /> Learn option selling</h1>

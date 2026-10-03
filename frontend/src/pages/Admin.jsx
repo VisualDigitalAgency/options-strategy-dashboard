@@ -77,7 +77,7 @@ function UserRow({ u, me, onAct, onRole, busy }) {
         ))}</td>
       <td data-label="Role">
         {choices.length ? (
-          <select value={u.role} disabled={busy} aria-label={`Role for ${u.name}`} onChange={(e) => onRole(u, e.target.value)}>
+          <select className="input" value={u.role} disabled={busy} aria-label={`Role for ${u.name}`} onChange={(e) => onRole(u, e.target.value)}>
             {!choices.includes(u.role) && <option value={u.role}>{ROLE[u.role]}</option>}
             {choices.map((r) => <option key={r} value={r}>{ROLE[r]}</option>)}
           </select>

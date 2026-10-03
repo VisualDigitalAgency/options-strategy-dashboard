@@ -290,7 +290,9 @@ code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.9em; 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
 .field input { height: 44px; width: 220px; padding: 0 12px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-family: var(--mono); }
-.field input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(91, 155, 255, 0.2); }
+/* The same look for a lone control outside a .field (#198: they rendered as native white boxes in dark mode) */
+.input { height: 36px; padding: 0 10px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.field input:focus, .input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(91, 155, 255, 0.2); }
 .helper { margin: 0 0 10px; font-size: 14px; color: var(--text-muted); max-width: 420px; }
 .helper strong { color: var(--text); }
 .settings-inner > .icon-btn { position: absolute; right: 16px; top: 12px; }
@@ -615,9 +617,10 @@ td.out { color: var(--down-text); }
 .session > div { padding: 10px 14px 11px; min-width: 0; }
 .session > div + div { border-left: 1px solid var(--border); }
 .session dt { font-family: var(--cond); font-size: 12.5px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.01em; }
-.session dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+/* Tiles wrap rather than cut a value off ("Closed 21:…" at 1280px, #198) */
+.session dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; line-height: 1.35; font-variant-numeric: tabular-nums; }
 .session dd small { font-size: 12px; font-weight: 500; color: var(--text-muted); }
-.session p { margin: 1px 0 0; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session p { margin: 1px 0 0; font-size: 12px; color: var(--text-muted); }
 .session .split { margin: 8px 0 7px; height: 6px; }
 .session .skeleton { display: inline-block; height: 16px; vertical-align: middle; }
 .mkt-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; vertical-align: 2px; background: var(--text-muted); }
@@ -634,7 +637,6 @@ td.out { color: var(--down-text); }
   .session > div:nth-child(even) { border-left: 1px solid var(--border); }
   .session > div:nth-child(n + 3) { border-top: 1px solid var(--border); }
   .session > div:last-child { grid-column: 1 / -1; }
-  .session dd, .session p { white-space: normal; }
   .session dd { font-size: 16px; }
 }
 .m-card-reason { margin: 0; font-size: 13px; color: var(--text-muted); }
@@ -936,8 +938,9 @@ td.out { color: var(--down-text); }
   .ticker-track { animation: none; }
   .ticker-viewport { overflow-x: auto; scrollbar-width: none; }
 }
-.ticker-empty { display: inline-flex; align-items: center; min-height: 38px; font-size: 13px; }
-.ticker-right { display: flex; align-items: center; gap: 10px; flex: none; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+/* Clear of the 40px edge fade, which ate the first letter (#198) */
+.ticker-empty { display: inline-flex; align-items: center; min-height: 38px; padding-left: 40px; font-size: 13px; }
+.ticker-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
 .ticker-right b { color: var(--text); font-weight: 600; margin-left: 2px; }
 .ticker-right b.pos { color: var(--up-text); }
 .ticker-right b.neg { color: var(--down-text); }

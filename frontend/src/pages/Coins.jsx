@@ -47,7 +47,7 @@ export default function Coins() {
             <h2 id="cx-h"><ArrowRightLeft size={18} aria-hidden /> Exchange for virtual capital</h2>
             <div className="coins-row">
               <label htmlFor="cx-n" className="sr-only">Coins to exchange</label>
-              <input id="cx-n" type="number" inputMode="numeric" min="1" max={s.balance} step="1" placeholder="Coins"
+              <input id="cx-n" className="input" type="number" inputMode="numeric" min="1" max={s.balance} step="1" placeholder="Coins"
                 value={amount} onChange={(e) => setAmount(e.target.value)} />
               <span className="muted">= {valid ? rupee(n * s.rupees_per_coin) : '₹0'}</span>
               <button className="btn primary" disabled={!valid || busy} onClick={exchange}>{busy ? 'Exchanging…' : 'Exchange'}</button>
