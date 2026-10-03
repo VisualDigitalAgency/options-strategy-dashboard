@@ -17,7 +17,7 @@ import OrderModal from '../components/OrderModal'
 import DetailSkeleton from '../components/DetailSkeleton'
 import StrategyLab from '../components/StrategyLab'
 import UpdatedTag from '../components/UpdatedTag'
-import { int, num, pct, rupee, rupee2, shortDate, signed, signedPct, signedRupee, suggestLots, todayIso } from '../format'
+import { asOfText, int, num, pct, rupee, rupee2, shortDate, signed, signedPct, signedRupee, suggestLots, todayIso } from '../format'
 import { useTitle } from '../brand'
 
 function Stat({ label, value, sub, tone }) {
@@ -144,6 +144,7 @@ export default function StockDetail() {
           <div className="hero-title">
             <h1 className="display">{d.symbol}</h1>
             <span className="quote-px num">{num(d.spot)}</span>
+            {d.as_of && <span className="muted small as-of">{asOfText(d.as_of)}</span>}
             {chg != null && (
               <span className={`quote-chg num ${chg > 0 ? 'pos' : chg < 0 ? 'neg' : 'muted'}`}>
                 {signed(d.spot - pc, 2)} ({signedPct(chg)})

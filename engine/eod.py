@@ -125,6 +125,17 @@ def refresh(now: datetime | None = None) -> str | None:
     return day.isoformat()
 
 
+def expiries(symbol: str, data: dict | None = None) -> list[pd.Timestamp]:
+    """The stock's expiries listed in the end-of-day file, nearest first."""
+    s = ((data or latest() or {}).get("symbols") or {}).get(symbol)
+    return sorted(pd.Timestamp(e) for e in s["chains"]) if s else []
+
+
+def lot(symbol: str, data: dict | None = None) -> int | None:
+    s = ((data or latest() or {}).get("symbols") or {}).get(symbol)
+    return (s or {}).get("lot") or None
+
+
 def chain(symbol: str, expiry: str, data: dict | None = None) -> tuple[float, pd.DataFrame] | None:
     """(spot, chain) for one stock and expiry from the end-of-day file, in the same columns as
     data_fetch.normalize_option_chain, so PR B can swap the source. Bid and ask are the settlement

@@ -6,14 +6,14 @@ from datetime import datetime
 
 import pandas as pd
 
-from . import cache, config, data_fetch, greeks_sr, market_calendar, pivots, virtual
+from . import cache, config, data_fetch, eod, greeks_sr, market_calendar, pivots, virtual
 
 EXPIRIES_TTL = 6 * 3600  # NSE lists new expiries once a month; one call per stock per 6 hours
 
 
 def expiries(symbol: str) -> list[str]:
     key = f"expiries:{symbol}"
-    hit = cache.get_json(key)
+    hit = [str(e.date()) for e in eod.expiries(symbol)] if virtual.eod_mode() else cache.get_json(key)
     if hit is None:
         hit = [str(e.date()) for e in data_fetch.fetch_expiries(symbol)]
         cache.set_json(key, hit, ttl=EXPIRIES_TTL)
@@ -73,7 +73,7 @@ def chain(symbol: str, expiry: str | None = None) -> dict:
     return {
         "summary": _summary(df, spot, rows),
         "symbol": symbol, "expiry": expiry, "expiries": exps, "spot": spot, "dte": dte,
-        "lot_size": data_fetch.fetch_lot_size(symbol, pd.Timestamp(expiry)),
+        "lot_size": virtual.lot_size(symbol, expiry), "as_of": virtual.as_of(),
         "rows": sorted(rows, key=lambda x: x["strike"]),
         "events": [e for e in events if e["risky"]],
         "rules": {"min_dte": config.MIN_DTE, "delta_max_abs": config.DELTA_MAX_ABS,
