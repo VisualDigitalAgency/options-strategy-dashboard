@@ -1132,13 +1132,14 @@ Set by the server, never by the client: `_ctx`.
 ### `admin_set_override`
 
 Owner only: grant or deny one feature for one account, or `clear` to go back to its role and
-level. Audited; applies on that user's next request.
+level. A grant with `months` (1-12) lapses on its own. Audited; applies on that user's next request.
 
 | Param | Type | Default |
 |---|---|---|
 | `target_id` | `int` | required |
 | `feature` | `str` | required |
 | `mode` | `str` | required |
+| `months` | `int \| None` | `null` |
 
 Set by the server, never by the client: `_ctx`.
 

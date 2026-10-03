@@ -170,6 +170,8 @@ NUDGE_HOUR_IST = 8
 # Season champion (retention phase 2): the best-ranked player in a band with at least this
 # discipline score (share of legs with the stop-loss on and sold below DELTA_MAX_ABS) that month.
 CHAMPION_DISCIPLINE = 80
+# Season champions get this many months of Pro (the screener) free, on top of any they hold.
+CHAMPION_PRO_MONTHS = 1
 LEVEL_MIN = {"coin_store": 4}
 LEVEL_FEATURES = {3: ("market_calendar",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
 # Gates for Levels 6-9 (#146). Leaving 9 also needs the owner's final-assessment sign-off.

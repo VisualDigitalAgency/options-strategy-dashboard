@@ -120,6 +120,14 @@ def champions(month: str) -> dict[str, int]:
     return out
 
 
+def award_champions(month: str) -> int:
+    """Free Pro months for `month`'s season champions (retention phase 3). The worker calls it once,
+    right after freezing the month. Returns how many accounts got it."""
+    from . import permissions
+    return sum(permissions.award_months(uid, "screener", config.CHAMPION_PRO_MONTHS, f"season {month}")
+               for uid in champions(month).values())
+
+
 def titles(user_id: int) -> list[dict]:
     """The months this user was a season champion, newest first: month and band name."""
     names = dict((b, BAND_NAMES[b]) for b, _, _ in BANDS)

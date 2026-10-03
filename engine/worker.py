@@ -130,6 +130,7 @@ def start_leaderboard_finalizer() -> None:
                 try:
                     if month not in leaderboard.finalized_months():
                         log.info("leaderboard: %s rows for %s", leaderboard.finalize(month), month)
+                        log.info("season: %s champions given Pro", leaderboard.award_champions(month))
                         log.info("recap: %s emails for %s", recap.send_all(month), month)
                     done = month
                 except Exception:

@@ -40,7 +40,8 @@ def body(name: str, month: str, s: dict) -> str:
              f"- XP earned: {s['xp']:+d}",
              f"- Level now: {s['level']} · {s['title']}"]
     if s["champion"]:
-        lines.append(f"- Season champion of {s['champion']}. Share your certificate from My progress.")
+        lines.append(f"- Season champion of {s['champion']}: {config.CHAMPION_PRO_MONTHS} month(s) of Pro on us. "
+                     "Share your certificate from My progress.")
     return "\n".join([*lines, "", "A new month starts today. Turn these emails off on My progress.",
                       "", "Paper trading, educational."])
 

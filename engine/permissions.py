@@ -71,7 +71,8 @@ def user_features(user_id: int, role: str | None) -> list[str]:
     got |= level_features(level)
     got -= {f for f, lv in config.LEVEL_MIN.items() if level < lv}  # e.g. the coin store from Level 4
     with db.tx() as c:
-        for o in c.all("SELECT feature, mode FROM user_feature_overrides WHERE user_id=:u", u=user_id):
+        for o in c.all("SELECT feature, mode FROM user_feature_overrides WHERE user_id=:u "
+                       "AND (expires_at IS NULL OR expires_at > now())", u=user_id):  # a lapsed grant counts as none
             if o["feature"] in FEATURES:
                 (got.add if o["mode"] == "grant" else got.discard)(o["feature"])
     got -= {f for f, need in NEEDS.items() if need not in got}
@@ -155,17 +156,21 @@ def set_feature(owner_id: int, role: str, feature: str, enabled: bool, ip: str |
 def overrides(user_id: int) -> list[dict]:
     """The owner's per-user overrides for one account."""
     with db.tx() as c:
-        return c.all("SELECT feature, mode, set_at FROM user_feature_overrides WHERE user_id=:u ORDER BY feature",
-                     u=user_id)
+        return c.all("SELECT feature, mode, set_at, expires_at FROM user_feature_overrides WHERE user_id=:u "
+                     "AND (expires_at IS NULL OR expires_at > now()) ORDER BY feature", u=user_id)
 
 
-def set_override(owner_id: int, user_id: int, feature: str, mode: str, ip: str | None = None) -> list[dict]:
-    """Grant or deny one feature for one user, or 'clear' to go back to role + level. Audited."""
+def set_override(owner_id: int, user_id: int, feature: str, mode: str, ip: str | None = None,
+                 months: int | None = None) -> list[dict]:
+    """Grant or deny one feature for one user, or 'clear' to go back to role + level. A grant with
+    `months` (1-12) lapses on its own after that long; without it an override is permanent. Audited."""
     from . import auth
     if feature not in FEATURES:
         raise ValueError("Unknown feature")
     if mode not in ("grant", "deny", "clear"):
         raise ValueError("Mode must be grant, deny or clear")
+    if months is not None and (mode != "grant" or not 1 <= months <= 12):
+        raise ValueError("Only a grant can be time-limited, for 1 to 12 months")
     with db.tx() as c:
         role = c.value("SELECT role FROM users WHERE id=:u AND status <> 'unverified'", u=user_id)
         if role is None:
@@ -175,8 +180,29 @@ def set_override(owner_id: int, user_id: int, feature: str, mode: str, ip: str |
         if mode == "clear":
             c.run("DELETE FROM user_feature_overrides WHERE user_id=:u AND feature=:f", u=user_id, f=feature)
         else:
-            c.run("INSERT INTO user_feature_overrides (user_id, feature, mode, set_by) VALUES (:u, :f, :m, :o) "
-                  "ON CONFLICT (user_id, feature) DO UPDATE SET mode=EXCLUDED.mode, set_by=EXCLUDED.set_by, set_at=now()",
-                  u=user_id, f=feature, m=mode, o=owner_id)
-    auth.audit(f"override_{mode}", actor_id=owner_id, target_user_id=user_id, ip=ip, feature=feature)
+            c.run("INSERT INTO user_feature_overrides (user_id, feature, mode, set_by, expires_at) VALUES (:u, :f, :m, :o, "
+                  "CASE WHEN CAST(:n AS integer) IS NULL THEN NULL ELSE now() + make_interval(months => CAST(:n AS integer)) END) "
+                  "ON CONFLICT (user_id, feature) DO UPDATE SET mode=EXCLUDED.mode, set_by=EXCLUDED.set_by, set_at=now(), "
+                  "expires_at=EXCLUDED.expires_at", u=user_id, f=feature, m=mode, o=owner_id, n=months)
+    auth.audit(f"override_{mode}", actor_id=owner_id, target_user_id=user_id, ip=ip, feature=feature, months=months)
     return overrides(user_id)
+
+
+def award_months(user_id: int, feature: str, months: int, reason: str) -> bool:
+    """Adds `months` of a time-limited grant (retention phase 3: free Pro for season champions).
+    Extends an unexpired grant rather than restarting it. Never touches an owner's permanent grant
+    or deny, and does nothing for the owner. Returns whether anything was granted. Audited."""
+    from . import auth
+    with db.tx() as c:
+        if c.value("SELECT role FROM users WHERE id=:u", u=user_id) in (None, "owner"):
+            return False
+        cur = c.one("SELECT mode, expires_at FROM user_feature_overrides WHERE user_id=:u AND feature=:f", u=user_id, f=feature)
+        if cur and (cur["mode"] == "deny" or cur["expires_at"] is None):
+            return False
+        c.run("INSERT INTO user_feature_overrides (user_id, feature, mode, set_by, expires_at) "
+              "VALUES (:u, :f, 'grant', NULL, now() + make_interval(months => :n)) "
+              "ON CONFLICT (user_id, feature) DO UPDATE SET mode='grant', set_at=now(), "
+              "expires_at=GREATEST(user_feature_overrides.expires_at, now()) + make_interval(months => :n)",
+              u=user_id, f=feature, n=months)
+    auth.audit("feature_awarded", target_user_id=user_id, feature=feature, months=months, reason=reason)
+    return True
