@@ -19,7 +19,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import autotrade, cache, config, leaderboard, market_calendar, nifty, progress, users, virtual
+from . import autotrade, cache, config, leaderboard, market_calendar, nifty, nudges, progress, users, virtual
 from .batch import FORCE, ScreenJob
 from .brokers.poller import start_poller as start_broker_poller
 
@@ -100,6 +100,23 @@ def start_progress_evaluator() -> None:
             time.sleep(600)
 
     threading.Thread(target=loop, daemon=True, name="progress-evaluator").start()
+
+
+def start_nudger() -> None:
+    """Day-before email nudges (retention plan, phase 1): once a day from NUDGE_HOUR_IST."""
+    def loop():
+        done = None
+        while True:
+            now = datetime.now(virtual.IST)
+            if now.hour >= config.NUDGE_HOUR_IST and done != now.date():
+                try:
+                    log.info("nudges: %s emails sent", nudges.send_all(now.date()))
+                except Exception:
+                    log.exception("nudges failed")
+                done = now.date()
+            time.sleep(600)
+
+    threading.Thread(target=loop, daemon=True, name="nudger").start()
 
 
 def start_leaderboard_finalizer() -> None:
@@ -204,6 +221,7 @@ def main() -> None:
     start_nifty_refresher()
     start_progress_evaluator()
     start_leaderboard_finalizer()
+    start_nudger()
     virtual.start_monitor()
     autotrade.start_scheduler(lambda: fresh_screen(job))
     start_broker_poller()

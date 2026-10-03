@@ -37,6 +37,7 @@ globalThis.fetch = async (_url, opts) => {
     lesson_progress: [{ slug: 'a', passed_at: 'x' }, { slug: 'b', passed_at: 'x' }, { slug: 'c', passed_at: null }],
     card_create: { slug: 'Abc123xyz' },
     referral_get: { code: 'AbC123xy', url: 'https://t.example/register?ref=AbC123xy', joined: 2 },
+    habits_get: { streak: { weeks: 3, this_week: false }, challenge: { week: '2026-W40', label: 'Pass a lesson quiz', target: 1, progress: 0, done: false, coins: 30 } },
   }[method]
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: result ?? null }) }
 }
@@ -92,4 +93,8 @@ check('share: WhatsApp, X, Telegram and image links carry the card URL', links.l
   && links.slice(0, 3).every((h) => h.includes(encodeURIComponent('/c/Abc123xyz'))) && links[3] === '/c/Abc123xyz.png', links)
 check('share: preview image shown', document.querySelector('.share-preview')?.getAttribute('src') === '/c/Abc123xyz.png')
 
+check('this week: streak and challenge (phase 1)', document.querySelector('.this-week')?.textContent.includes('3 weeks streak')
+  && document.querySelector('.this-week').textContent.includes('Pass a lesson quiz') && document.querySelector('.this-week').textContent.includes('0/1'))
+check('this week: keep-your-streak hint while this week is empty', document.querySelector('.this-week').textContent.includes('keep your streak'))
+check('email nudges toggle, on by default', [...document.querySelectorAll('.check-row')].some((l) => l.textContent.includes('Email me the day before') && l.querySelector('input').checked))
 process.exit(ok ? 0 : 1)

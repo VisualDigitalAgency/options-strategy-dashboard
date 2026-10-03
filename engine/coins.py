@@ -11,9 +11,13 @@ Spent only by exchange: one way, coins → virtual capital at COIN_RUPEES each. 
 as a capital grant, so it survives a reset and never counts as profit.
 """
 
-from . import capital, config, db
+from datetime import datetime
+
+from . import capital, config, db, habits
+from .progress import IST
 
 LABELS = {**capital.LABELS, "level": "Reach a level", "trade": "A disciplined profitable trade",
+          "challenge": "Weekly challenge",
           "xp": f"Every {config.COIN_XP_STEP} XP", "exchange": "Exchanged for virtual capital"}
 
 
@@ -40,6 +44,7 @@ def _due(user_id: int) -> dict[str, list[str]]:
         due = capital._earned(c, user_id)
         due["trade"] = _trades(c, user_id)
         xp = c.value("SELECT COALESCE(SUM(points), 0) FROM xp_ledger WHERE user_id=:u", u=user_id)
+        due["challenge"] = habits.completed_weeks(c, user_id, datetime.now(IST))
     due |= capital._invites(user_id)
     due["xp"] = [str(n) for n in range(1, max(int(xp), 0) // config.COIN_XP_STEP + 1)]
     return due
@@ -52,6 +57,8 @@ def _coins(kind: str, ref: str) -> int:
         return config.COIN_TRADE
     if kind == "xp":
         return config.COIN_XP
+    if kind == "challenge":
+        return config.COIN_CHALLENGE
     return config.COIN_TASKS[kind][0]
 
 
@@ -70,7 +77,7 @@ def evaluate(user_id: int) -> list[dict]:
         for r in c.all("SELECT kind, ref FROM coin_ledger WHERE user_id=:u AND coins > 0", u=user_id):
             paid.setdefault(r["kind"], set()).add(r["ref"])
         for kind, refs in due.items():
-            if kind != "level" and kind not in config.COIN_TASKS and kind not in ("trade", "xp"):
+            if kind != "level" and kind not in config.COIN_TASKS and kind not in ("trade", "xp", "challenge"):
                 continue
             for ref in refs:
                 got = paid.setdefault(kind, set())
@@ -125,7 +132,9 @@ def status(user_id: int) -> dict:
     rules += [{"key": "trade", "label": f"Profitable short leg: stop-loss on, delta below {config.DELTA_MAX_ABS}, "
                f"held {config.COIN_TRADE_MIN_DAYS}+ days, ₹{config.COIN_TRADE_MIN_PNL}+ profit", "coins": config.COIN_TRADE,
                "max": config.COIN_TRADE_PER_MONTH, "per": "month", "done": trades_month},
-              {"key": "xp", "label": LABELS["xp"], "coins": config.COIN_XP, "max": None}]
+              {"key": "xp", "label": LABELS["xp"], "coins": config.COIN_XP, "max": None},
+              {"key": "challenge", "label": "Finish the weekly challenge (on My progress)", "coins": config.COIN_CHALLENGE,
+               "max": 1, "per": "week"}]
     return {"balance": bal, "rupees_per_coin": config.COIN_RUPEES, "rules": rules,
             "levels": [{"level": lv, "coins": n} for lv, n in config.COIN_LEVEL.items()],
             "history": [{**r, "label": LABELS.get(r["kind"], r["kind"])} for r in rows]}

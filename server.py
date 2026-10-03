@@ -19,7 +19,7 @@ from flask import Flask, Response, abort, jsonify, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, config, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
+from engine import app_settings, auth, autotrade, brand, broker, builder, cache, capital, cards, coins, config, habits, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -452,10 +452,10 @@ def admin_reset_logo(_ctx: Ctx):
     return brand.info()
 
 
-def prefs_set(_ctx: Ctx, theme: str | None = None, palette: str | None = None):
-    """Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps
-    its value. Returns the saved prefs."""
-    return auth.set_prefs(_ctx.user_id, theme, palette)
+def prefs_set(_ctx: Ctx, theme: str | None = None, palette: str | None = None, email_nudges: bool | None = None):
+    """Saves the theme (light or dark), colour palette and/or the day-before email nudges (on or
+    off) to the account; an omitted field keeps its value. Returns the saved prefs."""
+    return auth.set_prefs(_ctx.user_id, theme, palette, email_nudges)
 
 
 def admin_list_users(_ctx: Ctx):
@@ -611,6 +611,7 @@ USER_METHODS = {
     "progress_history": progress.history,
     "capital_status": capital.status,
     "coins_status": coins.status,
+    "habits_get": habits.get,
     "payout_news": capital.news,
     "va_place_stop": virtual.place_stop,
     "va_charges": rms.charges,

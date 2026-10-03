@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-89 methods: 15 public, 4 account, 7 market data, 45 user, 18 admin.
+90 methods: 15 public, 4 account, 7 market data, 46 user, 18 admin.
 
 ## Tiers
 
@@ -37,7 +37,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`levels_overview`](#levels_overview) | public | The 10 levels: title, minimum days, the capital reward for reaching it and the features it unlocks (labels). |
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
-| [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
+| [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark), colour palette and/or the day-before email nudges (on or off) to the account; an omitted field keeps its value. |
 | [`profile_set`](#profile_set) | account | Sets the public nickname (3-20 letters, digits or _, unique) and/or leaderboard opt-in; an omitted field keeps its value. |
 | [`get_screened_candidates`](#get_screened_candidates) | market data | Returns the cached screen instantly. |
 | [`get_trade_detail`](#get_trade_detail) | market data | One stock's full screen row for `expiry` (YYYY-MM-DD). |
@@ -68,6 +68,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`progress_history`](#progress_history) | user | The newest XP ledger entries: points, reason and what they were for. |
 | [`capital_status`](#capital_status) | user | The task list for the Earn capital page: each task's reward, how often it pays, how many times it has paid, and where to do it; the level rewards; and the grant history. |
 | [`coins_status`](#coins_status) | user | The Coins page: balance, the rate, how each kind is earned, and the history. |
+| [`habits_get`](#habits_get) | user | The streak and this week's challenge with live progress. |
 | [`payout_news`](#payout_news) | user | What has paid out since `since` (a clock this call returned earlier), for the payout toast (#192). |
 | [`va_place_stop`](#va_place_stop) | user | A stop-loss order to exit one open leg (#183): SL-M (trigger, then market) or SL (trigger, then a limit). |
 | [`va_charges`](#va_charges) | user | The account's square-off charges and shortfall penalties, newest first. |
@@ -353,13 +354,14 @@ Set by the server, never by the client: `_ctx`.
 
 ### `prefs_set`
 
-Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps
-its value. Returns the saved prefs.
+Saves the theme (light or dark), colour palette and/or the day-before email nudges (on or
+off) to the account; an omitted field keeps its value. Returns the saved prefs.
 
 | Param | Type | Default |
 |---|---|---|
 | `theme` | `str \| None` | `null` |
 | `palette` | `str \| None` | `null` |
+| `email_nudges` | `bool \| None` | `null` |
 
 Set by the server, never by the client: `_ctx`.
 
@@ -680,6 +682,14 @@ The Coins page: balance, the rate, how each kind is earned, and the history.
 No params.
 
 Set by the server, never by the client: `user_id`.
+
+### `habits_get`
+
+The streak and this week's challenge with live progress. Pays any challenge coins due first.
+
+No params.
+
+Set by the server, never by the client: `user_id`, `_now`.
 
 ### `payout_news`
 
