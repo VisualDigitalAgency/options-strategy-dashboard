@@ -229,6 +229,7 @@ export function PriceChart({ d }) {
   const pe = d.legs.find((l) => l.side === 'PE')
   const levels = [...d.sr_zones.map((z) => z.level), ce?.strike, pe?.strike, ...data.map((p) => p.close)].filter(Boolean)
   const domain = [Math.min(...levels) * 0.97, Math.max(...levels) * 1.03]
+  const labelled = zoneLabels(d.sr_zones, domain, PRICE_PLOT_PX)
 
   return (
     <figure className="chart" aria-label={`Six-month price chart with ${d.sr_zones.length} support and resistance zones.`}>
@@ -243,7 +244,7 @@ export function PriceChart({ d }) {
           />
           {d.sr_zones.map((z, i) => (
             <ReferenceArea key={i} y1={z.level * 0.985} y2={z.level * 1.015} fill={z.type === 'support' ? C.up : C.down} fillOpacity={0.12}
-              label={{ value: `${z.type === 'support' ? 'S' : 'R'} ${Math.round(z.level)} · ${z.touches}x`, fill: C.axis, fontSize: 11, position: 'insideLeft' }} />
+              label={labelled.has(i) ? { value: `${z.type === 'support' ? 'S' : 'R'} ${Math.round(z.level)} · ${z.touches}x`, fill: C.axis, fontSize: 11, position: 'insideLeft' } : undefined} />
           ))}
           {ce && <ReferenceLine y={ce.strike} stroke={C.ce} strokeDasharray="5 4" label={{ value: `Short CE ${ce.strike}`, fill: C.ce, fontSize: 12, position: 'insideTopRight' }} />}
           {pe && <ReferenceLine y={pe.strike} stroke={C.pe} strokeDasharray="5 4" label={{ value: `Short PE ${pe.strike}`, fill: C.pe, fontSize: 12, position: 'insideBottomRight' }} />}
@@ -255,6 +256,22 @@ export function PriceChart({ d }) {
       </ResponsiveContainer>
     </figure>
   )
+}
+
+// The price chart's plot height: 300 less the margins, x-axis and legend.
+const PRICE_PLOT_PX = 230
+
+/** Indexes of the zones to label: walking up by price, a label within `gap` px of the last one drawn
+ *  is skipped, so close zones don't print on top of each other (#198). Every zone keeps its band. */
+export function zoneLabels(zones, [lo, hi], plotPx, gap = 14) {
+  const pxPer = plotPx / (hi - lo)
+  const out = new Set()
+  let last = -Infinity
+  for (const [i, z] of zones.map((z, i) => [i, z]).sort(([, a], [, b]) => a.level - b.level)) {
+    const y = (z.level - lo) * pxPer
+    if (y - last >= gap) { out.add(i); last = y }
+  }
+  return out
 }
 
 const OI_UP = 'var(--up)'

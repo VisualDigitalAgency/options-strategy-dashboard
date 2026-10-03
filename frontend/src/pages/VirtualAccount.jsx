@@ -9,7 +9,6 @@ import { ConfirmDialog } from '../components/Modal'
 import AutoTradePanel from '../components/AutoTrade'
 import { useCan } from '../auth'
 import UpdatedTag from '../components/UpdatedTag'
-import PalettePicker from '../components/PalettePicker'
 import StatCard from '../components/StatCard'
 import MarginBanner from '../components/MarginBanner'
 import EquityBar from '../components/EquityBar'
@@ -151,8 +150,6 @@ export default function VirtualAccount() {
       </section>
 
       {autoOk && <AutoTradePanel onRun={load} />}
-
-      <PalettePicker />
 
       <div className="two-col">
         <section className="card">

@@ -72,7 +72,7 @@ export default function Coins() {
             <p className="muted small">Capital rewards for the same tasks are on <Link to="/capital">Earn capital</Link>.</p>
           </section>
           <section className="card" aria-labelledby="ch-h">
-            <h2 id="ch-h">History</h2>
+            <div className="card-head"><h2 id="ch-h">History</h2></div>
             {s.history.length ? (
               <ul className="capital-grants">
                 {s.history.map((h) => (

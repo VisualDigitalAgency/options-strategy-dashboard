@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Circle, Clock, Copy, Medal, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
 import { rpc } from '../rpc'
+import { rupee } from '../format'
 import { useAuth } from '../auth'
 import { markSeen, seenLevel } from '../levelSeen'
 import GettingStarted from '../components/GettingStarted'
@@ -59,7 +60,8 @@ function LevelLadder() {
             <li key={l.level}>
               <b>Level {l.level} · {l.title}</b>
               {l.min_days && <span className="muted small"> · at least {l.min_days} days</span>}
-              {l.unlocks.map((u) => <span key={u} className="muted small block">Unlocks: {u}</span>)}
+              {l.capital && <span className="muted small level-line">Reward: {rupee(l.capital)} added to your capital</span>}
+              {l.unlocks.map((u) => <span key={u} className="muted small level-line">Unlocks: {u}</span>)}
             </li>
           ))}
         </ol>

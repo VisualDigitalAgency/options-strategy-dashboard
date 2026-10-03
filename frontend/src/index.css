@@ -499,6 +499,8 @@ td.out { color: var(--down-text); }
 .legs { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 980px; }
 .legs th { text-align: left; font-weight: 500; font-size: 12px; color: var(--text-muted); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .legs td { padding: 12px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+/* The order history's Source note is a sentence: let it wrap rather than run off the card (#198) */
+.history td .sub { white-space: normal; min-width: 16ch; }
 .legs th.num, .legs td.num { text-align: right; }
 .legs tfoot td { border-bottom: 0; color: var(--text); font-weight: 500; background: var(--surface-2); }
 .leg-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 6px; }
@@ -1168,6 +1170,7 @@ td.out { color: var(--down-text); }
 .run-line { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin: 0; font-size: 13px; }
 .run-line svg { flex: none; color: var(--text-muted); }
 .run-line.placed svg { color: var(--up); }
+.settings-inner > .card { margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; }
 .wallet-auto { display: flex; align-items: center; gap: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
 .wallet-auto b { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .wallet-auto p { margin: 2px 0 0; }
@@ -1539,6 +1542,8 @@ td.out { color: var(--down-text); }
 .oo-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .oo-table tr:last-child td { border-bottom: 0; }
 .oo-table .block { display: block; margin-top: 2px; }
+/* One line each on the public Levels page (#198: "60 daysUnlocks" ran together) */
+.level-ladder .level-line { display: block; margin-top: 2px; }
 .oo-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 @media (max-width: 767px) {
   .limit-input { width: 76px; font-size: 16px; }

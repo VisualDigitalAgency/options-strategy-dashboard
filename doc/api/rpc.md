@@ -34,7 +34,7 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`reader_universe`](#reader_universe) | public | The Nifty 50 symbols the builder offers. |
 | [`reader_chain`](#reader_chain) | public | builder_chain for signed-out visitors (same result); rate-limited per IP. |
 | [`reader_levels`](#reader_levels) | public | builder_levels for signed-out visitors (same result); rate-limited per IP. |
-| [`levels_overview`](#levels_overview) | public | The 10 levels: title, minimum days and the features each unlocks (labels). |
+| [`levels_overview`](#levels_overview) | public | The 10 levels: title, minimum days, the capital reward for reaching it and the features it unlocks (labels). |
 | [`auth_logout`](#auth_logout) | account | Ends this session and clears the session cookie. |
 | [`auth_change_password`](#auth_change_password) | account | Changes the password and clears the temporary-password flag. |
 | [`prefs_set`](#prefs_set) | account | Saves the theme (light or dark) and/or colour palette to the account; an omitted field keeps its value. |
@@ -312,8 +312,10 @@ Set by the server, never by the client: `_ctx`.
 
 ### `levels_overview`
 
-The 10 levels: title, minimum days and the features each unlocks (labels). Public while
-Progress is on for readers; signed-out visitors see it in place of their own progress.
+The 10 levels: title, minimum days, the capital reward for reaching it and the features it
+unlocks (labels). Level floors (config.LEVEL_MIN, e.g. the coin store) are listed only while the
+owner has the feature on for ordinary users. Public while Progress is on for readers; signed-out
+visitors see it in place of their own progress.
 
 No params.
 
