@@ -135,7 +135,7 @@ def validate(fn, params, universe: typing.Callable[[], list[str]] | None = None)
         raise InvalidParams("price must be a positive number")
     if "lots" in params and not 1 <= params["lots"] <= MAX_LOTS:
         raise InvalidParams(f"lots must be from 1 to {MAX_LOTS}")
-    for key in ("limit",):
-        if key in params and not 1 <= params[key] <= 500:
-            raise InvalidParams(f"{key} must be from 1 to 500")
+    # A row-count `limit`. va_place_stop's `limit` is an SL limit price, checked by place_stop itself.
+    if "limit" in params and allowed["limit"].annotation is int and not 1 <= params["limit"] <= 500:
+        raise InvalidParams("limit must be from 1 to 500")
     return params
