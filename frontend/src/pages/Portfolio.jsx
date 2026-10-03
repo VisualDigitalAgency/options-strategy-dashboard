@@ -14,6 +14,7 @@ import { GroupPayoff } from '../components/Charts'
 import PivotLevels from '../components/PivotLevels'
 import SLModeSwitch from '../components/SLModeSwitch'
 import RealAccountView from '../components/RealAccountView'
+import RealOrderConfirmDialog from '../components/RealOrderConfirmDialog'
 import { ConfirmDialog } from '../components/Modal'
 import StopOrderDialog from '../components/StopOrderDialog'
 import { useTitle } from '../brand'
@@ -100,7 +101,7 @@ function SLStatus({ leg, onDismiss }) {
   }
 }
 
-function Group({ g, onAction }) {
+function Group({ g, onAction, real = false }) {  // real: a broker position group, no app-side stop loss or Adjust
   const [open, setOpen] = useState(false)
   const [levels, setLevels] = useState(false)
   const lotsLabel = (l) => `${Math.abs(l.lots)} lot${Math.abs(l.lots) > 1 ? 's' : ''}`
@@ -118,7 +119,7 @@ function Group({ g, onAction }) {
           <Link to={`/stock/${encodeURIComponent(g.symbol)}${g.expiry ? `?expiry=${g.expiry}` : ''}`} className="sym-lg">{g.symbol}</Link>
           <span className="chip action-strangle">{g.strategy}</span>
           <span className="muted small">
-            Expires {shortDate(g.expiry)}, {g.dte} days left. Time exit <b>{shortDate(g.time_exit_on)}</b>. Profit exit at <b>90%</b> decay. Spot <span className="num">{num(g.spot)}</span>
+            Expires {shortDate(g.expiry)}, {g.dte} days left. {!real && <>Time exit <b>{shortDate(g.time_exit_on)}</b>. Profit exit at <b>90%</b> decay. </>}Spot <span className="num">{num(g.spot)}</span>
           </span>
         </div>
         <div className="pos-figures">
@@ -141,7 +142,7 @@ function Group({ g, onAction }) {
         </div>
       </header>
 
-      <RiskRow r={riskFigures(g.legs)} s={stopFigures(g.legs)} />
+      <RiskRow r={riskFigures(g.legs)} s={real ? { state: 'none' } : stopFigures(g.legs)} />
 
       {theta.start && (
         <DecayCurve compact start={theta.start} slDate={theta.sl} expiry={g.expiry} today={todayIso()} captured={theta.captured} />
@@ -154,7 +155,7 @@ function Group({ g, onAction }) {
           <thead>
             <tr>
               <th>Instrument</th><th className="num">Qty</th><th className="num">Avg</th><th className="num" title="Fair value: the bid/ask mid">Mark</th>
-              <th className="num">P&L</th><th className="num">Delta</th><th>Stop loss</th><th aria-label="Actions" />
+              <th className="num">P&L</th><th className="num">Delta</th>{!real && <><th>Stop loss</th><th aria-label="Actions" /></>}
             </tr>
           </thead>
           <tbody>
@@ -176,7 +177,7 @@ function Group({ g, onAction }) {
                 </td>
                 <td data-label="P&L" className={`num mono ${pnlClass(l.pnl)}`}>{signedRupee(l.pnl)}</td>
                 <td data-label="Delta" className="num mono">{signed(l.delta, 1)}</td>
-                <td data-label="Stop loss">
+                {!real && <td data-label="Stop loss">
                   {l.qty < 0 ? (
                     <div className="sl-cell">
                       <SLModeSwitch compact value={l.sl_mode} onChange={(m) => onAction('sl', { mode: m, position_id: l.id })} label={`Stop loss for ${l.strike} ${l.side}`} />
@@ -185,13 +186,13 @@ function Group({ g, onAction }) {
                   ) : (
                     <span className="muted small">Long leg</span>
                   )}
-                </td>
-                <td className="num">
+                </td>}
+                {!real && <td className="num">
                   <span className="leg-actions">
                     <button className="btn small ghost" onClick={() => onAction('stop', l, g)} title="Place a stop-loss order on this leg">SL</button>
                     <button className="btn small" onClick={() => onAction('exitLeg', l, g)}>Exit</button>
                   </span>
-                </td>
+                </td>}
               </tr>
             ))}
           </tbody>
@@ -207,10 +208,12 @@ function Group({ g, onAction }) {
           <ChartCandlestick size={15} aria-hidden /> {levels ? 'Hide price chart' : 'Price & pivot levels'}
           <ChevronDown size={15} aria-hidden className={levels ? 'rot' : ''} />
         </button>
-        <Link className="btn ghost small" to={`/builder?symbol=${encodeURIComponent(g.symbol)}&expiry=${g.expiry}&adjust=1`}
-          title="Try a roll, a hedge or a close in the builder and see the position before and after">
-          <SlidersHorizontal size={15} aria-hidden /> Adjust
-        </Link>
+        {!real && (
+          <Link className="btn ghost small" to={`/builder?symbol=${encodeURIComponent(g.symbol)}&expiry=${g.expiry}&adjust=1`}
+            title="Try a roll, a hedge or a close in the builder and see the position before and after">
+            <SlidersHorizontal size={15} aria-hidden /> Adjust
+          </Link>
+        )}
         <button className="btn danger-ghost small" onClick={() => onAction('exitGroup', null, g)}>
           <LogOut size={15} aria-hidden /> Exit all
         </button>
@@ -330,6 +333,8 @@ export default function Portfolio() {
   const [real, setReal] = useState(null)
   const [realError, setRealError] = useState(null)
   const [realRefreshing, setRealRefreshing] = useState(false)
+  const [exitPreview, setExitPreview] = useState(null) // { preview, group } while the real exit is awaiting confirmation
+  const [realNotice, setRealNotice] = useState(null)
   const timer = useRef(null)
   const timerReal = useRef(null)
   const alive = useRef(true)
@@ -366,10 +371,15 @@ export default function Portfolio() {
       if (!alive.current) return
       const connected = s.source === 'broker'
       setBrokerConnected(connected)
-      let positions = null, stops = null
-      if (connected) [positions, stops] = await Promise.all([rpc('broker_get_positions'), rpc('broker_stop_alerts')])
+      let positions = null, stops = null, grouped = null
+      if (connected) {
+        [positions, stops, grouped] = await Promise.all([
+          rpc('broker_get_positions'), rpc('broker_stop_alerts'),
+          rpc('broker_position_groups').catch(() => null), // the flat table below still shows if grouping fails
+        ])
+      }
       if (!alive.current) return
-      setReal({ summary: s, positions, stops })
+      setReal({ summary: s, positions, stops, groups: grouped?.groups ?? null })
       setRealError(null)
     } catch (e) {
       if (alive.current) setRealError(e.message)
@@ -436,6 +446,27 @@ export default function Portfolio() {
     }
   }
 
+  // Real account: the one action is Exit group. Preview prices BUY LIMITs at the ask; nothing is sent
+  // until the confirm dialog's own button redeems the token.
+  async function onRealAction(kind, arg, g) {
+    if (kind !== 'exitGroup') return
+    setRealNotice(null)
+    setRealError(null)
+    try {
+      setExitPreview({ preview: await rpc('broker_preview_exit_group', { symbol: g.symbol, expiry: g.expiry }), group: g })
+    } catch (e) {
+      setRealError(e.message)
+    }
+  }
+
+  async function placeRealExit(token) {
+    await rpc('broker_place_exit_group', { confirm_token: token })
+    const n = exitPreview.preview.legs.length
+    setExitPreview(null)
+    setRealNotice(`${n} exit order${n > 1 ? 's' : ''} sent to Zerodha as limit orders at the ${n > 1 ? 'ask/bid' : 'ask'}. They fill only if the price is reached: check your Zerodha order book.`)
+    loadReal()
+  }
+
   function onAction(kind, arg, g) {
     if (kind === 'sl') return run('va_set_sl_mode', arg)
     if (kind === 'dismiss') return run('va_dismiss_alert', arg)
@@ -490,7 +521,14 @@ export default function Portfolio() {
       </section>
 
       {mode === 'real' && (
-        <RealAccountView summary={real?.summary} positions={real?.positions} stops={real?.stops} error={realError} />
+        <RealAccountView summary={real?.summary} positions={real?.positions} stops={real?.stops} error={realError}
+          hidePositions={real?.groups?.length > 0} />
+      )}
+      {mode === 'real' && realNotice && <p className="notice" role="status"><Hourglass size={16} aria-hidden /> {realNotice}</p>}
+      {mode === 'real' && real?.groups?.map((g) => <Group key={`${g.symbol}-${g.expiry}`} g={g} real onAction={onRealAction} />)}
+      {exitPreview && (
+        <RealOrderConfirmDialog symbol={exitPreview.group.symbol} expiry={shortDate(exitPreview.group.expiry)}
+          preview={exitPreview.preview} onConfirm={placeRealExit} onClose={() => setExitPreview(null)} />
       )}
 
       {mode === 'virtual' && error && <div className="alert" role="alert"><AlertTriangle size={18} aria-hidden /> {error}</div>}

@@ -157,6 +157,19 @@ with virtual.as_viewer(file_uid), db.tx(file_uid) as c:
     virtual._apply_trade(c, file_uid, SYM, EXP, "PE", 900.0, "BUY", 100, 15.0, 100, "test", "", "auto")
 check("the same trade off the file counts", leaderboard._entry(file_uid, month) is not None)
 
+# A live user's mark must not be kept where other users read it (the shared mark: key).
+virtual.market_open = lambda: True
+mark_key = f"mark:{SYM}:{EXP}:PE:900"
+virtual.cache.delete(mark_key)
+with virtual.as_viewer(live_uid):
+    virtual.mark(SYM, EXP, "PE", 900.0, {"bid": 20.0, "ask": 20.5, "ltp": 20.2})
+check("a live user's mark is not shared", virtual.cache.get_json(mark_key) is None)
+with virtual.as_viewer(file_uid):
+    virtual.mark(SYM, EXP, "PE", 900.0, {"bid": 14.0, "ask": 14.0, "ltp": 14.0})
+check("a file-priced mark still is", virtual.cache.get_json(mark_key) is not None)
+virtual.cache.delete(mark_key)
+virtual.market_open = real_open
+
 # 8. Off again: back to the live path.
 mode(False)
 check("off: market hours are live again", virtual.eod_mode() is False and virtual.market_open() == real_open())

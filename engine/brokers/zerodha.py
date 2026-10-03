@@ -107,12 +107,29 @@ class ZerodhaAdapter(BrokerAdapter):
 
     def place_sell_limit_order(self, session: BrokerSession, *, symbol: str, expiry, side: str,
                                 strike: float, qty: int, limit_price: float) -> BrokerOrderResult:
+        return self._place_limit("SELL", session, symbol, expiry, side, strike, qty, limit_price)
+
+    def place_buy_limit_order(self, session: BrokerSession, *, symbol: str, expiry, side: str,
+                               strike: float, qty: int, limit_price: float) -> BrokerOrderResult:
+        return self._place_limit("BUY", session, symbol, expiry, side, strike, qty, limit_price)
+
+    def contract(self, session: BrokerSession, tradingsymbol: str) -> dict | None:
+        for r in self._instruments(self._client(session)):  # ponytail: linear scan of the cached dump, an index if positions get many
+            if r.get("tradingsymbol") == tradingsymbol:
+                if r.get("instrument_type") not in ("CE", "PE"):
+                    return None
+                return {"symbol": r["name"], "expiry": str(r["expiry"]), "side": r["instrument_type"],
+                        "strike": float(r["strike"]), "lot_size": int(r.get("lot_size") or 0)}
+        return None
+
+    def _place_limit(self, action: str, session: BrokerSession, symbol: str, expiry, side: str,
+                     strike: float, qty: int, limit_price: float) -> BrokerOrderResult:
         kite = self._client(session)
         try:
             tradingsymbol = self._tradingsymbol(kite, symbol, expiry, side, strike)
             order_id = kite.place_order(
                 variety=kite.VARIETY_REGULAR, exchange=kite.EXCHANGE_NFO, tradingsymbol=tradingsymbol,
-                transaction_type=kite.TRANSACTION_TYPE_SELL, quantity=qty, order_type=kite.ORDER_TYPE_LIMIT,
+                transaction_type=getattr(kite, f"TRANSACTION_TYPE_{action}"), quantity=qty, order_type=kite.ORDER_TYPE_LIMIT,
                 price=round(limit_price, 2), product=kite.PRODUCT_NRML, validity=kite.VALIDITY_DAY)
         except (NetworkException, DataException):
             # The OMS didn't give a usable answer (gateway timeout, garbled reply): the order may

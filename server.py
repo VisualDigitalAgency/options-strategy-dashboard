@@ -644,6 +644,9 @@ USER_METHODS = {
     "broker_preview_order": broker.preview_order,
     "broker_place_order": broker.place_order,
     "broker_stop_alerts": broker.stop_alerts,
+    "broker_position_groups": broker.get_position_groups,
+    "broker_preview_exit_group": broker.preview_exit_group,
+    "broker_place_exit_group": broker.place_exit_group,
 }
 
 ADMIN_METHODS = {
@@ -679,6 +682,7 @@ REQUIRES = {
     "admin_get_overrides": "owner", "admin_set_override": "owner",
     "broker_connect_url": "live_trading", "broker_exchange_token": "live_trading",
     "broker_preview_order": "live_trading", "broker_place_order": "live_trading",
+    "broker_preview_exit_group": "live_trading", "broker_place_exit_group": "live_trading",
     "va_set_autotrade": "autotrade", "va_autotrade_run_now": "autotrade",
     "get_market_calendar": "market_calendar",
     "get_screened_candidates": "screener", "get_trade_detail": "screener",
@@ -687,7 +691,7 @@ REQUIRES = {
 assert set(ADMIN_METHODS) <= set(REQUIRES), "every admin method needs a REQUIRES entry"
 
 # Methods whose `symbol` may be outside the current Nifty 50 (they only act on existing positions).
-ANY_SYMBOL = {"va_exit_group", "va_price_levels"}
+ANY_SYMBOL = {"va_exit_group", "va_price_levels", "broker_preview_exit_group"}
 
 # With a temporary password, only these work until it is changed.
 WHILE_MUST_CHANGE = {"auth_me", "auth_logout", "auth_change_password"}

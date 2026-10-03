@@ -11,7 +11,7 @@ import EquityBar from './EquityBar'
  *  style risk figures), so this shows what the data actually supports rather than forcing it into
  *  the virtual account's Group layout. When no broker is connected, `summary.source === 'approx'`
  *  and the figures fall back to the virtual account's own numbers, clearly flagged. */
-export default function RealAccountView({ summary, positions, stops, error, heading }) {
+export default function RealAccountView({ summary, positions, stops, error, heading, hidePositions = false }) {  // hidePositions: the page shows grouped positions itself
   const isReal = summary?.source === 'broker'
   const netPositions = (positions ?? []).filter((p) => p.quantity !== 0)
 
@@ -72,7 +72,7 @@ export default function RealAccountView({ summary, positions, stops, error, head
         )}
       </section>
 
-      <section className="card">
+      {!hidePositions && <section className="card">
         <header className="card-head"><h2>Open positions</h2></header>
         <div className="table-scroll">
           {isReal ? (
@@ -102,7 +102,7 @@ export default function RealAccountView({ summary, positions, stops, error, head
             </p>
           )}
         </div>
-      </section>
+      </section>}
 
       {isReal && stops?.length > 0 && (
         <section className="card">

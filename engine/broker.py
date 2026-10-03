@@ -7,8 +7,9 @@ so nothing here is reachable except through the guarded RPC entries in server.py
   - broker_status / broker_disconnect / broker_get_positions / broker_get_margins /
     broker_preview_order / broker_place_order: USER_METHODS
 
-This app only sells options, so every leg placed here is a SELL, LIMIT order — no order-type or
-transaction-type choice is exposed to the caller.
+Positions are opened only by SELL LIMIT orders (preview_order / place_order). The one other order
+is "Exit group" (preview_exit_group / place_exit_group): a BUY LIMIT at the ask for each short, a SELL
+LIMIT at the bid for each long, behind its own one-time token. No order-type choice is exposed.
 """
 
 import logging
@@ -263,6 +264,95 @@ def account_summary(user_id: int) -> dict:
         "open_positions": open_positions,
         "synced_at": synced_at,
     }
+
+
+def _real_rows(user_id: int) -> list[dict]:
+    """The broker's open option positions (the poller's snapshot), shaped like virtual `positions`
+    rows so virtual.priced_groups prices and groups them the same way. `id` is the tradingsymbol.
+    Real legs carry no app-side stop: the broker-side stop alerts have their own table."""
+    row = _require_active(user_id)
+    adapter, session = registry.adapter(row["broker"]), _row_to_session(row)
+    today = str(virtual._today().date())
+    rows = []
+    for p in get_positions(user_id):
+        qty = int(p.get("quantity") or 0)
+        k = adapter.contract(session, p["tradingsymbol"]) if qty and p.get("exchange") == "NFO" else None
+        if k and k["expiry"] >= today:
+            rows.append({"id": p["tradingsymbol"], **k, "qty": qty, "avg_price": float(p.get("average_price") or 0),
+                         "sl_mode": "off", "sl_price": None, "sl_activates_on": today, "sl_alert_at": None,
+                         "opened_at": None})
+    return rows
+
+
+def get_position_groups(user_id: int) -> dict:
+    """The real account's open option positions grouped by stock and expiry, with the same marks,
+    greeks, margin and P&L as the virtual Portfolio's groups (`va_get_positions`)."""
+    groups, totals = virtual.priced_groups(_real_rows(user_id))
+    return {"groups": groups, "totals": totals}
+
+
+def preview_exit_group(user_id: int, symbol: str, expiry: str) -> dict:
+    """Prices the orders that close one real position group: every short bought back with a BUY
+    LIMIT at the live ask, every long sold with a SELL LIMIT at the live bid, shorts first. Returns
+    a one-time token for place_exit_group; nothing is sent to the broker here."""
+    legs = [r for r in _real_rows(user_id) if r["symbol"] == symbol and r["expiry"] == expiry]
+    if not legs:
+        raise ValueError(f"No open {symbol} position for that expiry at your broker")
+    priced = []
+    for r in sorted(legs, key=lambda r: r["qty"] > 0):  # buying shorts back first frees margin before longs are sold
+        buy = r["qty"] < 0
+        q = virtual.quote(symbol, expiry, r["side"], r["strike"], live=True)  # a real order prices live, as preview_order
+        px = virtual.tick(q["ask"] if buy else q["bid"])
+        if px <= 0:
+            raise ValueError(f"No {'ask' if buy else 'bid'} price for {symbol} {r['strike']:g} {r['side']} right now")
+        priced.append({"side": r["side"], "strike": r["strike"], "qty": abs(r["qty"]), "action": "BUY" if buy else "SELL",
+                       "limit_price": px, "market_price": px})
+    token = _secrets.token_urlsafe(24)
+    # Its own cache key: place_order (which sells every leg) can never redeem an exit token.
+    cache.set_json(f"broker_exit:{token}", {"user_id": user_id, "symbol": symbol, "expiry": expiry, "legs": priced},
+                   ttl=CONFIRM_TTL)
+    return {"confirm_token": token, "legs": priced, "exit": True, "expires_in": CONFIRM_TTL}
+
+
+def place_exit_group(user_id: int, confirm_token: str) -> dict:
+    """Sends a previewed exit to the real broker, one leg at a time. Before each leg it checks the
+    position at the broker is still exactly what the preview closed; if not, it stops. Like
+    place_order it never retries and never rolls back: a leg that fails or gets no answer stops the
+    rest, and what already went out stays live."""
+    permissions.require(auth.active_user(user_id), "live_trading")  # also checked at the RPC layer
+    payload = cache.pop_json(f"broker_exit:{confirm_token}")  # one use, even for two racing confirms
+    if not payload or payload["user_id"] != user_id:
+        raise ValueError("This exit preview has expired; preview it again before confirming")
+    row = _require_active(user_id)
+    adapter, session = registry.adapter(row["broker"]), _row_to_session(row)
+    held = adapter.get_positions(session)  # fresh from the broker, not the poller's snapshot
+    placed = []
+    for i, leg in enumerate(payload["legs"]):
+        tsym = adapter.tradingsymbol(session, payload["symbol"], payload["expiry"], leg["side"], leg["strike"])
+        net = sum(int(p.get("quantity") or 0) for p in held if p.get("tradingsymbol") == tsym)
+        if net != (-leg["qty"] if leg["action"] == "BUY" else leg["qty"]):
+            raise ValueError(f"Your {payload['symbol']} {leg['strike']:g} {leg['side']} position changed since the preview, "
+                             f"so nothing further was sent. {len(placed)} earlier order(s) were placed and are live; "
+                             "check Zerodha and preview the exit again.")
+        send = adapter.place_buy_limit_order if leg["action"] == "BUY" else adapter.place_sell_limit_order
+        try:
+            result = send(session, symbol=payload["symbol"], expiry=payload["expiry"], side=leg["side"],
+                          strike=leg["strike"], qty=leg["qty"], limit_price=leg["limit_price"])
+        except Exception:
+            log.warning("broker exit leg %s had no clear answer for user %s", i, user_id, exc_info=True)
+            auth.audit("broker_exit_unknown", actor_id=user_id, target_user_id=user_id, broker=row["broker"], leg_index=i)
+            raise ValueError(f"The broker didn't answer for leg {i + 1} of {len(payload['legs'])}, so it may or may not "
+                             "have been placed. Check your Zerodha order book before trying again; "
+                             f"{len(placed)} earlier order(s) were placed and are live. Nothing further was sent.")
+        if result.status == "rejected":
+            auth.audit("broker_exit_failed", actor_id=user_id, target_user_id=user_id, broker=row["broker"],
+                       leg_index=i, reason=result.reject_reason)
+            raise ValueError(f"Leg {i + 1} of {len(payload['legs'])} was rejected ({result.reject_reason or 'by the broker'}). "
+                             + (f"{len(placed)} earlier order(s) are live; check Zerodha." if placed else "No orders were placed."))
+        placed.append({"leg_index": i, "broker_order_id": result.broker_order_id})
+        auth.audit("broker_exit_placed", actor_id=user_id, target_user_id=user_id, broker=row["broker"], leg_index=i,
+                   broker_order_id=result.broker_order_id, order=leg["action"], limit=leg["limit_price"])
+    return {"placed": placed}
 
 
 def preview_order(user_id: int, symbol: str, expiry: str, legs: list[dict]) -> dict:
