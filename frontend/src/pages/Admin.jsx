@@ -151,6 +151,7 @@ function UserOverrides({ users, features }) {
   const [rows, setRows] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [months, setMonths] = useState('')  // '' = permanent; 1-12 = a grant that lapses (retention phase 3)
   const pick = async (id) => {
     setTarget(id)
     setError(null)
@@ -160,7 +161,8 @@ function UserOverrides({ users, features }) {
     setBusy(true)
     setError(null)
     try {
-      setRows(await rpc('admin_set_override', { target_id: Number(target), feature, mode }))
+      setRows(await rpc('admin_set_override', { target_id: Number(target), feature, mode,
+        ...(mode === 'grant' && months ? { months: Number(months) } : {}) }))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -168,6 +170,7 @@ function UserOverrides({ users, features }) {
     }
   }
   const modeOf = (f) => rows?.find((r) => r.feature === f)?.mode ?? 'clear'
+  const until = (f) => rows?.find((r) => r.feature === f)?.expires_at
   return (
     <div className="card overrides">
       <h3>Per-user overrides</h3>
@@ -179,13 +182,23 @@ function UserOverrides({ users, features }) {
           {users?.filter((u) => u.role !== 'owner').map((u) => <option key={u.id} value={u.id}>{u.name} · {u.email}</option>)}
         </select>
       </div>
+      {rows && (
+        <div className="field">
+          <label htmlFor="ov-months">Grant for</label>
+          <select id="ov-months" className="input" value={months} onChange={(e) => setMonths(e.target.value)}>
+            <option value="">Permanent</option>
+            {[1, 3, 6, 12].map((n) => <option key={n} value={n}>{n} month{n > 1 ? 's' : ''}</option>)}
+          </select>
+        </div>
+      )}
       {error && <p className="form-error" role="alert">{error}</p>}
       {rows && (
         <table className="admin-table feature-matrix">
           <tbody>
             {features.map((f) => (
               <tr key={f.key}>
-                <td><b>{f.key.replaceAll('_', ' ')}</b></td>
+                <td><b>{f.key.replaceAll('_', ' ')}</b>
+                  {until(f.key) && <span className="muted small block">until {dateTime(until(f.key))}</span>}</td>
                 <td>
                   <div className="segmented" role="group" aria-label={`Override ${f.key.replaceAll('_', ' ')}`}>
                     {[['clear', 'Default'], ['grant', 'Grant'], ['deny', 'Deny']].map(([m, label]) => (

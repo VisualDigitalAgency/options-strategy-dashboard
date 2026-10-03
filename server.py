@@ -423,10 +423,10 @@ def admin_get_overrides(_ctx: Ctx, target_id: int):
     return permissions.overrides(target_id)
 
 
-def admin_set_override(_ctx: Ctx, target_id: int, feature: str, mode: str):
+def admin_set_override(_ctx: Ctx, target_id: int, feature: str, mode: str, months: int | None = None):
     """Owner only: grant or deny one feature for one account, or `clear` to go back to its role and
-    level. Audited; applies on that user's next request."""
-    return permissions.set_override(_ctx.user_id, target_id, feature, mode, ip=_ctx.ip)
+    level. A grant with `months` (1-12) lapses on its own. Audited; applies on that user's next request."""
+    return permissions.set_override(_ctx.user_id, target_id, feature, mode, ip=_ctx.ip, months=months)
 
 
 def admin_get_settings(_ctx: Ctx):

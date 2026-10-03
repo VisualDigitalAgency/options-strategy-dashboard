@@ -170,6 +170,9 @@ NUDGE_HOUR_IST = 8
 # Season champion (retention phase 2): the best-ranked player in a band with at least this
 # discipline score (share of legs with the stop-loss on and sold below DELTA_MAX_ABS) that month.
 CHAMPION_DISCIPLINE = 80
+# Season champions get this many months of Pro (the screener) free, on top of any they hold.
+CHAMPION_PRO_MONTHS = 1
+
 # End-of-day prices (data plan, PR A): NSE's F&O bhavcopy is fetched from this time (IST) on a
 # trading day, retried until it appears. Nothing prices from it until PR B.
 EOD_READY_IST = "18:30"
