@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, Award, CheckCircle2, Circle, Clock, Copy, Flame, Medal, PartyPopper, Share2, Trophy, UserPlus, Users } from 'lucide-react'
+import { AlertCircle, Award, CheckCircle2, Circle, Clock, Copy, Flame, Gift, Medal, PartyPopper, Share2, Trophy, UserPlus, Users } from 'lucide-react'
 import { rpc } from '../rpc'
 import { rupee } from '../format'
 import { useAuth } from '../auth'
@@ -108,6 +108,28 @@ function Cohort({ c }) {
   )
 }
 
+// Monthly prize draw: hidden unless the owner switched it on (doc/2026-10-03-prize-draw.md).
+function PrizeDraw({ p, onChange }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <section className="card prize-draw" aria-labelledby="pd-h">
+      <div className="card-head"><h2 id="pd-h"><Gift size={16} aria-hidden /> Monthly prize draw</h2></div>
+      <p className="small">Free to enter. Each month {p.winners === 1 ? 'one entrant is' : `${p.winners} entrants are`} drawn at random for ₹{p.prize.toLocaleString('en-IN')}
+        {' '}from everyone who closed {p.min_trades}+ trades with a discipline score of {p.min_discipline}+. Returns don't count.
+        TDS of {p.tds_pct}% applies; winners complete KYC before payment.</p>
+      <label className="check-row">
+        <input type="checkbox" checked={p.opted_in} disabled={busy} onChange={async (e) => {
+          setBusy(true)
+          try { onChange(await rpc('prize_opt_in', { opt_in: e.target.checked })) } catch { /* stays as it was */ }
+          setBusy(false)
+        }} />
+        Enter me in the monthly draw. I accept the contest terms.
+      </label>
+      {p.wins.length > 0 && <ul className="small">{p.wins.map((w) => <li key={w.month}>Won {w.month}: ₹{w.prize.toLocaleString('en-IN')} · {w.status.replace('_', ' ')}</li>)}</ul>}
+    </section>
+  )
+}
+
 export default function Progress() {
   return useAuth().user ? <MyProgress /> : <LevelLadder />
 }
@@ -126,6 +148,7 @@ function MyProgress() {
   const [week, setWeek] = useState(null)
   const [titles, setTitles] = useState([])
   const [cohort, setCohort] = useState(null)
+  const [prize, setPrize] = useState(null)
 
   useTitle('My progress')
   useEffect(() => {
@@ -140,6 +163,7 @@ function MyProgress() {
     rpc('referral_get').then(setInvite).catch(() => {})
     rpc('season_titles').then(setTitles).catch(() => {})
     rpc('cohort_get').then(setCohort).catch(() => {})
+    rpc('prize_status').then(setPrize).catch(() => {})
     rpc('habits_get').then(setWeek).catch(() => {})
     // A course is every lesson of one level; finished ones can be shared.
     Promise.all([rpc('lessons_list'), rpc('lesson_progress')]).then(([list, done]) => {
@@ -166,6 +190,7 @@ function MyProgress() {
       {error && <div className="alert" role="alert"><AlertCircle size={18} aria-hidden /> {error}</div>}
       {week && <ThisWeek week={week} />}
       {cohort?.size > 1 && <Cohort c={cohort} />}
+      {prize?.enabled && <PrizeDraw p={prize} onChange={setPrize} />}
       {p && (
         <>
           <section className="card">

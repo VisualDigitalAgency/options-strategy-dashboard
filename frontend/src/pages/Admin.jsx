@@ -271,6 +271,44 @@ function FeatureMatrix({ data, onToggle, settings, onSetting, busy }) {
   )
 }
 
+// Monthly prize draw wins (owner): KYC and payment happen outside the app; mark each paid or void.
+function PrizeDraws() {
+  const [rows, setRows] = useState(null)
+  const [error, setError] = useState(null)
+  useEffect(() => { rpc('admin_prize_draws').then(setRows).catch((e) => setError(e.message)) }, [])
+  const mark = async (id, status) => {
+    try { setRows(await rpc('admin_prize_mark', { draw_id: id, status })) } catch (e) { setError(e.message) }
+  }
+  return (
+    <div className="card prize-draws">
+      <h3>Prize draw wins</h3>
+      <p className="muted small">Do KYC (PAN), deduct TDS and pay outside the app, then mark the win paid. The seed lets anyone re-check a draw.</p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {rows && !rows.length && <p className="muted small">No draws yet.</p>}
+      {rows?.length > 0 && (
+        <table className="admin-table">
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td data-label="Month" className="mono">{r.month}</td>
+                <td data-label="Winner">{r.name}<span className="muted small block">{r.email}</span></td>
+                <td data-label="Prize" className="num mono">₹{r.prize} <span className="muted small block">TDS ₹{r.tds} · {r.entrants} entrants</span></td>
+                <td data-label="Status"><span className="chip">{r.status.replace('_', ' ')}</span></td>
+                <td className="admin-act-cell">
+                  {r.status === 'pending_kyc' && <>
+                    <button className="btn small primary" onClick={() => mark(r.id, 'paid')}>Mark paid</button>
+                    <button className="btn small ghost danger-text" onClick={() => mark(r.id, 'void')}>Void</button>
+                  </>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 export default function Admin() {
   const { user: me } = useAuth()
   const [users, setUsers] = useState(null)
@@ -428,6 +466,7 @@ export default function Admin() {
       {tab === 'features' && owner && <BrandSettings />}
       {tab === 'features' && owner && <FeatureMatrix data={features} onToggle={toggle} settings={settings} onSetting={setSetting} busy={busy} />}
       {tab === 'features' && owner && features && <UserOverrides users={users} features={features.features} />}
+      {tab === 'features' && owner && settings?.some((x) => x.key === 'prize_draw' && x.value) && <PrizeDraws />}
       {tab === 'blocked' && (
         <>
           <p className="muted small">Sign-ups that didn&apos;t confirm their email within 14 days. Unblock someone support has
