@@ -522,7 +522,7 @@ def me(user_id: int) -> dict:
                   "FROM users WHERE id=:u",
                   u=user_id)
     with db.tx(user_id) as c:
-        prefs = c.one("SELECT theme, palette FROM user_prefs WHERE user_id=:u", u=user_id) or {}
+        prefs = c.one("SELECT theme, palette, email_nudges FROM user_prefs WHERE user_id=:u", u=user_id) or {}
         level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
     features = permissions.user_features(u["id"], u["role"])
     # Strategy gate (#170): the level each kind of sale unlocks at, so the builder can lock templates
@@ -531,7 +531,8 @@ def me(user_id: int) -> dict:
     return {**u, "level": level, "features": features,
             "level_locked": permissions.level_locked(u["id"], u["role"], level),
             "sell_levels": {"naked": config.NAKED_LEVEL, "strangle": config.STRANGLE_LEVEL} if gated else None,
-            "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette")}}
+            "prefs": {"theme": prefs.get("theme"), "palette": prefs.get("palette"),
+                      "email_nudges": prefs.get("email_nudges", True)}}
 
 
 def active_user(user_id: int | None) -> dict | None:
@@ -580,15 +581,16 @@ def set_profile(user_id: int, nickname: str | None = None, leaderboard_opt_in: b
     return me(user_id)
 
 
-def set_prefs(user_id: int, theme: str | None, palette: str | None) -> dict:
+def set_prefs(user_id: int, theme: str | None, palette: str | None, email_nudges: bool | None = None) -> dict:
     if theme is not None and theme not in ("light", "dark"):
         raise AuthError("Theme must be light or dark")
     if palette is not None and not re.fullmatch(r"[a-z]{2,20}", palette):
         raise AuthError("Unknown palette")
     with db.tx(user_id) as c:
-        c.run("INSERT INTO user_prefs (user_id, theme, palette) VALUES (:u, :t, :p) "
+        c.run("INSERT INTO user_prefs (user_id, theme, palette, email_nudges) VALUES (:u, :t, :p, COALESCE(:n, true)) "
               "ON CONFLICT (user_id) DO UPDATE SET theme=COALESCE(:t, user_prefs.theme), "
-              "palette=COALESCE(:p, user_prefs.palette)", u=user_id, t=theme, p=palette)
+              "palette=COALESCE(:p, user_prefs.palette), email_nudges=COALESCE(:n, user_prefs.email_nudges)",
+              u=user_id, t=theme, p=palette, n=email_nudges)
     return me(user_id)["prefs"]
 
 

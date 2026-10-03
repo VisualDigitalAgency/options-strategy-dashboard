@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Circle, Clock, Copy, Medal, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Circle, Clock, Copy, Flame, Medal, PartyPopper, Share2, Trophy, UserPlus } from 'lucide-react'
 import { rpc } from '../rpc'
 import { rupee } from '../format'
 import { useAuth } from '../auth'
@@ -81,6 +81,19 @@ function LevelLadder() {
 
 const levelLabel = (p) => (p.level === 10 ? `Certificate · ${p.title}` : `Level ${p.level} · ${p.title}`)
 
+// Weekly habits (retention plan, phase 1): the learning streak and this week's challenge.
+function ThisWeek({ week: { streak, challenge: ch } }) {
+  return (
+    <section className="card this-week" aria-labelledby="tw-h">
+      <div className="card-head"><h2 id="tw-h"><Flame size={16} aria-hidden /> This week</h2>
+        <span className="muted small num">{streak.weeks} week{streak.weeks === 1 ? '' : 's'} streak</span></div>
+      <p className={ch.done ? 'pos' : ''}>{ch.done ? <CheckCircle2 size={15} aria-hidden /> : <Circle size={15} aria-hidden />} {ch.label}{' '}
+        <span className="muted small num">{ch.progress}/{ch.target} · {ch.done ? `${ch.coins} coins earned` : `+${ch.coins} coins`}</span></p>
+      {!streak.this_week && streak.weeks > 0 && <p className="muted small">Pass a quiz or close a trade this week to keep your streak.</p>}
+    </section>
+  )
+}
+
 export default function Progress() {
   return useAuth().user ? <MyProgress /> : <LevelLadder />
 }
@@ -96,6 +109,7 @@ function MyProgress() {
   const [invite, setInvite] = useState(null)
   const [copied, setCopied] = useState(false)
   const [optBusy, setOptBusy] = useState(false)
+  const [week, setWeek] = useState(null)
 
   useTitle('My progress')
   useEffect(() => {
@@ -108,6 +122,7 @@ function MyProgress() {
     }).catch((e) => setError(e.message))
     rpc('progress_history', { limit: 50 }).then(setHist).catch(() => {})
     rpc('referral_get').then(setInvite).catch(() => {})
+    rpc('habits_get').then(setWeek).catch(() => {})
     // A course is every lesson of one level; finished ones can be shared.
     Promise.all([rpc('lessons_list'), rpc('lesson_progress')]).then(([list, done]) => {
       const passed = new Set(done.filter((d) => d.passed_at).map((d) => d.slug))
@@ -131,6 +146,7 @@ function MyProgress() {
         </div>
       </header>
       {error && <div className="alert" role="alert"><AlertCircle size={18} aria-hidden /> {error}</div>}
+      {week && <ThisWeek week={week} />}
       {p && (
         <>
           <section className="card">
@@ -206,6 +222,14 @@ function MyProgress() {
                 setOptBusy(false)
               }} />
               Show me on the monthly paper-trading leaderboard (nickname only)
+            </label>
+            <label className="check-row">
+              <input type="checkbox" checked={user?.prefs?.email_nudges !== false} disabled={optBusy} onChange={async (e) => {
+                setOptBusy(true)
+                try { await rpc('prefs_set', { email_nudges: e.target.checked }); await refresh() } catch { /* stays as it was */ }
+                setOptBusy(false)
+              }} />
+              Email me the day before a stop-loss arms or a time exit closes a leg
             </label>
           </section>
 

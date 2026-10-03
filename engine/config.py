@@ -157,6 +157,16 @@ BADGES = {7: "Mentor", 9: "Master"}
 # Level 8 marks an account as eligible for real trading in Admin. A tag only: live_trading is
 # never granted by level (permissions.NEVER_BY_LEVEL); the owner still decides.
 LIVE_ELIGIBLE_LEVEL = 8
+# Weekly challenge (retention plan, phase 1): one per ISO week, in turn. Paid once a week.
+COIN_CHALLENGE = 30
+CHALLENGES = (
+    {"kind": "closed_sl", "target": 3, "label": "Close 3 trades with the stop-loss on"},
+    {"kind": "lesson", "target": 1, "label": "Pass a lesson quiz"},
+    {"kind": "low_delta", "target": 2, "label": f"Close 2 short legs sold below delta {DELTA_MAX_ABS}"},
+    {"kind": "profit_sl", "target": 1, "label": "Close a profitable trade with the stop-loss on"},
+)
+# Email nudges (phase 1): the day before a stop-loss arms or a time exit closes a leg.
+NUDGE_HOUR_IST = 8
 LEVEL_MIN = {"coin_store": 4}
 LEVEL_FEATURES = {3: ("market_calendar",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
 # Gates for Levels 6-9 (#146). Leaving 9 also needs the owner's final-assessment sign-off.
