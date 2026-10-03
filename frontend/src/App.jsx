@@ -426,8 +426,15 @@ function SignedOut() {
   const { pathname, search } = useLocation()
   const here = pathname + search
   const open = useReaderPages()
+  // The home page sends a new visitor to the first public page, not the sign-in form, so they can
+  // try the app before joining. Sign-in is the fallback only when the owner has every page off.
+  // Wait for app_info first: until it says which pages are public, every page counts as open.
+  const known = useBrand().reader != null
+  const home = READER_NAV.find((n) => open(n.page))?.to
   return (
     <Routes>
+      {!known && <Route path="/" element={<Splash />} />}
+      {known && home && <Route path="/" element={<Navigate to={home} replace />} />}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
