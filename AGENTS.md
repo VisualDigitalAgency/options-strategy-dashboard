@@ -20,6 +20,14 @@ Global rules for every AI agent working in this repository (Claude Code, Codex, 
 - If a task needs more than ~3 file changes, outline the plan first.
 - Flag uncertainty rather than picking silently.
 
+### Skills (vendored in `.claude/skills/`)
+Pick by the nature of the task, every time, without being asked:
+- Development (writing, fixing, refactoring or reviewing code; choosing libraries): use `ponytail`, the simplest change that works. Use `ponytail-review` to review a diff for over-engineering.
+- Design (pages, components, layout, styling, accessibility, UX copy): use `ui-ux-pro-max`. Its search tool runs as `python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain <domain>`.
+- A task that is both (e.g. a new page): use both, `ui-ux-pro-max` for the design and `ponytail` for the code.
+- Agents without a skill loader (Codex, Cursor, Copilot) read the skill's `SKILL.md` and follow it.
+- Simplicity never removes a security check, a validation, or a test this repo requires (SECURITY.md, `rpc_guard`, RLS).
+
 ### Never
 - Never touch `.env`, `secrets/`, or credentials files without asking.
 - Never `git push --force` without explicit confirmation.
