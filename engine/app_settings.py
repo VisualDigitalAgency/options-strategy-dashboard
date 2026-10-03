@@ -16,6 +16,10 @@ SETTINGS = {
     "reader_learn": (bool, True, "Reader (signed out): lessons. Quizzes always need an account."),
     "reader_progress": (bool, True, "Reader (signed out): the levels and what each unlocks, with a join prompt."),
     "reader_leaderboard": (bool, True, "Reader (signed out): the monthly leaderboard."),
+    # Data plan B (#216): off until the owner has checked real files with scripts/check_eod.py.
+    "eod_prices": (bool, False, "End-of-day prices: the virtual account prices from NSE's end-of-day file instead of "
+                                "the live feed. Orders fill at the next closing settlement; stops and exits run once a "
+                                "day after 18:30. Scheduled auto-trade pauses until the screener moves over too."),
 }
 READER_PAGES = ("builder", "learn", "progress", "leaderboard")
 
