@@ -16,13 +16,13 @@ def check(name, cond, got=""):
         fails.append(name)
 
 
-def player(email, sl=True, n=5):
+def player(email, sl=True, n=5, src=None):
     uid = new_user(email, 1_000_000)
     with db.tx(uid) as c:
         for i in range(1, n + 1):
             c.run("INSERT INTO trade_results (user_id, symbol, expiry, side, strike, short, lots, avg_price, realized_pnl,"
-                  " capital, opened_at, closed_at, exit_reason, had_sl, entry_delta) VALUES (:u, 'SBIN', :e, 'CE', 1200,"
-                  " true, 1, 5, -100, 1000000, :t, :t, 'manual', :sl, 0.1)", u=uid, e=EXP, sl=sl, t=f"2026-08-{i:02d} 10:00+05:30")
+                  " capital, opened_at, closed_at, exit_reason, had_sl, entry_delta, price_source) VALUES (:u, 'SBIN', :e, 'CE', 1200,"
+                  " true, 1, 5, -100, 1000000, :t, :t, 'manual', :sl, 0.1, :src)", u=uid, e=EXP, sl=sl, src=src, t=f"2026-08-{i:02d} 10:00+05:30")
     return uid
 
 
@@ -32,6 +32,7 @@ also = player("also@test.example")
 reckless = player("reckless@test.example", sl=False)
 few = player("few@test.example", n=3)
 shy = player("shy@test.example")
+live = player("live@test.example", src="live")  # disciplined, but priced from their own broker login
 
 # 1. Off by default: no entry, no draw.
 check("setting off by default", app_settings.get("prize_draw") is False)
@@ -44,9 +45,10 @@ check("no draw while off", prizes.draw(MONTH) == [])
 
 # 2. On: explicit entry; only disciplined opted-in players with enough trades qualify (losses don't matter).
 app_settings.set_value(owner, "prize_draw", True)
-for u in (good, also, reckless, few):
+for u in (good, also, reckless, few, live):
     prizes.set_opt_in(u, True)
 check("entrants: disciplined, enough trades, opted in", prizes.entrants(MONTH) == sorted([good, also]), prizes.entrants(MONTH))
+check("a live-priced trader is not an entrant", live not in prizes.entrants(MONTH))
 
 # 3. Draw: one winner among the entrants, reproducible from the seed, once per month.
 won = prizes.draw(MONTH)

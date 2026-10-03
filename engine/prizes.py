@@ -32,8 +32,10 @@ def entrants(month: str) -> list[int]:
         with db.tx(uid) as c:
             if not c.value("SELECT prize_draw_opt_in FROM user_prefs WHERE user_id=:u", u=uid):
                 continue
-            legs = c.all("SELECT had_sl, short, entry_delta FROM trade_results WHERE user_id=:u "
+            legs = c.all("SELECT had_sl, short, entry_delta, price_source FROM trade_results WHERE user_id=:u "
                          "AND to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') = :m", u=uid, m=month)
+        if any(l["price_source"] == "live" for l in legs):  # traded on live broker prices this month (#216): not drawn, as on the leaderboard
+            continue
         if len(legs) >= leaderboard.MIN_TRADES and leaderboard.discipline(legs) >= config.CHAMPION_DISCIPLINE:
             out.append(uid)
     return sorted(out)
