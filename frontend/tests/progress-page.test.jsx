@@ -37,6 +37,8 @@ globalThis.fetch = async (_url, opts) => {
     lesson_progress: [{ slug: 'a', passed_at: 'x' }, { slug: 'b', passed_at: 'x' }, { slug: 'c', passed_at: null }],
     card_create: { slug: 'Abc123xyz' },
     referral_get: { code: 'AbC123xy', url: 'https://t.example/register?ref=AbC123xy', joined: 2 },
+    season_titles: [{ month: '2026-08', band: 'Levels 4-6' }],
+    cohort_get: { week: '2026-W40', size: 12, level: 2, levels: [{ level: 1, count: 7 }, { level: 2, count: 4 }, { level: 3, count: 1 }], ahead: 1 },
     habits_get: { streak: { weeks: 3, this_week: false }, challenge: { week: '2026-W40', label: 'Pass a lesson quiz', target: 1, progress: 0, done: false, coins: 30 } },
   }[method]
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: result ?? null }) }
@@ -81,8 +83,8 @@ check('invite link and joined count shown', document.querySelector('.invite-row 
 
 // ---- sharing
 const shareBtns = [...document.querySelectorAll('.share-list button')].map((b) => b.textContent)
-check('share: current level and only finished courses', shareBtns.join('|') === 'Level 3 · Seller|Level 1 course complete', shareBtns)
-await act(async () => document.querySelectorAll('.share-list button')[1].click())
+check('share: current level and only finished courses', shareBtns.join('|') === 'Level 3 · Seller|Season champion · 2026-08|Level 1 course complete', shareBtns)
+await act(async () => document.querySelectorAll('.share-list button')[2].click())
 const make = [...document.querySelectorAll('.share-modal button')].find((b) => b.textContent.includes('Make share link'))
 await act(async () => make.click())
 await settle()
@@ -97,4 +99,7 @@ check('this week: streak and challenge (phase 1)', document.querySelector('.this
   && document.querySelector('.this-week').textContent.includes('Pass a lesson quiz') && document.querySelector('.this-week').textContent.includes('0/1'))
 check('this week: keep-your-streak hint while this week is empty', document.querySelector('.this-week').textContent.includes('keep your streak'))
 check('email nudges toggle, on by default', [...document.querySelectorAll('.check-row')].some((l) => l.textContent.includes('Email me the day before') && l.querySelector('input').checked))
+check('cohort card: size and how many are ahead (phase 2)', document.querySelector('.cohort')?.textContent.includes('12 people')
+  && document.querySelector('.cohort').textContent.includes('1 of 11 from your week is at a higher level'))
+check('season certificate share button', [...document.querySelectorAll('.share-list button')].some((x) => x.textContent.includes('Season champion · 2026-08')))
 process.exit(ok ? 0 : 1)

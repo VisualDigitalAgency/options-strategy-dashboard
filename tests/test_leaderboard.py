@@ -62,7 +62,7 @@ names = {r["nickname"] for rows in b.values() for r in rows}
 check("Levels 1-3 rank in the Rising band", [r["nickname"] for r in b["1-3"]] == ["Lvl3"], b["1-3"])
 for n in ("OptedOut", "FourOnly", "OtherMonth", "PreReset"):
     check(f"excluded: {n}", n not in names)
-check("rows carry no user id, email or rupee amount", set(b["4-6"][0]) == set(leaderboard.FIELDS), b["4-6"][0])
+check("rows carry no user id, email or rupee amount", set(b["4-6"][0]) == {*leaderboard.FIELDS, "discipline"}, b["4-6"][0])
 
 # 3. Finalize, idempotent; RLS.
 check("finalize writes 5 rows", leaderboard.finalize(MONTH) == 5)

@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-90 methods: 15 public, 4 account, 7 market data, 46 user, 18 admin.
+92 methods: 15 public, 4 account, 7 market data, 48 user, 18 admin.
 
 ## Tiers
 
@@ -69,6 +69,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`capital_status`](#capital_status) | user | The task list for the Earn capital page: each task's reward, how often it pays, how many times it has paid, and where to do it; the level rewards; and the grant history. |
 | [`coins_status`](#coins_status) | user | The Coins page: balance, the rate, how each kind is earned, and the history. |
 | [`habits_get`](#habits_get) | user | The streak and this week's challenge with live progress. |
+| [`season_titles`](#season_titles) | user | The months this user was a season champion, newest first: month and band name. |
+| [`cohort_get`](#cohort_get) | user | The caller's cohort: its week, size, how many are at each level, and how many are ahead. |
 | [`payout_news`](#payout_news) | user | What has paid out since `since` (a clock this call returned earlier), for the payout toast (#192). |
 | [`va_place_stop`](#va_place_stop) | user | A stop-loss order to exit one open leg (#183): SL-M (trigger, then market) or SL (trigger, then a limit). |
 | [`va_charges`](#va_charges) | user | The account's square-off charges and shortfall penalties, newest first. |
@@ -690,6 +692,22 @@ The streak and this week's challenge with live progress. Pays any challenge coin
 No params.
 
 Set by the server, never by the client: `user_id`, `_now`.
+
+### `season_titles`
+
+The months this user was a season champion, newest first: month and band name.
+
+No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `cohort_get`
+
+The caller's cohort: its week, size, how many are at each level, and how many are ahead.
+
+No params.
+
+Set by the server, never by the client: `user_id`.
 
 ### `payout_news`
 

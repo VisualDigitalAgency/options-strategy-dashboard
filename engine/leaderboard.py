@@ -24,7 +24,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from . import cache, db, progress
+from . import cache, config, db, progress
 from .progress import IST
 
 log = logging.getLogger("theta.leaderboard")
@@ -79,7 +79,8 @@ def _entry(user_id: int, month: str, months: list[str] | None = None) -> dict | 
         level = c.value("SELECT level FROM user_levels WHERE user_id=:u", u=user_id) or 1
         if level < MIN_LEVEL:
             return None
-        rows = c.all("SELECT t.realized_pnl, t.capital FROM trade_results t JOIN accounts a ON a.user_id = t.user_id "
+        rows = c.all("SELECT t.realized_pnl, t.capital, t.had_sl, t.short, t.entry_delta FROM trade_results t "
+                     "JOIN accounts a ON a.user_id = t.user_id "
                      "WHERE t.user_id=:u AND t.closed_at >= a.created_at "
                      "AND to_char(t.closed_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') = ANY(:ms) "
                      "ORDER BY t.closed_at, t.id", u=user_id, ms=months or [month])
@@ -87,7 +88,43 @@ def _entry(user_id: int, month: str, months: list[str] | None = None) -> dict | 
         return None
     if len(rows) < MIN_TRADES * len(months or [month]):
         return {"level": level, "trades": len(rows)}  # not ranked yet: shown under "Getting there"
-    return {"level": level, **score([float(r["realized_pnl"]) for r in rows], float(rows[-1]["capital"]))}
+    return {"level": level, **score([float(r["realized_pnl"]) for r in rows], float(rows[-1]["capital"])),
+            "discipline": discipline(rows)}
+
+
+def discipline(rows: list[dict]) -> int:
+    """0-100: the share of closed legs traded by the rules: stop-loss on, and a short sold below
+    DELTA_MAX_ABS (retention phase 2). Shown next to the ratio; it decides the season champion."""
+    ok = sum(1 for r in rows if r["had_sl"] and not (r["short"] and (r["entry_delta"] is None
+                                                                     or float(r["entry_delta"]) >= config.DELTA_MAX_ABS)))
+    return round(ok * 100 / len(rows)) if rows else 0
+
+
+def _discipline_of(user_id: int, months: list[str]) -> int:
+    with db.tx(user_id) as c:
+        rows = c.all("SELECT t.had_sl, t.short, t.entry_delta FROM trade_results t JOIN accounts a ON a.user_id = t.user_id "
+                     "WHERE t.user_id=:u AND t.closed_at >= a.created_at "
+                     "AND to_char(t.closed_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') = ANY(:ms)", u=user_id, ms=months)
+    return discipline(rows)
+
+
+def champions(month: str) -> dict[str, int]:
+    """A finalized month's season champion per band: band -> user_id. The best-ranked player whose
+    discipline score is at least config.CHAMPION_DISCIPLINE, so a lucky reckless month never wins."""
+    with db.tx() as c:
+        rows = c.all("SELECT band, user_id FROM leaderboard_entries WHERE month=:m ORDER BY band, rank", m=month)
+    out = {}
+    for r in rows:
+        if r["band"] not in out and _discipline_of(r["user_id"], [month]) >= config.CHAMPION_DISCIPLINE:
+            out[r["band"]] = r["user_id"]
+    return out
+
+
+def titles(user_id: int) -> list[dict]:
+    """The months this user was a season champion, newest first: month and band name."""
+    names = dict((b, BAND_NAMES[b]) for b, _, _ in BANDS)
+    return [{"month": m, "band": names[b]} for m in finalized_months()
+            for b, uid in champions(m).items() if uid == user_id]
 
 
 def compute(month: str, with_ids: bool = False, months: list[str] | None = None) -> dict[str, list[dict]]:
@@ -185,8 +222,11 @@ def get(month: str | None = None) -> dict:
     else:
         with db.tx() as c:
             rows = c.all("SELECT * FROM leaderboard_entries WHERE month=:m ORDER BY band, rank", m=month)
-        bands = {b: [{k: float(r[k]) if k in ("ratio", "return_pct", "max_dd_pct", "win_rate") else r[k]
-                      for k in FIELDS} for r in rows if r["band"] == b] for b, _, _ in BANDS}
+        champs = set(champions(month).values())
+        bands = {b: [{**{k: float(r[k]) if k in ("ratio", "return_pct", "max_dd_pct", "win_rate") else r[k]
+                         for k in FIELDS},
+                      "discipline": _discipline_of(r["user_id"], [month]), "champion": r["user_id"] in champs}
+                     for r in rows if r["band"] == b] for b, _, _ in BANDS}
         provisional, near = False, []
     return _out(month, provisional, [current, *months], quarters, bands, near)
 

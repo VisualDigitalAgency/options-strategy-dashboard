@@ -19,7 +19,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import autotrade, cache, config, leaderboard, market_calendar, nifty, nudges, progress, users, virtual
+from . import autotrade, cache, config, leaderboard, market_calendar, nifty, nudges, progress, recap, users, virtual
 from .batch import FORCE, ScreenJob
 from .brokers.poller import start_poller as start_broker_poller
 
@@ -130,6 +130,7 @@ def start_leaderboard_finalizer() -> None:
                 try:
                     if month not in leaderboard.finalized_months():
                         log.info("leaderboard: %s rows for %s", leaderboard.finalize(month), month)
+                        log.info("recap: %s emails for %s", recap.send_all(month), month)
                     done = month
                 except Exception:
                     log.exception("leaderboard finalize failed")

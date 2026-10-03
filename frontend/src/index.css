@@ -2184,3 +2184,9 @@ img.brand-logo { object-fit: contain; }
 .badge-master { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
 .lb-hall ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .soft-join { margin: 16px 0; }
+
+/* Retention phase 2: season champion chip and the cohort card */
+.badge-champion { color: var(--up-text); border-color: color-mix(in srgb, var(--up) 45%, transparent); }
+.cohort-levels { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.cohort-levels li { padding: 4px 10px; border: 1px solid var(--border); border-radius: 99px; }
+.cohort-levels li.me { border-color: var(--primary); }

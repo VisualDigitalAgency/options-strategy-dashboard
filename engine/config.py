@@ -167,6 +167,9 @@ CHALLENGES = (
 )
 # Email nudges (phase 1): the day before a stop-loss arms or a time exit closes a leg.
 NUDGE_HOUR_IST = 8
+# Season champion (retention phase 2): the best-ranked player in a band with at least this
+# discipline score (share of legs with the stop-loss on and sold below DELTA_MAX_ABS) that month.
+CHAMPION_DISCIPLINE = 80
 LEVEL_MIN = {"coin_store": 4}
 LEVEL_FEATURES = {3: ("market_calendar",), 5: ("saved_strategies", "alerts"), 6: ("hedges",)}
 # Gates for Levels 6-9 (#146). Leaving 9 also needs the owner's final-assessment sign-off.
