@@ -44,6 +44,9 @@ export const addDaysIso = (iso, n) => {
 export const shortDate = (iso) =>
   iso ? new Date(iso.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'
 
+// End-of-day mode (#216): the server sends `as_of`, the session whose closing prices are shown.
+export const asOfText = (iso) => (iso ? `Prices as of ${shortDate(iso)} close` : null)
+
 export function suggestLots(margin, perTrade) {
   if (!margin || !perTrade) return 0
   return Math.floor(perTrade / margin)

@@ -4,13 +4,13 @@
 for a season champion. NULL keeps an override permanent, as before. The app role already has
 SELECT/INSERT/UPDATE/DELETE on the table.
 
-Revision ID: 0030
-Revises: 0029
+Revision ID: 0031
+Revises: 0030
 """
 from alembic import op
 
-revision = "0030"
-down_revision = "0029"
+revision = "0031"
+down_revision = "0030"
 branch_labels = None
 depends_on = None
 

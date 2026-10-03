@@ -5,7 +5,7 @@ import { rpc } from '../rpc'
 import { can, useAuth } from '../auth'
 import { useBudget } from '../settings'
 import { useTitle } from '../brand'
-import { int, num, rupee, rupee2, shortDate, signedRupee, todayIso } from '../format'
+import { asOfText, int, num, rupee, rupee2, shortDate, signedRupee, todayIso } from '../format'
 import { BuilderPayoff } from '../components/Charts'
 import { bsGreeks, sdRange } from '../bs'
 import {
@@ -118,6 +118,7 @@ function ChainTable({ chain, legs, onAdd, levels, onExpiry }) {
         <Seg label="Chain view" value={tab} onChange={setTab} options={[['oi', 'OI'], ['greeks', 'Greeks']]} />
         <button type="button" className="btn small" aria-pressed={wide} onClick={() => setWide((w) => !w)}>{wide ? 'Near strikes' : 'All strikes'}</button>
       </div>
+      {chain.as_of && <p className="muted small as-of">{asOfText(chain.as_of)}</p>}
       <div className="expiry-pills" role="group" aria-label="Expiry">
         {chain.expiries.map((x) => {
           const dte = Math.max(0, Math.round((new Date(x) - new Date(todayIso())) / 864e5))
@@ -204,7 +205,7 @@ function JoinPrompt({ onClose }) {
     <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="join-h">
       <div className="modal">
         <h2 id="join-h"><UserPlus size={20} aria-hidden /> Place this trade for free</h2>
-        <p>Create a free account to place this strategy on a ₹2 lakh virtual account with live NSE prices,
+        <p>Create a free account to place this strategy on a ₹2 lakh virtual account,
           see its margin, and track your progress through the levels. Your legs are kept: they will be
           here when you come back signed in.</p>
         <div className="modal-actions">

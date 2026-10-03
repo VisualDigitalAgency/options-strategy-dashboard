@@ -11,11 +11,18 @@ from . import db
 SETTINGS = {
     "auto_approve": (bool, True, "New accounts can use the app as soon as their email is confirmed. "
                                   "Off: they wait for approval on the Admin page."),
+    "google_login": (bool, False, "Sign in with Google: a \"Continue with Google\" button on the sign-in and join pages. "
+                                  "Needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the server. The owner account "
+                                  "always signs in with its password."),
     # Reader (#163): what a signed-out visitor may open. Off sends them to sign in instead.
     "reader_builder": (bool, True, "Reader (signed out): the strategy builder. Placing an order asks them to join."),
     "reader_learn": (bool, True, "Reader (signed out): lessons. Quizzes always need an account."),
     "reader_progress": (bool, True, "Reader (signed out): the levels and what each unlocks, with a join prompt."),
     "reader_leaderboard": (bool, True, "Reader (signed out): the monthly leaderboard."),
+    # Data plan B (#216): off until the owner has checked real files with scripts/check_eod.py.
+    "eod_prices": (bool, False, "End-of-day prices: the virtual account prices from NSE's end-of-day file instead of "
+                                "the live feed. Orders fill at the next closing settlement; stops and exits run once a "
+                                "day after 18:30, and the screener, builder and scheduled auto-trade use the same file."),
 }
 READER_PAGES = ("builder", "learn", "progress", "leaderboard")
 
@@ -50,6 +57,10 @@ def set_value(owner_id: int, key: str, value, ip: str | None = None) -> list[dic
     kind = SETTINGS[key][0]
     if type(value) is not kind:
         raise ValueError(f"{key} must be a {kind.__name__}")
+    if key == "google_login" and value:
+        from . import google_auth
+        if not google_auth.configured():
+            raise ValueError("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the server first")
     was = get(key)
     with db.tx() as c:
         c.run("INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES (:k, CAST(:v AS jsonb), now(), :o) "
