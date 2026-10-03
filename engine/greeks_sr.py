@@ -25,6 +25,35 @@ def bs_delta(spot: float, strike: float, dte_days: int, iv_pct: float, option_ty
     return round(_norm_cdf(d1) - 1.0, 4)
 
 
+def bs_price(spot: float, strike: float, dte_days: float, iv_pct: float, option_type: str) -> float:
+    """Black-Scholes premium per share (European, no dividends), at config.RISK_FREE_RATE."""
+    if dte_days <= 0 or iv_pct <= 0:
+        return max(spot - strike, 0.0) if option_type == "CE" else max(strike - spot, 0.0)
+    t, sigma, r = dte_days / 365.0, iv_pct / 100.0, config.RISK_FREE_RATE
+    d1 = (math.log(spot / strike) + (r + 0.5 * sigma ** 2) * t) / (sigma * math.sqrt(t))
+    d2 = d1 - sigma * math.sqrt(t)
+    if option_type == "CE":
+        return spot * _norm_cdf(d1) - strike * math.exp(-r * t) * _norm_cdf(d2)
+    return strike * math.exp(-r * t) * _norm_cdf(-d2) - spot * _norm_cdf(-d1)
+
+
+def implied_vol(price: float, spot: float, strike: float, dte_days: float, option_type: str) -> float:
+    """IV in percent that reproduces `price`, by bisection over 1-300%. 0.0 when no IV fits (a price
+    at or below intrinsic value, or missing inputs): the end-of-day file carries prices, not IV."""
+    if price <= 0 or spot <= 0 or strike <= 0 or dte_days <= 0:
+        return 0.0
+    lo, hi = 1.0, 300.0
+    if not bs_price(spot, strike, dte_days, lo, option_type) < price < bs_price(spot, strike, dte_days, hi, option_type):
+        return 0.0
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if bs_price(spot, strike, dte_days, mid, option_type) < price:
+            lo = mid
+        else:
+            hi = mid
+    return round((lo + hi) / 2, 2)
+
+
 def _norm_pdf(x: float) -> float:
     return math.exp(-0.5 * x * x) / math.sqrt(2 * math.pi)
 

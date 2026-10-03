@@ -44,6 +44,7 @@ Live: https://theta.connectbiomedical.com (sign-in required; new users confirm t
 
 - **NSE Option Chain API v3** — Live option premiums, Greeks, open interest
 - **NSE SPAN Files** — Real margin requirements per strike & expiry
+- **NSE F&O bhavcopy** — End-of-day settlement prices, saved daily by the worker (`engine/eod.py`). Ingest only for now; check it with `python scripts/check_eod.py`
 - **yfinance** — Historical price data, volatility calibration
 - **Zerodha Kite API** — Real broker execution (phase 1; roles with *live trading*, owner-only by default)
 

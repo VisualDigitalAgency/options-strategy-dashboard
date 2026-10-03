@@ -19,7 +19,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from . import autotrade, cache, config, leaderboard, market_calendar, nifty, nudges, progress, recap, users, virtual
+from . import autotrade, cache, config, eod, leaderboard, market_calendar, nifty, nudges, progress, recap, users, virtual
 from .batch import FORCE, ScreenJob
 from .brokers.poller import start_poller as start_broker_poller
 
@@ -117,6 +117,20 @@ def start_nudger() -> None:
             time.sleep(600)
 
     threading.Thread(target=loop, daemon=True, name="nudger").start()
+
+
+def start_eod_refresher() -> None:
+    """End-of-day option prices (data plan, PR A): NSE's bhavcopy, from EOD_READY_IST on a trading
+    day, tried every 15 minutes until it is published. Ingest only: nothing prices from it yet."""
+    def loop():
+        while True:
+            try:
+                eod.refresh()
+            except Exception:
+                log.exception("eod refresh failed")
+            time.sleep(900)
+
+    threading.Thread(target=loop, daemon=True, name="eod-refresher").start()
 
 
 def start_leaderboard_finalizer() -> None:
@@ -222,6 +236,7 @@ def main() -> None:
     start_nifty_refresher()
     start_progress_evaluator()
     start_leaderboard_finalizer()
+    start_eod_refresher()
     start_nudger()
     virtual.start_monitor()
     autotrade.start_scheduler(lambda: fresh_screen(job))
