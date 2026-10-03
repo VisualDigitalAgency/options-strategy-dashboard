@@ -39,6 +39,7 @@ globalThis.fetch = async (_url, opts) => {
     referral_get: { code: 'AbC123xy', url: 'https://t.example/register?ref=AbC123xy', joined: 2 },
     season_titles: [{ month: '2026-08', band: 'Levels 4-6' }],
     cohort_get: { week: '2026-W40', size: 12, level: 2, levels: [{ level: 1, count: 7 }, { level: 2, count: 4 }, { level: 3, count: 1 }], ahead: 1 },
+    prize_status: { enabled: false, opted_in: false, prize: 1000, winners: 1, min_trades: 5, min_discipline: 80, tds_pct: 30, wins: [] },
     habits_get: { streak: { weeks: 3, this_week: false }, challenge: { week: '2026-W40', label: 'Pass a lesson quiz', target: 1, progress: 0, done: false, coins: 30 } },
   }[method]
   return { status: 200, json: async () => ({ jsonrpc: '2.0', id, result: result ?? null }) }
@@ -102,4 +103,5 @@ check('email nudges toggle, on by default', [...document.querySelectorAll('.chec
 check('cohort card: size and how many are ahead (phase 2)', document.querySelector('.cohort')?.textContent.includes('12 people')
   && document.querySelector('.cohort').textContent.includes('1 of 11 from your week is at a higher level'))
 check('season certificate share button', [...document.querySelectorAll('.share-list button')].some((x) => x.textContent.includes('Season champion · 2026-08')))
+check('prize draw card hidden while the owner keeps it off', !document.querySelector('.prize-draw'))
 process.exit(ok ? 0 : 1)

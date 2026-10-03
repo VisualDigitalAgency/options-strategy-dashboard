@@ -20,7 +20,7 @@ from flask import Flask, Response, abort, jsonify, redirect, request
 from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
-from engine import app_settings, auth, google_auth, autotrade, brand, broker, builder, cache, capital, cards, coins, cohort, config, habits, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
+from engine import app_settings, auth, google_auth, autotrade, brand, broker, builder, cache, capital, cards, coins, cohort, config, habits, prizes, rms, data_fetch, db, leaderboard, lessons, market_calendar, permissions, pricing, progress, risk_rules, span, strategies, users, virtual
 from engine.batch import ScreenReader
 from engine.worker import HEARTBEAT, next_screen_at
 from rpc_guard import InvalidParams, validate
@@ -429,6 +429,17 @@ def admin_set_override(_ctx: Ctx, target_id: int, feature: str, mode: str, month
     return permissions.set_override(_ctx.user_id, target_id, feature, mode, ip=_ctx.ip, months=months)
 
 
+def admin_prize_draws(_ctx: Ctx):
+    """Owner only: every prize-draw win with the winner's name and email, for KYC and payment
+    outside the app, and the seed and entrant count that let anyone re-check the draw."""
+    return prizes.admin_list()
+
+
+def admin_prize_mark(_ctx: Ctx, draw_id: int, status: str, note: str | None = None):
+    """Owner only: marks a prize-draw win pending_kyc, paid or void, with an optional note. Audited."""
+    return prizes.admin_mark(_ctx.user_id, draw_id, status, note, ip=_ctx.ip)
+
+
 def admin_get_settings(_ctx: Ctx):
     """Owner only: the app switches (such as auto_approve) with their values and descriptions."""
     return app_settings.all_settings()
@@ -617,6 +628,8 @@ USER_METHODS = {
     "habits_get": habits.get,
     "season_titles": leaderboard.titles,
     "cohort_get": cohort.get,
+    "prize_status": prizes.status,
+    "prize_opt_in": prizes.set_opt_in,
     "payout_news": capital.news,
     "va_place_stop": virtual.place_stop,
     "va_charges": rms.charges,
@@ -665,6 +678,8 @@ ADMIN_METHODS = {
     "admin_get_overrides": admin_get_overrides,
     "admin_set_override": admin_set_override,
     "admin_set_setting": admin_set_setting,
+    "admin_prize_draws": admin_prize_draws,
+    "admin_prize_mark": admin_prize_mark,
 }
 
 REQUIRES = {
@@ -677,6 +692,7 @@ REQUIRES = {
     "admin_get_settings": "owner", "admin_set_setting": "owner",
     "admin_set_brand_name": "owner", "admin_reset_logo": "owner", "admin_approve_final": "owner",
     "admin_get_overrides": "owner", "admin_set_override": "owner",
+    "admin_prize_draws": "owner", "admin_prize_mark": "owner",
     "broker_connect_url": "live_trading", "broker_exchange_token": "live_trading",
     "broker_preview_order": "live_trading", "broker_place_order": "live_trading",
     "va_set_autotrade": "autotrade", "va_autotrade_run_now": "autotrade",

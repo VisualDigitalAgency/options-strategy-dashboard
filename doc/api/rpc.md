@@ -4,7 +4,7 @@
 
 Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 
-92 methods: 15 public, 4 account, 7 market data, 48 user, 18 admin.
+96 methods: 15 public, 4 account, 7 market data, 50 user, 20 admin.
 
 ## Tiers
 
@@ -71,6 +71,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`habits_get`](#habits_get) | user | The streak and this week's challenge with live progress. |
 | [`season_titles`](#season_titles) | user | The months this user was a season champion, newest first: month and band name. |
 | [`cohort_get`](#cohort_get) | user | The caller's cohort: its week, size, how many are at each level, and how many are ahead. |
+| [`prize_status`](#prize_status) | user | For My progress: whether the draw runs, the caller's entry, the rules, and their wins. |
+| [`prize_opt_in`](#prize_opt_in) | user | Enters or leaves the monthly draw. |
 | [`payout_news`](#payout_news) | user | What has paid out since `since` (a clock this call returned earlier), for the payout toast (#192). |
 | [`va_place_stop`](#va_place_stop) | user | A stop-loss order to exit one open leg (#183): SL-M (trigger, then market) or SL (trigger, then a limit). |
 | [`va_charges`](#va_charges) | user | The account's square-off charges and shortfall penalties, newest first. |
@@ -112,6 +114,8 @@ Protocol, errors, CSRF, cookies and examples: [README.md](README.md).
 | [`admin_get_overrides`](#admin_get_overrides) | admin | Owner only: one account's per-user feature overrides (grant or deny). |
 | [`admin_set_override`](#admin_set_override) | admin | Owner only: grant or deny one feature for one account, or `clear` to go back to its role and level. |
 | [`admin_set_setting`](#admin_set_setting) | admin | Owner only: changes one app switch. |
+| [`admin_prize_draws`](#admin_prize_draws) | admin | Owner only: every prize-draw win with the winner's name and email, for KYC and payment outside the app, and the seed and entrant count that let anyone re-check the draw. |
+| [`admin_prize_mark`](#admin_prize_mark) | admin | Owner only: marks a prize-draw win pending_kyc, paid or void, with an optional note. |
 
 ## Parameter rules
 
@@ -710,6 +714,24 @@ No params.
 
 Set by the server, never by the client: `user_id`.
 
+### `prize_status`
+
+For My progress: whether the draw runs, the caller's entry, the rules, and their wins.
+
+No params.
+
+Set by the server, never by the client: `user_id`.
+
+### `prize_opt_in`
+
+Enters or leaves the monthly draw. Entering is refused while the draw is off.
+
+| Param | Type | Default |
+|---|---|---|
+| `opt_in` | `bool` | required |
+
+Set by the server, never by the client: `user_id`.
+
 ### `payout_news`
 
 What has paid out since `since` (a clock this call returned earlier), for the payout toast
@@ -1152,5 +1174,26 @@ Owner only: changes one app switch. Audited; applies at once.
 |---|---|---|
 | `key` | `str` | required |
 | `value` | `bool` | required |
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_prize_draws`
+
+Owner only: every prize-draw win with the winner's name and email, for KYC and payment
+outside the app, and the seed and entrant count that let anyone re-check the draw.
+
+No params.
+
+Set by the server, never by the client: `_ctx`.
+
+### `admin_prize_mark`
+
+Owner only: marks a prize-draw win pending_kyc, paid or void, with an optional note. Audited.
+
+| Param | Type | Default |
+|---|---|---|
+| `draw_id` | `int` | required |
+| `status` | `str` | required |
+| `note` | `str \| None` | `null` |
 
 Set by the server, never by the client: `_ctx`.

@@ -172,6 +172,12 @@ NUDGE_HOUR_IST = 8
 CHAMPION_DISCIPLINE = 80
 # Season champions get this many months of Pro (the screener) free, on top of any they hold.
 CHAMPION_PRO_MONTHS = 1
+# Monthly prize draw (off unless the owner's prize_draw setting is on): winners per month, the
+# prize in rupees, and TDS recorded on it (Income Tax Act s.194B). Entry: CHAMPION_DISCIPLINE and
+# leaderboard.MIN_TRADES legs in the month.
+PRIZE_WINNERS = 1
+PRIZE_RUPEES = 1000
+PRIZE_TDS_PCT = 30
 
 # End-of-day prices (data plan, PR A): NSE's F&O bhavcopy is fetched from this time (IST) on a
 # trading day, retried until it appears. Nothing prices from it until PR B.

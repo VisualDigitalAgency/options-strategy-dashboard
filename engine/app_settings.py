@@ -19,6 +19,9 @@ SETTINGS = {
     "reader_learn": (bool, True, "Reader (signed out): lessons. Quizzes always need an account."),
     "reader_progress": (bool, True, "Reader (signed out): the levels and what each unlocks, with a join prompt."),
     "reader_leaderboard": (bool, True, "Reader (signed out): the monthly leaderboard."),
+    # Off by default. Turn on only with a written legal opinion (doc/2026-10-03-prize-draw.md).
+    "prize_draw": (bool, False, "Monthly prize draw among disciplined players who opt in (random, never for "
+                                "returns). Needs a written legal opinion before you turn it on."),
     # Data plan B (#216): off until the owner has checked real files with scripts/check_eod.py.
     "eod_prices": (bool, False, "End-of-day prices: the virtual account prices from NSE's end-of-day file instead of "
                                 "the live feed. Orders fill at the next closing settlement; stops and exits run once a "
